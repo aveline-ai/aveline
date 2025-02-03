@@ -5,7 +5,7 @@ defmodule AvelineWeb.Auth do
   use AvelineWeb, :verified_routes
 
   alias Aveline.Account
-
+  alias Aveline.Config
   import Plug.Conn
 
   # Plugs
@@ -37,7 +37,7 @@ defmodule AvelineWeb.Auth do
     else
       conn
       |> Phoenix.Controller.put_flash(:error, "You must be logged in to access that page")
-      |> Phoenix.Controller.redirect(external: "https://aveline.ai")
+      |> Phoenix.Controller.redirect(external: Config.landing_page_url!())
       |> halt()
     end
   end
@@ -84,10 +84,10 @@ defmodule AvelineWeb.Auth do
   @doc """
   Logs a user out
   """
-  def logout(conn, %{redirect_to: redirect_to}) do
+  def logout(conn, redirect_opts) do
     conn
     |> configure_session(drop: true)
-    |> Phoenix.Controller.redirect(to: redirect_to)
+    |> Phoenix.Controller.redirect(redirect_opts)
     |> halt()
   end
 

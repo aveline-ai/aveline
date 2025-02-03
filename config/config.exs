@@ -9,7 +9,8 @@ import Config
 
 config :aveline,
   ecto_repos: [Aveline.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime],
+  landing_page_url: "https://aveline.ai"
 
 config :aveline, Aveline.Repo,
   migration_timestamps: [type: :utc_datetime],

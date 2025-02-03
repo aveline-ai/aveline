@@ -38,6 +38,8 @@ defmodule AvelineWeb.Router do
   scope "/", AvelineWeb do
     pipe_through [:browser, :plug_redirect_if_logged_out]
 
+    get "/logout", SessionController, :logout
+
     live "/", CounterLive
   end
 
