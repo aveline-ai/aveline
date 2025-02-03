@@ -10,7 +10,7 @@ defmodule AvelineWeb.SessionController do
       nil ->
         conn
         |> put_flash(:error, "Invalid login code.")
-        |> redirect(to: Config.landing_page_url!())
+        |> redirect(external: Config.landing_page_url!())
 
       user ->
         conn
