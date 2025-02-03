@@ -29,8 +29,7 @@ defmodule Aveline.IexHelpers do
     %User{}
     |> User.registration_changeset(%{
       email: "arie.milner@hey.com",
-      password: "password",
-      password_confirmation: "password"
+      local_timezone: "America/Los_Angeles"
     })
     |> Repo.insert()
   end
