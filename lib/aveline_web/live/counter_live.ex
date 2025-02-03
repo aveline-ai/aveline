@@ -2,6 +2,12 @@ defmodule AvelineWeb.CounterLive do
   use AvelineWeb, :live_view
 
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      IO.inspect("connected")
+    else
+      IO.inspect("disconnected")
+    end
+
     {:ok, assign(socket, count: 0)}
   end
 

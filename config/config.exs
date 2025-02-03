@@ -11,6 +11,8 @@ config :aveline,
   ecto_repos: [Aveline.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+config :aveline, Aveline.Repo, migration_timestamps: [type: :utc_datetime]
+
 # Configures the endpoint
 config :aveline, AvelineWeb.Endpoint,
   url: [host: "localhost"],
