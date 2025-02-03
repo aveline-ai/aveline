@@ -13,7 +13,7 @@ kill_signal = 'SIGTERM'
   release_command = '/app/bin/migrate'
 
 [env]
-  PHX_HOST = 'aveline.fly.dev'
+  PHX_HOST = 'app.aveline.ai'
   PORT = '8080'
 
 [http_service]
