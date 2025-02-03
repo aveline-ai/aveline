@@ -2,7 +2,7 @@ defmodule Aveline.Account.User do
   @moduledoc """
   The schema for the user model.
   """
-  use Ecto.Schema
+  use Aveline.Schema
   import Ecto.Changeset
 
   schema "users" do

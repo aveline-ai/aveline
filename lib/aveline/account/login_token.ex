@@ -2,7 +2,7 @@ defmodule Aveline.Account.LoginToken do
   @moduledoc """
   Schema for storing login tokens that can be used to authenticate users.
   """
-  use Ecto.Schema
+  use Aveline.Schema
   import Ecto.Changeset
 
   @rand_size 32
