@@ -1,18 +1,70 @@
 # Aveline
 
-To start your Phoenix server:
+Learn french with Aveline.
 
-  * Run `mix setup` to install and setup dependencies
-  * Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
+## Project Status
+
+Working on a basic prototype.
+
+## Development
+
+The project is developed with [Postgres](https://www.postgresql.org/), [Elixir](https://elixir-lang.org/),
+[Phoenix](https://www.phoenixframework.org/), and
+[LiveView](https://hexdocs.pm/phoenix_live_view/Phoenix.LiveView.html).
+
+### Setup
+
+  * Install correct Elixir/Erlang versions in `.tool_versions` with `asdf install`.
+  * Copy `.env-template` to `.env` and fill in environment variables. Then, `source .env` to set in shell.
+  * Install dependencies with `mix deps.get`
+  * Assuming you already have Postgres installed, create and migrate your database with `mix ecto.setup`.
+    * Check our `config/dev.exs` to see the expected username/password for your postgres user.
+  * Start Phoenix endpoint with `mix phx.server` or inside a REPL with `iex -S mix phx.server`
 
 Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
-Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
+### Tests
 
-## Learn more
+ * Run all tests with `mix test`
+ * Run a specific test with `mix test test/...exs`
+ * This project takes advantage of
+   [elixir doctests](https://elixir-lang.org/getting-started/mix-otp/docs-tests-and-with.html#doctests) which are an
+   easy way to write tests in documentation. Refer to [todo: example](https://github.com/amilner42/aveline) to see an
+   example.
 
-  * Official website: https://www.phoenixframework.org/
-  * Guides: https://hexdocs.pm/phoenix/overview.html
-  * Docs: https://hexdocs.pm/phoenix
-  * Forum: https://elixirforum.com/c/phoenix-forum
-  * Source: https://github.com/phoenixframework/phoenix
+### Production
+
+#### Deployment
+
+I deploy on [fly.io](fly.io). I mostly followed the simple instructions on the
+[Phoenix fly deploy guide](https://hexdocs.pm/phoenix/fly.html).
+
+Some helpful commands:
+
+ - `fly deploy`
+ - `fly status`
+ - `fly logs` (tail)
+
+ - `fly ssh console`
+   - Will require `fly ssh issue` first to get ssh certs
+   - Once you have a console, `app/bin/aveline remote` to open up IEX connected to the prod instance.
+   - As always `use Aveline.IexHelpers` is a helpful macro for getting all common imports.
+   - From there, you have a console to prod, eg: `Repo.all User`...
+
+#### Logging
+
+TODO
+
+#### Analytics
+
+##### Events
+
+TODO
+
+##### Client
+
+TODO
+
+#### Email
+
+TODO
