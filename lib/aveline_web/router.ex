@@ -25,6 +25,8 @@ defmodule AvelineWeb.Router do
   # Public routes (accessible to everyone)
   scope "/", AvelineWeb do
     pipe_through :browser
+
+    get "/ping", PageController, :ping
   end
 
   # Guest-only routes (redirect if logged in)

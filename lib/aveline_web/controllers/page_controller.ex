@@ -6,4 +6,8 @@ defmodule AvelineWeb.PageController do
     # so skip the default app layout.
     render(conn, :home, layout: false)
   end
+
+  def ping(conn, _params) do
+    text(conn, "pong")
+  end
 end
