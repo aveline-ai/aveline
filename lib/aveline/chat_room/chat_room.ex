@@ -22,7 +22,7 @@ defmodule Aveline.ChatRoom.ChatRoom do
 
   def changeset(chat_room, attrs) do
     chat_room
-    |> cast(attrs, [:name, :parent_chat_room_id])
+    |> cast(attrs, [:name, :parent_chat_room_id, :ai_settings])
     |> validate_required([:name])
   end
 end
