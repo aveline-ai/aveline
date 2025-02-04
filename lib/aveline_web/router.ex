@@ -5,7 +5,8 @@ defmodule AvelineWeb.Router do
     only: [
       plug_put_current_user_from_session: 2,
       plug_redirect_if_logged_out: 2,
-      plug_redirect_if_logged_in: 2
+      plug_redirect_if_logged_in: 2,
+      plug_redirect_if_not_admin: 2
     ]
 
   pipeline :browser do
@@ -42,7 +43,14 @@ defmodule AvelineWeb.Router do
 
     get "/logout", SessionController, :logout
 
-    live "/", CounterLive
+    live "/", HomeLive
+    live "/chat/:id", ChatRoomLive
+  end
+
+  scope "/admin" do
+    pipe_through [:browser, :plug_redirect_if_not_admin]
+
+    live "/counter", CounterLive
   end
 
   # Other scopes may use custom stacks.

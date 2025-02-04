@@ -5,10 +5,15 @@ defmodule Aveline.Account.User do
   use Aveline.Schema
   import Ecto.Changeset
 
+  alias Aveline.ChatRoom.ChatRoomMembership
+
   schema "users" do
     field :email, :string
     field :admin, :boolean
     field :local_timezone, :string
+
+    has_many :chat_room_memberships, ChatRoomMembership
+    has_many :chat_rooms, through: [:chat_room_memberships, :chat_room]
 
     timestamps()
   end
