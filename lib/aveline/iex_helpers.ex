@@ -17,7 +17,14 @@ defmodule Aveline.IexHelpers do
       import Aveline.IexHelpers
 
       alias Aveline.Account
+      alias Aveline.Account.LoginToken
+      alias Aveline.Account.User
+
       alias Aveline.ChatRoom
+      alias Aveline.ChatRoom.ChatRoom
+      alias Aveline.ChatRoom.ChatRoomMembership
+      alias Aveline.ChatRoom.Message
+
       alias Aveline.Repo
 
       :ok
