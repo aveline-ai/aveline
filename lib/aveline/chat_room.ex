@@ -9,8 +9,10 @@ defmodule Aveline.ChatRoom do
   alias Aveline.ChatRoom.Message
   alias Aveline.Repo
 
-  def get_chat_room(id) do
-    Repo.get(ChatRoom, id)
+  def get_chat_room(%{user_id: user_id, chat_room_id: id}) do
+    ChatRoom
+    |> user_chat_rooms_query(user_id)
+    |> Repo.get(id)
   end
 
   def get_messages(id) do
@@ -33,5 +35,13 @@ defmodule Aveline.ChatRoom do
     %Message{}
     |> Message.changeset(attrs)
     |> Repo.insert()
+  end
+
+  defp user_chat_rooms_query(query, user_id) do
+    from(cr in query,
+      join: crm in ChatRoomMembership,
+      on: cr.id == crm.chat_room_id,
+      where: crm.user_id == ^user_id
+    )
   end
 end
