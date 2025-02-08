@@ -51,6 +51,22 @@ Some helpful commands:
    - As always `use Aveline.IexHelpers` is a helpful macro for getting all common imports.
    - From there, you have a console to prod, eg: `Repo.all User`...
 
+#### Database
+
+You can access the prod DB by using a fly proxy:
+
+```bash
+fly proxy 5433:5432 -a aveline-db
+```
+
+And then you can open a connection to:
+
+* Host: 127.0.0.1
+* post: 5433
+* username: aveline
+* database: aveline
+* password: fetch by using `fly ssh console` & `echo $DATABASE_URL`.
+
 #### Logging
 
 TODO
