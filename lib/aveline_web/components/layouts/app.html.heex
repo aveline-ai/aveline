@@ -56,8 +56,49 @@
       </ul>
     </nav>
   </div>
+
+  <!-- Desktop Sidebar -->
+  <div class="hidden sm:flex flex-col fixed left-0 top-0 h-screen w-64 border-r border-border-secondary bg-white">
+    <div class="px-6 h-16 flex items-center border-b border-border-secondary">
+      <a href="/">
+        <img src={~p"/images/logo.svg"} width="38" />
+      </a>
+    </div>
+    <nav class="px-4 py-6">
+      <ul class="space-y-4">
+        <li>
+          <.link navigate="/"
+            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2">
+            <.icon name="hero-home" class="h-5 w-5" />
+            Home
+          </.link>
+        </li>
+        <li>
+          <.link navigate="/chat"
+            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2">
+            <.icon name="hero-chat-bubble-left-right" class="h-5 w-5" />
+            Chat
+          </.link>
+        </li>
+        <li>
+          <.link navigate="/learn"
+            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2">
+            <.icon name="hero-academic-cap" class="h-5 w-5" />
+            Learn
+          </.link>
+        </li>
+        <li>
+          <.link href="/logout"
+            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2">
+            <.icon name="hero-arrow-left-on-rectangle" class="h-5 w-5" />
+            Logout
+          </.link>
+        </li>
+      </ul>
+    </nav>
+  </div>
 </header>
-<main class="sm:px-0 px-4">
+<main class="sm:pl-64 sm:px-0 px-4">
   <div class="max-w-2xl">
     <.flash_group flash={@flash} />
     {@inner_content}
