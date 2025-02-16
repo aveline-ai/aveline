@@ -11,7 +11,7 @@ defmodule AvelineWeb.ChatLive do
   def render(assigns) do
     ~H"""
     <div>
-      TODO
+      <h1 class="text-2xl font-bold">Chat</h1>
     </div>
     """
   end
