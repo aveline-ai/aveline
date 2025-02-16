@@ -3,8 +3,11 @@
     <div class="flex items-center gap-2">
       <img src={~p"/images/logo.svg"} width="38" />
     </div>
-    <button type="button" class="text-text-secondary hover:text-text-primary" phx-click={JS.toggle(to: "#mobile-menu"
-      )}>
+    <button
+      type="button"
+      class="text-text-secondary hover:text-text-primary"
+      phx-click={JS.toggle(to: "#mobile-menu")}
+    >
       <.icon name="hero-bars-3" class="h-6 w-6" />
     </button>
   </div>
@@ -14,46 +17,53 @@
       <div class="flex items-center gap-2">
         <img src={~p"/images/logo.svg"} width="38" />
       </div>
-      <button type="button" class="text-text-secondary hover:text-text-primary" phx-click={JS.toggle(to: "#mobile-menu"
-        )}>
+      <button
+        type="button"
+        class="text-text-secondary hover:text-text-primary"
+        phx-click={JS.toggle(to: "#mobile-menu")}
+      >
         <.icon name="hero-x-mark" class="h-6 w-6" />
       </button>
     </div>
     <nav class="px-4 py-4 border-b border-border-secondary">
       <ul class="space-y-4">
         <li>
-          <.link navigate="/"
-            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2">
-            <.icon name="hero-home" class="h-5 w-5" />
-            Home
+          <.link
+            navigate="/"
+            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2"
+          >
+            <.icon name="hero-home" class="h-5 w-5" /> Home
           </.link>
         </li>
         <li>
-          <.link navigate="/chat"
-            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2">
-            <.icon name="hero-chat-bubble-left-right" class="h-5 w-5" />
-            Chat
+          <.link
+            navigate="/chat"
+            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2"
+          >
+            <.icon name="hero-chat-bubble-left-right" class="h-5 w-5" /> Chat
           </.link>
         </li>
         <li>
-          <.link navigate="/learn"
-            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2">
-            <.icon name="hero-academic-cap" class="h-5 w-5" />
-            Learn
+          <.link
+            navigate="/learn"
+            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2"
+          >
+            <.icon name="hero-academic-cap" class="h-5 w-5" /> Learn
           </.link>
         </li>
         <li>
-          <.link href="/logout"
-            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2">
-            <.icon name="hero-arrow-left-on-rectangle" class="h-5 w-5" />
-            Logout
+          <.link
+            href="/logout"
+            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2"
+          >
+            <.icon name="hero-arrow-left-on-rectangle" class="h-5 w-5" /> Logout
           </.link>
         </li>
       </ul>
     </nav>
   </div>
-
-  <!-- Desktop Sidebar -->
+  
+<!-- Desktop Sidebar -->
   <div class="hidden sm:flex flex-col fixed left-0 top-0 h-screen w-16 border-r border-border-secondary bg-white">
     <div class="px-4 h-16 flex items-center justify-center border-b border-border-secondary">
       <img src={~p"/images/logo.svg"} width="38" />
@@ -61,26 +71,34 @@
     <nav class="px-2 py-6">
       <ul class="space-y-4">
         <li>
-          <.link navigate="/"
-            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center justify-center">
+          <.link
+            navigate="/"
+            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center justify-center"
+          >
             <.icon name="hero-home" class="h-5 w-5" />
           </.link>
         </li>
         <li>
-          <.link navigate="/chat"
-            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center justify-center">
+          <.link
+            navigate="/chat"
+            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center justify-center"
+          >
             <.icon name="hero-chat-bubble-left-right" class="h-5 w-5" />
           </.link>
         </li>
         <li>
-          <.link navigate="/learn"
-            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center justify-center">
+          <.link
+            navigate="/learn"
+            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center justify-center"
+          >
             <.icon name="hero-academic-cap" class="h-5 w-5" />
           </.link>
         </li>
         <li>
-          <.link href="/logout"
-            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center justify-center">
+          <.link
+            href="/logout"
+            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center justify-center"
+          >
             <.icon name="hero-arrow-left-on-rectangle" class="h-5 w-5" />
           </.link>
         </li>
