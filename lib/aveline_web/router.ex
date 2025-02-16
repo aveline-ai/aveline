@@ -5,8 +5,7 @@ defmodule AvelineWeb.Router do
     only: [
       plug_put_current_user_from_session: 2,
       plug_redirect_if_logged_out: 2,
-      plug_redirect_if_logged_in: 2,
-      plug_redirect_if_not_admin: 2
+      plug_redirect_if_logged_in: 2
     ]
 
   pipeline :browser do

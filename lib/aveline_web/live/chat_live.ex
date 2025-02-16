@@ -1,9 +1,8 @@
 defmodule AvelineWeb.ChatLive do
   use AvelineWeb, :live_view
-  alias Aveline.ChatRoom
 
   @impl true
-  def mount(params, session, socket) do
+  def mount(_params, _session, socket) do
     {:ok, socket}
   end
 
