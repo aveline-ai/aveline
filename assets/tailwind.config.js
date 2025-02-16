@@ -36,7 +36,10 @@ module.exports = {
         border: {
           primary: "#D5D7DA",
           secondary: "#E9EAEB",
-          tertiary: "#F5F5F5"
+          tertiary: "#F5F5F5",
+        },
+        background: {
+          active: "#FAFAFA",
         }
       },
       fontFamily: {
