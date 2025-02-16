@@ -44,7 +44,7 @@ defmodule AvelineWeb.Router do
     get "/logout", SessionController, :logout
 
     live "/", HomeLive
-    live "/chat/:id", ChatRoomLive
+    live "/chat", ChatLive
   end
 
   scope "/admin" do
