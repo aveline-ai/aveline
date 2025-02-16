@@ -44,13 +44,12 @@ defmodule AvelineWeb.Router do
     get "/logout", SessionController, :logout
 
     live "/", HomeLive
-    live "/chat/:id", ChatRoomLive
+    live "/chat", ChatLive
+    live "/learn", LearnLive
   end
 
   scope "/admin" do
     pipe_through [:browser, :plug_redirect_if_not_admin]
-
-    live "/counter", CounterLive
   end
 
   # Other scopes may use custom stacks.

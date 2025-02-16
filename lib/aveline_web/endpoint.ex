@@ -22,7 +22,7 @@ defmodule AvelineWeb.Endpoint do
   plug Plug.Static,
     at: "/",
     from: :aveline,
-    gzip: false,
+    gzip: true,
     only: AvelineWeb.static_paths()
 
   # Code reloading can be explicitly enabled under the
