@@ -6,6 +6,7 @@ defmodule AvelineWeb.ChatRoomListComponent do
 
   attr :chat_rooms, :list, required: true
   attr :selected_chat_room_id, :string, default: nil
+  attr :default_desktop_chat_room_id, :string, default: nil
   attr :on_chat_room_click, :any, required: true
   attr :on_new_chat_room_click, :any, required: true
 
@@ -19,7 +20,8 @@ defmodule AvelineWeb.ChatRoomListComponent do
             phx-value-id={chat_room.id}
             class={[
               "w-full p-4 text-left hover:bg-gray-50",
-              @selected_chat_room_id == chat_room.id && "bg-gray-100"
+              @selected_chat_room_id == chat_room.id && "bg-gray-100",
+              !@selected_chat_room_id && @default_desktop_chat_room_id == chat_room.id && "lg:bg-gray-100"
             ]}
           >
             <div class="font-medium">{chat_room.name}</div>

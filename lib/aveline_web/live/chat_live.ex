@@ -53,6 +53,7 @@ defmodule AvelineWeb.ChatLive do
         <.chat_room_list
           chat_rooms={@chat_rooms}
           selected_chat_room_id={@selected_chat_room_id}
+          default_desktop_chat_room_id={@default_desktop_chat_room_id}
           on_chat_room_click="select_chat_room"
           on_new_chat_room_click="new_chat_room"
         />
@@ -65,7 +66,7 @@ defmodule AvelineWeb.ChatLive do
           @selected_chat_room_id && "block w-full"
         ]}
       >
-        <h1 class="text-2xl font-bold">Chat ID: {@selected_chat_room_id}</h1>
+        <h1 class="text-2xl font-bold">Chat ID: {@selected_chat_room_id || @default_desktop_chat_room_id}</h1>
       </div>
       <div :if={@making_new_chat_room} class="h-full flex-1">
         <h1 class="text-2xl font-bold">New Chat</h1>
