@@ -19,7 +19,7 @@ defmodule AvelineWeb.ChatLive do
   end
 
   @impl true
-  def handle_params(%{"id" => id}, uri, socket) do
+  def handle_params(%{"id" => id}, _uri, socket) do
     {:noreply,
      socket
      |> assign(selected_chat_room_id: id)
@@ -47,9 +47,8 @@ defmodule AvelineWeb.ChatLive do
     ~H"""
     <div class="flex h-full w-full">
       <div class={[
-        "border-r border-gray-200",
-        @selected_chat_room_id && "hidden lg:block lg:w-96",
-        !@selected_chat_room_id && "w-full lg:w-96"
+        "border-r border-gray-200 w-full lg:w-80 lg:block",
+        (@selected_chat_room_id || @making_new_chat_room) && "hidden"
       ]}>
         <.chat_room_list
           chat_rooms={@chat_rooms}
@@ -58,10 +57,17 @@ defmodule AvelineWeb.ChatLive do
           on_new_chat_room_click="new_chat_room"
         />
       </div>
-      <div :if={!@making_new_chat_room} class="hidden lg:block h-full flex-1">
+      <div
+        :if={!@making_new_chat_room}
+        class={[
+          "h-full flex-1",
+          !@selected_chat_room_id && "hidden lg:block",
+          @selected_chat_room_id && "block w-full"
+        ]}
+      >
         <h1 class="text-2xl font-bold">Chat ID: {@selected_chat_room_id}</h1>
       </div>
-      <div :if={@making_new_chat_room} class="hidden lg:block h-full flex-1">
+      <div :if={@making_new_chat_room} class="h-full flex-1">
         <h1 class="text-2xl font-bold">New Chat</h1>
       </div>
     </div>
