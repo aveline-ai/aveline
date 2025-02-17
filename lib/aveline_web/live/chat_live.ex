@@ -14,7 +14,32 @@ defmodule AvelineWeb.ChatLive do
      socket
      |> assign(chat_rooms: harcoded_chat_rooms)
      |> assign(selected_chat_room_id: nil)
+     |> assign(:making_new_chat_room, false)
      |> assign(default_desktop_chat_room_id: "1")}
+  end
+
+  @impl true
+  def handle_params(%{"id" => id}, uri, socket) do
+    {:noreply,
+     socket
+     |> assign(selected_chat_room_id: id)
+     |> assign(making_new_chat_room: false)}
+  end
+
+  def handle_params(_params, uri, socket) do
+    parsed_uri = URI.parse(uri)
+
+    if parsed_uri.path == ~p"/chat/new" do
+      {:noreply,
+       socket
+       |> assign(selected_chat_room_id: nil)
+       |> assign(making_new_chat_room: true)}
+    else
+      {:noreply,
+       socket
+       |> assign(selected_chat_room_id: nil)
+       |> assign(making_new_chat_room: false)}
+    end
   end
 
   @impl true
@@ -33,18 +58,31 @@ defmodule AvelineWeb.ChatLive do
           on_new_chat_room_click="new_chat_room"
         />
       </div>
-      <div class="hidden lg:block h-full flex-1">
-        <h1 class="text-2xl font-bold">Chat</h1>
+      <div :if={!@making_new_chat_room} class="hidden lg:block h-full flex-1">
+        <h1 class="text-2xl font-bold">Chat ID: {@selected_chat_room_id}</h1>
+      </div>
+      <div :if={@making_new_chat_room} class="hidden lg:block h-full flex-1">
+        <h1 class="text-2xl font-bold">New Chat</h1>
       </div>
     </div>
     """
   end
 
+  @impl true
   def handle_event("select_chat_room", %{"id" => id}, socket) do
-    {:noreply, socket |> assign(selected_chat_room_id: id)}
+    {:noreply,
+     push_patch(socket,
+       to: ~p"/chat/#{id}",
+       replace: false
+     )}
   end
 
+  @impl true
   def handle_event("new_chat_room", _params, socket) do
-    {:noreply, socket}
+    {:noreply,
+     push_patch(socket,
+       to: ~p"/chat/new",
+       replace: false
+     )}
   end
 end
