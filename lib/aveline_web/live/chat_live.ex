@@ -13,14 +13,19 @@ defmodule AvelineWeb.ChatLive do
     {:ok,
      socket
      |> assign(chat_rooms: harcoded_chat_rooms)
-     |> assign(selected_chat_room_id: nil)}
+     |> assign(selected_chat_room_id: nil)
+     |> assign(default_desktop_chat_room_id: "1")}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
     <div class="flex h-full w-full">
-      <div class="w-full lg:w-96 border-r border-gray-200">
+      <div class={[
+        "border-r border-gray-200",
+        @selected_chat_room_id && "hidden lg:block lg:w-96",
+        !@selected_chat_room_id && "w-full lg:w-96"
+      ]}>
         <.chat_room_list
           chat_rooms={@chat_rooms}
           selected_chat_room_id={@selected_chat_room_id}
