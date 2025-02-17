@@ -16,19 +16,26 @@ defmodule AvelineWeb.ChatRoomListComponent do
     <div class="flex flex-col h-full">
       <div class="overflow-y-auto flex-1">
         <%= for chat_room <- @chat_rooms do %>
-          <button
+          <div
             phx-click={@on_chat_room_click}
             phx-value-id={chat_room.id}
             class={[
-              "w-full p-4 text-left hover:bg-gray-50",
+              "flex flex-col gap-4 w-full p-4 text-left border-b border-border-secondary",
               @selected_chat_room_id == chat_room.id && "bg-gray-100",
               !@selected_chat_room_id && !@making_new_chat_room && @default_desktop_chat_room_id == chat_room.id &&
                 "lg:bg-gray-100"
             ]}
           >
-            <div class="font-medium">{chat_room.name}</div>
+            <div class="flex flex-col items-start">
+              <div class="font-medium text-sm">{chat_room.name}</div>
+              <div class="flex flex-row gap-1">
+                <div class="text-xs text-gray-500">badge 1</div>
+                <div class="text-xs text-gray-500">badge 2</div>
+              </div>
+            </div>
+
             <div class="text-sm text-gray-500">{chat_room.last_message}</div>
-          </button>
+          </div>
         <% end %>
       </div>
       <button phx-click={@on_new_chat_room_click} class="w-full p-4 text-left">

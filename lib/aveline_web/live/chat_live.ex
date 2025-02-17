@@ -5,7 +5,7 @@ defmodule AvelineWeb.ChatLive do
   @impl true
   def mount(_params, _session, socket) do
     harcoded_chat_rooms = [
-      %{id: "1", name: "Chat 1", last_message: "Hello, how are you?"},
+      %{id: "1", name: "Les Aventures du Jeune Lupin", last_message: "Hello, how are you?"},
       %{id: "2", name: "Chat 2", last_message: "Hello, how are you?"},
       %{id: "3", name: "Chat 3", last_message: "Hello, how are you?"}
     ]
@@ -47,7 +47,7 @@ defmodule AvelineWeb.ChatLive do
     ~H"""
     <div class="flex h-full w-full">
       <div class={[
-        "border-r border-gray-200 w-full lg:w-80 lg:block",
+        "border-r border-border-secondary w-full lg:w-80 lg:block",
         (@selected_chat_room_id || @making_new_chat_room) && "hidden"
       ]}>
         <.chat_room_list
