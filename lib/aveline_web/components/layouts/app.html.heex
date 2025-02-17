@@ -25,7 +25,7 @@
       <ul class="space-y-4">
         <li>
           <.link
-            navigate="/"
+            navigate={~p"/"}
             class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2"
           >
             <.icon name="hero-home" class="h-5 w-5" /> Home
@@ -33,7 +33,7 @@
         </li>
         <li>
           <.link
-            navigate="/chat"
+            navigate={~p"/chat"}
             class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2"
           >
             <.icon name="hero-chat-bubble-left-right" class="h-5 w-5" /> Chat
@@ -41,7 +41,7 @@
         </li>
         <li>
           <.link
-            navigate="/learn"
+            navigate={~p"/learn"}
             class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2"
           >
             <.icon name="hero-academic-cap" class="h-5 w-5" /> Learn
@@ -49,7 +49,7 @@
         </li>
         <li>
           <.link
-            href="/logout"
+            href={~p"/logout"}
             class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center gap-2"
           >
             <.icon name="hero-arrow-left-on-rectangle" class="h-5 w-5" /> Logout
@@ -61,44 +61,41 @@
   
 <!-- Desktop Sidebar -->
   <div class="hidden sm:flex flex-col fixed left-0 top-0 h-screen w-16 border-r border-border-secondary bg-white">
-    <div class="px-4 h-16 flex items-center justify-center border-b border-border-secondary">
+    <div class="px-4 h-16 flex items-center justify-center">
       <img src={~p"/images/logo.svg"} width="38" />
     </div>
-    <nav class="px-2 py-6">
-      <ul class="space-y-4">
-        <li>
-          <.link
-            navigate="/"
-            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center justify-center"
-          >
+    <nav class="px-2 pt-0 pb-4 h-full flex flex-col">
+      <ul class="">
+        <li class={[
+          "text-gray-500 py-3",
+          assigns.socket.view == AvelineWeb.HomeLive && "bg-background-active text-gray-700 rounded-lg"
+        ]}>
+          <.link navigate={~p"/"} class="text-lg font-medium flex items-center justify-center">
             <.icon name="hero-home" class="h-5 w-5" />
           </.link>
         </li>
-        <li>
-          <.link
-            navigate="/chat"
-            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center justify-center"
-          >
+        <li class={[
+          "text-gray-500 py-3",
+          assigns.socket.view == AvelineWeb.ChatLive && "bg-background-active text-gray-700 rounded-lg"
+        ]}>
+          <.link navigate={~p"/chat"} class="text-lg font-medium flex items-center justify-center">
             <.icon name="hero-chat-bubble-left-right" class="h-5 w-5" />
           </.link>
         </li>
-        <li>
-          <.link
-            navigate="/learn"
-            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center justify-center"
-          >
+        <li class={[
+          "text-gray-500 py-3",
+          assigns.socket.view == AvelineWeb.LearnLive && "bg-background-active text-gray-700 rounded-lg"
+        ]}>
+          <.link navigate={~p"/learn"} class="text-lg font-medium flex items-center justify-center">
             <.icon name="hero-academic-cap" class="h-5 w-5" />
           </.link>
         </li>
-        <li>
-          <.link
-            href="/logout"
-            class="text-lg font-medium text-text-primary hover:text-text-secondary flex items-center justify-center"
-          >
-            <.icon name="hero-arrow-left-on-rectangle" class="h-5 w-5" />
-          </.link>
-        </li>
       </ul>
+      <div class="mt-auto">
+        <.link href={~p"/logout"} class="text-lg text-gray-500 font-medium flex items-center justify-center">
+          <.icon name="hero-arrow-left-on-rectangle" class="h-5 w-5" />
+        </.link>
+      </div>
     </nav>
   </div>
 </header>
