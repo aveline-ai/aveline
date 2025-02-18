@@ -43,9 +43,13 @@ defmodule AvelineWeb.Router do
     get "/logout", SessionController, :logout
 
     live "/", HomeLive
-    live "/chat", ChatLive
-    live "/chat/new", ChatLive
-    live "/chat/:id", ChatLive
+
+    live_session :core_app_routes, on_mount: {AvelineWeb.InitAssigns, :user} do
+      live "/chat", ChatLive
+      live "/chat/new", ChatLive
+      live "/chat/:id", ChatLive
+    end
+
     live "/learn", LearnLive
   end
 

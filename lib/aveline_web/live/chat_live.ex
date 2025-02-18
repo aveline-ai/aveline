@@ -2,20 +2,21 @@ defmodule AvelineWeb.ChatLive do
   use AvelineWeb, :live_view
   import AvelineWeb.ChatRoomListComponent
 
+  alias Aveline.Chat
+
   @impl true
   def mount(_params, _session, socket) do
-    harcoded_chat_rooms = [
-      %{id: "1", name: "Les Aventures du Jeune Lupin", last_message: "Hello, how are you?"},
-      %{id: "2", name: "Chat 2", last_message: "Hello, how are you?"},
-      %{id: "3", name: "Chat 3", last_message: "Hello, how are you?"}
-    ]
+    current_user = socket.assigns.current_user
 
     {:ok,
      socket
-     |> assign(chat_rooms: harcoded_chat_rooms)
-     |> assign(selected_chat_room_id: nil)
+     |> stream_configure(:chat_rooms, [])
+     |> assign(:selected_chat_room_id, nil)
      |> assign(:making_new_chat_room, false)
-     |> assign(default_desktop_chat_room_id: "1")}
+     |> assign(:default_desktop_chat_room_id, "1")
+     |> assign_async(:chat_rooms, fn ->
+       {:ok, %{chat_rooms: Chat.get_chat_rooms_with_last_message(%{user_id: current_user.id})}}
+     end)}
   end
 
   @impl true
@@ -50,14 +51,18 @@ defmodule AvelineWeb.ChatLive do
         "border-r border-border-secondary w-full lg:w-80 lg:block",
         (@selected_chat_room_id || @making_new_chat_room) && "hidden"
       ]}>
-        <.chat_room_list
-          chat_rooms={@chat_rooms}
-          selected_chat_room_id={@selected_chat_room_id}
-          default_desktop_chat_room_id={@default_desktop_chat_room_id}
-          making_new_chat_room={@making_new_chat_room}
-          on_chat_room_click="select_chat_room"
-          on_new_chat_room_click="new_chat_room"
-        />
+        <.async_result :let={chat_rooms} assign={@chat_rooms}>
+          <:loading>Loading chat rooms...</:loading>
+          <:failed :let={_reason}>There was an error loading chat rooms</:failed>
+          <.chat_room_list
+            chat_rooms={chat_rooms}
+            selected_chat_room_id={@selected_chat_room_id}
+            default_desktop_chat_room_id={@default_desktop_chat_room_id}
+            making_new_chat_room={@making_new_chat_room}
+            on_chat_room_click="select_chat_room"
+            on_new_chat_room_click="new_chat_room"
+          />
+        </.async_result>
       </div>
       <div
         :if={!@making_new_chat_room}

@@ -19,7 +19,7 @@ defmodule Aveline.Chat.Message do
   def changeset(message, attrs) do
     message
     |> cast(attrs, [:content, :author_kind, :chat_room_id, :user_id])
-    |> validate_required([:content, :chat_room_id])
+    |> validate_required([:content, :chat_room_id, :author_kind])
     |> validate_inclusion(:author_kind, ["user", "ai"])
     |> validate_user_id_provided_for_user_messages()
   end
