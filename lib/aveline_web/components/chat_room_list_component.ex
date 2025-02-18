@@ -3,6 +3,7 @@ defmodule AvelineWeb.ChatRoomListComponent do
   This component is used to display a list of chat rooms.
   """
   use Phoenix.Component
+  import AvelineWeb.Ui.BadgeComponent, only: [badge_color_with_icon: 1]
 
   attr :chat_rooms, :list, required: true
   attr :selected_chat_room_id, :string, default: nil
@@ -26,11 +27,11 @@ defmodule AvelineWeb.ChatRoomListComponent do
                 "lg:bg-gray-100"
             ]}
           >
-            <div class="flex flex-col items-start">
+            <div class="flex flex-col items-start gap-1">
               <div class="font-medium text-sm">{chat_room.name}</div>
               <div class="flex flex-row gap-1">
-                <div class="text-xs text-gray-500">badge 1</div>
-                <div class="text-xs text-gray-500">badge 2</div>
+                <.badge_color_with_icon label="French" color="gray" icon="hero-language" />
+                <.badge_color_with_icon label="Book Buddy" color="orange" icon="hero-book-open" />
               </div>
             </div>
 
