@@ -1,9 +1,9 @@
-defmodule Aveline.ChatRoom.ChatRoomMembership do
+defmodule Aveline.Chat.ChatRoomMembership do
   @moduledoc "Schema for managing user memberships in chat rooms"
   use Aveline.Schema
   import Ecto.Changeset
   alias Aveline.Account.User
-  alias Aveline.ChatRoom.ChatRoom
+  alias Aveline.Chat.ChatRoom
 
   schema "chat_room_memberships" do
     belongs_to :chat_room, ChatRoom

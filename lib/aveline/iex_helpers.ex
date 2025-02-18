@@ -20,11 +20,13 @@ defmodule Aveline.IexHelpers do
       alias Aveline.Account.LoginToken
       alias Aveline.Account.User
 
-      alias Aveline.ChatRoom
-      alias Aveline.ChatRoom.ChatRoom
-      alias Aveline.ChatRoom.ChatRoomMembership
-      alias Aveline.ChatRoom.Message
+      alias Aveline.Chat
+      alias Aveline.Chat.ChatRoom
+      alias Aveline.Chat.ChatRoomMembership
+      alias Aveline.Chat.Message
 
+      alias Aveline.Enums.ChatRoomMode
+      alias Aveline.Enums.Language
       alias Aveline.Repo
 
       :ok

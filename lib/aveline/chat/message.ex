@@ -1,10 +1,10 @@
-defmodule Aveline.ChatRoom.Message do
+defmodule Aveline.Chat.Message do
   @moduledoc "Schema for chat room messages"
   use Aveline.Schema
   import Ecto.Changeset
 
   alias Aveline.Account.User
-  alias Aveline.ChatRoom.ChatRoom
+  alias Aveline.Chat.ChatRoom
 
   schema "messages" do
     field :content, :string
