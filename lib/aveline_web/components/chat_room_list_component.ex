@@ -5,6 +5,7 @@ defmodule AvelineWeb.ChatRoomListComponent do
   use Phoenix.Component
   import AvelineWeb.Ui.BadgeComponent, only: [badge_color_with_icon: 1]
   import AvelineWeb.Ui.IconButton, only: [icon_button: 1]
+
   attr :chat_rooms, :list, required: true
   attr :selected_chat_room_id, :string, default: nil
   attr :default_desktop_chat_room_id, :string, default: nil

@@ -25,6 +25,8 @@ defmodule Aveline.IexHelpers do
       alias Aveline.ChatRoom.ChatRoomMembership
       alias Aveline.ChatRoom.Message
 
+      alias Aveline.Enums.ChatRoomMode
+      alias Aveline.Enums.Language
       alias Aveline.Repo
 
       :ok
