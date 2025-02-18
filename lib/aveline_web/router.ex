@@ -44,6 +44,8 @@ defmodule AvelineWeb.Router do
 
     live "/", HomeLive
     live "/chat", ChatLive
+    live "/chat/new", ChatLive
+    live "/chat/:id", ChatLive
     live "/learn", LearnLive
   end
 
