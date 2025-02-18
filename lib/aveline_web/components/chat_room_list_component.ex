@@ -4,7 +4,7 @@ defmodule AvelineWeb.ChatRoomListComponent do
   """
   use Phoenix.Component
   import AvelineWeb.Ui.BadgeComponent, only: [badge_color_with_icon: 1]
-
+  import AvelineWeb.Ui.IconButton, only: [icon_button: 1]
   attr :chat_rooms, :list, required: true
   attr :selected_chat_room_id, :string, default: nil
   attr :default_desktop_chat_room_id, :string, default: nil
@@ -14,7 +14,7 @@ defmodule AvelineWeb.ChatRoomListComponent do
 
   def chat_room_list(assigns) do
     ~H"""
-    <div class="flex flex-col h-full">
+    <div class="relative flex flex-col h-full">
       <div class="overflow-y-auto flex-1">
         <%= for chat_room <- @chat_rooms do %>
           <div
@@ -39,9 +39,13 @@ defmodule AvelineWeb.ChatRoomListComponent do
           </div>
         <% end %>
       </div>
-      <button phx-click={@on_new_chat_room_click} class="w-full p-4 text-left">
-        <div class="font-medium">New Chat</div>
-      </button>
+
+      <.icon_button
+        icon="hero-pencil-square"
+        class="absolute bottom-4 right-4 p-3"
+        on_click={@on_new_chat_room_click}
+        hierarchy="primary"
+      />
     </div>
     """
   end
