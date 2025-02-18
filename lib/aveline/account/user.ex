@@ -5,7 +5,7 @@ defmodule Aveline.Account.User do
   use Aveline.Schema
   import Ecto.Changeset
 
-  alias Aveline.ChatRoom.ChatRoomMembership
+  alias Aveline.Chat.ChatRoomMembership
 
   schema "users" do
     field :email, :string

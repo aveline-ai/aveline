@@ -1,12 +1,12 @@
-defmodule Aveline.ChatRoom do
+defmodule Aveline.Chat do
   @moduledoc """
   The ChatRoom context handles chat room management, memberships, and messages.
   """
 
   import Ecto.Query
-  alias Aveline.ChatRoom.ChatRoom
-  alias Aveline.ChatRoom.ChatRoomMembership
-  alias Aveline.ChatRoom.Message
+  alias Aveline.Chat.ChatRoom
+  alias Aveline.Chat.ChatRoomMembership
+  alias Aveline.Chat.Message
   alias Aveline.Repo
 
   def get_chat_room(%{user_id: user_id, chat_room_id: id}) do
