@@ -11,6 +11,7 @@ defmodule Aveline.Account.User do
     field :email, :string
     field :admin, :boolean
     field :local_timezone, :string
+    field :display_name, :string
 
     has_many :chat_room_memberships, ChatRoomMembership
     has_many :chat_rooms, through: [:chat_room_memberships, :chat_room]
@@ -26,10 +27,10 @@ defmodule Aveline.Account.User do
   """
   def registration_changeset(user, attrs, opts \\ []) do
     user
-    |> cast(attrs, [:email, :local_timezone])
+    |> cast(attrs, [:email, :local_timezone, :display_name])
     |> change(admin: false)
     |> validate_email(opts)
-    |> validate_required([:admin, :local_timezone])
+    |> validate_required([:admin, :local_timezone, :display_name])
   end
 
   defp validate_email(changeset, opts) do
