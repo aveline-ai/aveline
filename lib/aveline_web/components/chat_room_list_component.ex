@@ -3,6 +3,11 @@ defmodule AvelineWeb.ChatRoomListComponent do
   This component is used to display a list of chat rooms.
   """
   use Phoenix.Component
+
+  require Aveline.Enums.ChatRoomMode
+  require Aveline.Enums.Language
+  require Aveline.Enums.AuthorKind
+
   import AvelineWeb.Ui.BadgeComponent, only: [badge_color_with_icon: 1]
   import AvelineWeb.Ui.IconButton, only: [icon_button: 1]
 
@@ -34,8 +39,16 @@ defmodule AvelineWeb.ChatRoomListComponent do
             <div class="flex flex-col items-start gap-1">
               <div class="font-medium text-sm">{chat_room.name}</div>
               <div class="flex flex-row gap-1">
-                <.badge_color_with_icon label="French" color="gray" icon="hero-language" />
-                <.badge_color_with_icon label="Book Buddy" color="orange" icon="hero-book-open" />
+                <.badge_color_with_icon
+                  label={badge_pretty_print!(chat_room.learning_language, :capitalize)}
+                  color="gray"
+                  icon="hero-language"
+                />
+                <.badge_color_with_icon
+                  label={badge_pretty_print!(chat_room.chat_room_mode, :capitalize)}
+                  color={get_chat_room_mode_badge_color_scheme(chat_room.chat_room_mode)}
+                  icon={get_chat_room_mode_badge_icon(chat_room.chat_room_mode)}
+                />
               </div>
             </div>
             <div class="text-sm text-text-tertiary">
@@ -66,4 +79,26 @@ defmodule AvelineWeb.ChatRoomListComponent do
     </div>
     """
   end
+
+  # Private
+
+  defp get_chat_room_mode_badge_color_scheme(chat_room_mode) do
+    case chat_room_mode do
+      Enums.ChatRoomMode.book_buddy() -> "orange"
+      Enums.ChatRoomMode.chat_companion() -> "blue-light"
+    end
+  end
+
+  defp badge_pretty_print!(Enums.ChatRoomMode.book_buddy(), :capitalize), do: "Book Buddy"
+  defp badge_pretty_print!(Enums.ChatRoomMode.chat_companion(), :capitalize), do: "Chat Companion"
+  defp badge_pretty_print!(Enums.Language.english(), :capitalize), do: "English"
+  defp badge_pretty_print!(Enums.Language.french(), :capitalize), do: "French"
+  defp badge_pretty_print!(Enums.Language.spanish(), :capitalize), do: "Spanish"
+  defp badge_pretty_print!(Enums.Language.german(), :capitalize), do: "German"
+  defp badge_pretty_print!(Enums.Language.italian(), :capitalize), do: "Italian"
+  defp badge_pretty_print!(Enums.Language.japanese(), :capitalize), do: "Japanese"
+  defp badge_pretty_print!(Enums.Language.korean(), :capitalize), do: "Korean"
+
+  defp get_chat_room_mode_badge_icon(Enums.ChatRoomMode.book_buddy()), do: "hero-book-open"
+  defp get_chat_room_mode_badge_icon(Enums.ChatRoomMode.chat_companion()), do: "hero-chat-bubble-left-right"
 end

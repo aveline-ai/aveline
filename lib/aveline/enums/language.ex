@@ -3,18 +3,18 @@ defmodule Aveline.Enums.Language do
   A wrapper around the languages we support.
   """
 
+  defmacro english, do: quote(do: :english)
+  defmacro french, do: quote(do: :french)
+  defmacro spanish, do: quote(do: :spanish)
+  defmacro german, do: quote(do: :german)
+  defmacro italian, do: quote(do: :italian)
+  defmacro japanese, do: quote(do: :japanese)
+  defmacro korean, do: quote(do: :korean)
+
   @doc """
   Returns a list of all supported languages.
   """
   def languages, do: [english(), french(), spanish(), german(), italian(), japanese(), korean()]
-
-  def english, do: :english
-  def french, do: :french
-  def spanish, do: :spanish
-  def german, do: :german
-  def italian, do: :italian
-  def japanese, do: :japanese
-  def korean, do: :korean
 
   @doc """
   Converts a string to a language atom.

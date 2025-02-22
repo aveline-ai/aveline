@@ -12,7 +12,6 @@ defmodule AvelineWeb.ChatLive do
     #  - Continue with the `async_async` below, we need to set the `default_desktop_chat_room_id` accordingly.
     #  - Maybe in handle params (?) we'll need to fetch the chat room with the `id` param (or the default)
     #  - Tidy up the loading screens which currently look terrible, just say "loading". Even blank would be better. Skeleton loader would be premo!
-    #  - Use those new fetched fields in the chat room list component to properly render the badges.
     #  - Close the PR! Move on the chat itself.
 
     {:ok,
