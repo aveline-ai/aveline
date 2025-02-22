@@ -6,6 +6,8 @@ defmodule AvelineWeb.ChatRoomListComponent do
   import AvelineWeb.Ui.BadgeComponent, only: [badge_color_with_icon: 1]
   import AvelineWeb.Ui.IconButton, only: [icon_button: 1]
 
+  alias Aveline.Enums
+
   attr :chat_rooms, :list, required: true
   attr :selected_chat_room_id, :string, default: nil
   attr :default_desktop_chat_room_id, :string, default: nil
@@ -46,7 +48,7 @@ defmodule AvelineWeb.ChatRoomListComponent do
                 </span>
                 <span>{chat_room.last_message}</span>
               </span>
-              <span :if={chat_room.last_message_author_kind == "ai"}>
+              <span :if={chat_room.last_message_author_kind == Enums.AuthorKind.ai()}>
                 <span class="font-bold">Aveline:</span>
                 <span>{chat_room.last_message}</span>
               </span>
