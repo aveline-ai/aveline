@@ -25,7 +25,8 @@ defmodule Aveline.Chat do
             select: %{
               content: m.content,
               author_kind: m.author_kind,
-              user_display_name: u.display_name
+              user_display_name: u.display_name,
+              user_id: u.id
             }
         ),
       on: true,
@@ -37,7 +38,8 @@ defmodule Aveline.Chat do
         chat_room_mode: cr.chat_room_mode,
         last_message: m.content,
         last_message_author_kind: m.author_kind,
-        last_message_user_display_name: m.user_display_name
+        last_message_user_display_name: m.user_display_name,
+        last_message_user_id: m.user_id
       }
     )
     |> Repo.all()

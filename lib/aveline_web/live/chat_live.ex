@@ -21,6 +21,7 @@ defmodule AvelineWeb.ChatLive do
      |> assign(:selected_chat_room_id, nil)
      |> assign(:making_new_chat_room, false)
      |> assign(:default_desktop_chat_room_id, "1")
+     |> assign(:current_user_id, current_user.id)
      |> assign_async(:chat_rooms, fn ->
        {:ok, %{chat_rooms: Chat.get_chat_rooms_with_last_message(%{user_id: current_user.id})}}
      end)}
@@ -66,6 +67,7 @@ defmodule AvelineWeb.ChatLive do
             selected_chat_room_id={@selected_chat_room_id}
             default_desktop_chat_room_id={@default_desktop_chat_room_id}
             making_new_chat_room={@making_new_chat_room}
+            current_user_id={@current_user_id}
             on_chat_room_click="select_chat_room"
             on_new_chat_room_click="new_chat_room"
           />

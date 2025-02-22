@@ -12,6 +12,7 @@ defmodule AvelineWeb.ChatRoomListComponent do
   attr :making_new_chat_room, :boolean, default: false
   attr :on_chat_room_click, :any, required: true
   attr :on_new_chat_room_click, :any, required: true
+  attr :current_user_id, :string, required: true
 
   def chat_room_list(assigns) do
     ~H"""
@@ -37,7 +38,12 @@ defmodule AvelineWeb.ChatRoomListComponent do
             </div>
             <div class="text-sm text-text-tertiary">
               <span :if={chat_room.last_message_author_kind == "user"}>
-                <span class="font-bold">{chat_room.last_message_user_display_name}:</span>
+                <span :if={chat_room.last_message_user_id == @current_user_id} class="font-bold">
+                  You:
+                </span>
+                <span :if={chat_room.last_message_user_id != @current_user_id} class="font-bold">
+                  {chat_room.last_message_user_display_name}:
+                </span>
                 <span>{chat_room.last_message}</span>
               </span>
               <span :if={chat_room.last_message_author_kind == "ai"}>
