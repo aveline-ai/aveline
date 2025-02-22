@@ -35,8 +35,16 @@ defmodule AvelineWeb.ChatRoomListComponent do
                 <.badge_color_with_icon label="Book Buddy" color="orange" icon="hero-book-open" />
               </div>
             </div>
-
-            <div class="text-sm text-gray-500">{chat_room.last_message}</div>
+            <div class="text-sm text-text-tertiary">
+              <span :if={chat_room.last_message_author_kind == "user"}>
+                <span class="font-bold">{chat_room.last_message_user_display_name}:</span>
+                <span>{chat_room.last_message}</span>
+              </span>
+              <span :if={chat_room.last_message_author_kind == "ai"}>
+                <span class="font-bold">Aveline:</span>
+                <span>{chat_room.last_message}</span>
+              </span>
+            </div>
           </div>
         <% end %>
       </div>

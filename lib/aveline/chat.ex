@@ -18,11 +18,15 @@ defmodule Aveline.Chat do
       left_lateral_join:
         m in subquery(
           from m in Message,
-            join: u in assoc(m, :user),
+            left_join: u in assoc(m, :user),
             where: m.chat_room_id == parent_as(:chat_room).id,
             order_by: [desc: :inserted_at],
             limit: 1,
-            select: %{content: m.content}
+            select: %{
+              content: m.content,
+              author_kind: m.author_kind,
+              user_display_name: u.display_name
+            }
         ),
       on: true,
       select: %{
@@ -31,7 +35,9 @@ defmodule Aveline.Chat do
         learning_language: cr.learning_language,
         base_language: cr.base_language,
         chat_room_mode: cr.chat_room_mode,
-        last_message: m.content
+        last_message: m.content,
+        last_message_author_kind: m.author_kind,
+        last_message_user_display_name: m.user_display_name
       }
     )
     |> Repo.all()

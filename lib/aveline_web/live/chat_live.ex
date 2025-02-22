@@ -9,8 +9,6 @@ defmodule AvelineWeb.ChatLive do
     current_user = socket.assigns.current_user
 
     # CONTINUE(Arie): I just wired up the SQL.
-    #  - Add `display_name` to user
-    #  - Fetch that in: get_chat_rooms_with_last_message
     #  - Continue with the `async_async` below, we need to set the `default_desktop_chat_room_id` accordingly.
     #  - Maybe in handle params (?) we'll need to fetch the chat room with the `id` param (or the default)
     #  - Tidy up the loading screens which currently look terrible, just say "loading". Even blank would be better. Skeleton loader would be premo!
