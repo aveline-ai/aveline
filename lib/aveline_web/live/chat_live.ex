@@ -1,9 +1,11 @@
 defmodule AvelineWeb.ChatLive do
   alias Phoenix.LiveView.AsyncResult
   use AvelineWeb, :live_view
+  require Aveline.Enums.AuthorKind
   import AvelineWeb.ChatRoomListComponent
-
+  import AvelineWeb.Ui.ChatMessageComponent
   alias Aveline.Chat
+  alias Aveline.Enums
 
   @impl true
   def mount(_params, _session, socket) do
@@ -125,11 +127,15 @@ defmodule AvelineWeb.ChatLive do
         <.async_result :let={active_chat_room} :if={!@making_new_chat_room} assign={@active_chat_room}>
           <:loading>Loading chat...</:loading>
           <:failed :let={_reason}>There was an error loading chat</:failed>
-          <h1 class="text-2xl font-bold">{active_chat_room.name}</h1>
+          <h1 class="text-2xl font-bold sm:hidden">{active_chat_room.name}</h1>
           <%!-- Stream messages --%>
-          <div id="message-container" phx-update="stream">
+          <div id="message-container" phx-update="stream" class="flex flex-col gap-4">
             <div :for={{dom_id, message} <- @streams.active_chat_room_messages} id={dom_id}>
-              {message.content}
+              <.chat_message
+                message={message.content}
+                author_display_name={get_chat_message_author_display_name(@current_user_id, message)}
+                color_scheme={get_chat_message_color_scheme(@current_user_id, message)}
+              />
             </div>
           </div>
         </.async_result>
@@ -161,9 +167,38 @@ defmodule AvelineWeb.ChatLive do
 
   # Private
 
+  ## Chat Room Helpers
+
   defp get_chatrooms_with_last_message_and_default_desktop_chatroom(user_id) do
     chat_rooms = Chat.get_chat_rooms_with_last_message(%{user_id: user_id})
     default_desktop_chat_room_id = chat_rooms |> List.first() |> Map.get(:id)
     {chat_rooms, default_desktop_chat_room_id}
+  end
+
+  ## Chat Message Helpers
+
+  defp get_chat_message_author_display_name(current_user_id, %{
+         user_id: user_id,
+         author_kind: author_kind,
+         user_display_name: user_display_name
+       }) do
+    cond do
+      user_id == current_user_id ->
+        "You"
+
+      author_kind == Enums.AuthorKind.user() ->
+        user_display_name
+
+      author_kind == Enums.AuthorKind.ai() ->
+        "Aveline"
+    end
+  end
+
+  defp get_chat_message_color_scheme(current_user_id, %{user_id: user_id}) do
+    if user_id == current_user_id do
+      "brand"
+    else
+      "gray"
+    end
   end
 end
