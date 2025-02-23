@@ -119,7 +119,7 @@ defmodule AvelineWeb.ChatLive do
       <div
         :if={!@making_new_chat_room}
         class={[
-          "h-full flex-1 bg-white px-6 pt-4",
+          "h-full flex flex-col justify-between bg-white px-6 pt-4",
           !@selected_chat_room_id && "hidden lg:block",
           @selected_chat_room_id && "block w-full"
         ]}
@@ -129,7 +129,7 @@ defmodule AvelineWeb.ChatLive do
           <:failed :let={_reason}>There was an error loading chat</:failed>
           <h1 class="text-2xl font-bold sm:hidden">{active_chat_room.name}</h1>
           <%!-- Stream messages --%>
-          <div id="message-container" phx-update="stream" class="flex flex-col gap-4">
+          <div id="message-container" phx-update="stream" class="flex flex-col gap-4 flex-1 overflow-y-auto">
             <div
               :for={{dom_id, message} <- @streams.active_chat_room_messages}
               id={dom_id}
@@ -141,6 +141,23 @@ defmodule AvelineWeb.ChatLive do
                 side={get_chat_message_side(@current_user_id, message.user_id)}
               />
             </div>
+          </div>
+          <div id="message-input-container" class="pb-4">
+            <form phx-submit="send_message" class="flex">
+              <textarea
+                type="text"
+                name="message"
+                class="flex-1 rounded-lg min-h-24 pr-16 border-gray-300 focus:border-gray-300 focus:ring-0 resize-y"
+                placeholder="Send a message"
+                autocomplete="off"
+              />
+              <button
+                type="submit"
+                class="absolute right-9 bottom-7 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700"
+              >
+                Send
+              </button>
+            </form>
           </div>
         </.async_result>
       </div>
