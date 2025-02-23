@@ -9,19 +9,13 @@ defmodule AvelineWeb.ChatLive do
   def mount(_params, _session, socket) do
     current_user = socket.assigns.current_user
 
-    # CONTINUE(Arie): I just wired up the SQL.
-    #  - Continue with the `async_async` below, we need to set the `default_desktop_chat_room_id` accordingly.
-    #  - Maybe in handle params (?) we'll need to fetch the chat room with the `id` param (or the default)
-    #  - Tidy up the loading screens which currently look terrible, just say "loading". Even blank would be better. Skeleton loader would be premo!
-    #  - Close the PR! Move on the chat itself.
-
     {:ok,
      socket
      |> assign(:selected_chat_room_id, nil)
      |> assign(:making_new_chat_room, false)
      |> assign(:current_user_id, current_user.id)
      |> assign(:chat_rooms, AsyncResult.loading())
-     |> assign(:active_chat, AsyncResult.loading())}
+     |> assign(:active_chat_room, AsyncResult.loading())}
   end
 
   @impl true
@@ -35,8 +29,8 @@ defmodule AvelineWeb.ChatLive do
      |> start_async(:get_chat_rooms, fn ->
        get_chatrooms_with_last_message_and_default_desktop_chatroom(current_user.id)
      end)
-     |> start_async(:get_active_chat, fn ->
-       Chat.get_chat_room(%{user_id: current_user.id, chat_room_id: id})
+     |> start_async(:get_active_chat_room_with_messages, fn ->
+       Chat.get_chat_room_with_messages(%{user_id: current_user.id, chat_room_id: id})
      end)}
   end
 
@@ -70,8 +64,8 @@ defmodule AvelineWeb.ChatLive do
     else
       {:noreply,
        socket
-       |> start_async(:get_active_chat, fn ->
-         Chat.get_chat_room(%{user_id: current_user.id, chat_room_id: default_desktop_chat_room_id})
+       |> start_async(:get_active_chat_room_with_messages, fn ->
+         Chat.get_chat_room_with_messages(%{user_id: current_user.id, chat_room_id: default_desktop_chat_room_id})
        end)}
     end
   end
@@ -83,15 +77,19 @@ defmodule AvelineWeb.ChatLive do
   end
 
   @impl true
-  def handle_async(:get_active_chat, {:ok, fetched_active_chat}, socket) do
-    %{active_chat: active_chat} = socket.assigns
-    {:noreply, socket |> assign(:active_chat, AsyncResult.ok(active_chat, fetched_active_chat))}
+  def handle_async(:get_active_chat_room_with_messages, {:ok, %{chat_room: chat_room, messages: messages}}, socket) do
+    %{active_chat_room: active_chat_room} = socket.assigns
+
+    {:noreply,
+     socket
+     |> assign(:active_chat_room, AsyncResult.ok(active_chat_room, chat_room))
+     |> stream(:active_chat_room_messages, messages, reset: true)}
   end
 
   @impl true
-  def handle_async(:get_active_chat, {:exit, reason}, socket) do
-    %{active_chat: active_chat} = socket.assigns
-    {:noreply, socket |> assign(:active_chat, AsyncResult.failed(active_chat, {:exit, reason}))}
+  def handle_async(:get_active_chat_room_with_messages, {:exit, reason}, socket) do
+    %{active_chat_room: active_chat_room} = socket.assigns
+    {:noreply, socket |> assign(:active_chat_room, AsyncResult.failed(active_chat_room, {:exit, reason}))}
   end
 
   @impl true
@@ -124,10 +122,16 @@ defmodule AvelineWeb.ChatLive do
           @selected_chat_room_id && "block w-full"
         ]}
       >
-        <.async_result :let={active_chat} :if={!@making_new_chat_room} assign={@active_chat}>
+        <.async_result :let={active_chat_room} :if={!@making_new_chat_room} assign={@active_chat_room}>
           <:loading>Loading chat...</:loading>
           <:failed :let={_reason}>There was an error loading chat</:failed>
-          <h1 class="text-2xl font-bold">{active_chat.name}</h1>
+          <h1 class="text-2xl font-bold">{active_chat_room.name}</h1>
+          <%!-- Stream messages --%>
+          <div id="message-container" phx-update="stream">
+            <div :for={{dom_id, message} <- @streams.active_chat_room_messages} id={dom_id}>
+              {message.content}
+            </div>
+          </div>
         </.async_result>
       </div>
       <div :if={@making_new_chat_room} class="h-full flex-1">

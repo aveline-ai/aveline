@@ -48,13 +48,26 @@ defmodule Aveline.Chat do
     |> Repo.all()
   end
 
-  def get_chat_room(%{user_id: user_id, chat_room_id: id}) do
-    from(cr in ChatRoom,
-      join: crm in ChatRoomMembership,
-      on: cr.id == crm.chat_room_id,
-      where: crm.user_id == ^user_id and cr.id == ^id
-    )
-    |> Repo.one()
+  def get_chat_room_with_messages(%{user_id: user_id, chat_room_id: id}) do
+    result =
+      [%{chat_room: chat_room} | _] =
+      from(cr in ChatRoom,
+        join: crm in ChatRoomMembership,
+        on: cr.id == crm.chat_room_id,
+        where: crm.user_id == ^user_id and cr.id == ^id,
+        join: m in Message,
+        on: m.chat_room_id == cr.id,
+        order_by: [desc: m.inserted_at],
+        select: %{
+          chat_room: %{name: cr.name},
+          message: m
+        }
+      )
+      |> Repo.all()
+
+    messages = result |> Enum.map(fn %{message: message} -> message end)
+
+    %{chat_room: chat_room, messages: messages}
   end
 
   def get_messages(id) do

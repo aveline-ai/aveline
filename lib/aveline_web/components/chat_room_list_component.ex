@@ -52,7 +52,7 @@ defmodule AvelineWeb.ChatRoomListComponent do
               </div>
             </div>
             <div class="text-sm text-text-tertiary">
-              <span :if={chat_room.last_message_author_kind == "user"}>
+              <span :if={chat_room.last_message_author_kind == Enums.AuthorKind.user()}>
                 <span :if={chat_room.last_message_user_id == @current_user_id} class="font-bold">
                   You:
                 </span>
