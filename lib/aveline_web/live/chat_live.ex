@@ -119,7 +119,7 @@ defmodule AvelineWeb.ChatLive do
       <div
         :if={!@making_new_chat_room}
         class={[
-          "h-full flex-1 bg-white pl-6",
+          "h-full flex-1 bg-white px-6 pt-4",
           !@selected_chat_room_id && "hidden lg:block",
           @selected_chat_room_id && "block w-full"
         ]}
@@ -130,7 +130,11 @@ defmodule AvelineWeb.ChatLive do
           <h1 class="text-2xl font-bold sm:hidden">{active_chat_room.name}</h1>
           <%!-- Stream messages --%>
           <div id="message-container" phx-update="stream" class="flex flex-col gap-4">
-            <div :for={{dom_id, message} <- @streams.active_chat_room_messages} id={dom_id}>
+            <div
+              :for={{dom_id, message} <- @streams.active_chat_room_messages}
+              id={dom_id}
+              class={"w-fit #{get_chat_message_self_alignment(@current_user_id, message.user_id)}"}
+            >
               <.chat_message
                 message={message.content}
                 author_display_name={get_chat_message_author_display_name(@current_user_id, message)}
@@ -194,11 +198,18 @@ defmodule AvelineWeb.ChatLive do
     end
   end
 
-  defp get_chat_message_side(current_user_id, user_id) do
-    if user_id == current_user_id do
+  defp get_chat_message_side(current_user_id, message_user_id) do
+    if message_user_id == current_user_id do
       "right"
     else
       "left"
+    end
+  end
+
+  defp get_chat_message_self_alignment(current_user_id, message_user_id) do
+    case get_chat_message_side(current_user_id, message_user_id) do
+      "right" -> "self-end"
+      "left" -> "self-start"
     end
   end
 end
