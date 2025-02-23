@@ -134,7 +134,7 @@ defmodule AvelineWeb.ChatLive do
               <.chat_message
                 message={message.content}
                 author_display_name={get_chat_message_author_display_name(@current_user_id, message)}
-                color_scheme={get_chat_message_color_scheme(@current_user_id, message)}
+                side={get_chat_message_side(@current_user_id, message.user_id)}
               />
             </div>
           </div>
@@ -194,11 +194,11 @@ defmodule AvelineWeb.ChatLive do
     end
   end
 
-  defp get_chat_message_color_scheme(current_user_id, %{user_id: user_id}) do
+  defp get_chat_message_side(current_user_id, user_id) do
     if user_id == current_user_id do
-      "brand"
+      "right"
     else
-      "gray"
+      "left"
     end
   end
 end
