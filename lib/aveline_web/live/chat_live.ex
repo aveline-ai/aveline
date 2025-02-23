@@ -117,7 +117,7 @@ defmodule AvelineWeb.ChatLive do
       <div
         :if={!@making_new_chat_room}
         class={[
-          "h-full flex-1 bg-gray-100",
+          "h-full flex-1 bg-white pl-6",
           !@selected_chat_room_id && "hidden lg:block",
           @selected_chat_room_id && "block w-full"
         ]}
