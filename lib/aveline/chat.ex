@@ -62,7 +62,7 @@ defmodule Aveline.Chat do
         on: m.user_id == u.id,
         order_by: [desc: m.inserted_at],
         select: %{
-          chat_room: %{name: cr.name},
+          chat_room: %{id: cr.id, name: cr.name},
           message: %{
             id: m.id,
             content: m.content,

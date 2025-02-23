@@ -1,7 +1,10 @@
-import autosize from './autosize.min.js'
+import autosize from 'autosize'
 
 export const AutosizeTextarea = {
   mounted() {
     autosize(this.el)
   },
+  destroyed() {
+    autosize.destroy(this.el)
+  }
 };

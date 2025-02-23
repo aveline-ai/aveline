@@ -146,7 +146,7 @@ defmodule AvelineWeb.ChatLive do
             <div id="message-input-container" class="pb-4">
               <form phx-submit="send_message" class="flex">
                 <textarea
-                  id="message-textarea"
+                  id={"message-textarea-#{active_chat_room.id}"}
                   type="text"
                   name="message"
                   class="flex-1 rounded-lg min-h-24 max-h-96 hide-desktop-scrollbar pr-16 border-gray-300 focus:border-gray-300 focus:ring-0 resize-y"
