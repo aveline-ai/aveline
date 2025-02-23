@@ -95,7 +95,7 @@ module.exports = {
           tertiary: "#F5F5F5",
         },
         background: {
-          active: "#FAFAFA",
+          active: "#FAFAFA"
         }
       },
       fontFamily: {

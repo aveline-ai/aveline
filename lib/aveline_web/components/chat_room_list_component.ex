@@ -31,9 +31,9 @@ defmodule AvelineWeb.ChatRoomListComponent do
             phx-value-id={chat_room.id}
             class={[
               "flex flex-col gap-4 w-full p-4 text-left border-b border-border-secondary",
-              @selected_chat_room_id == chat_room.id && "bg-gray-100",
+              @selected_chat_room_id == chat_room.id && "bg-background-active",
               !@selected_chat_room_id && !@making_new_chat_room && @default_desktop_chat_room_id == chat_room.id &&
-                "lg:bg-gray-100"
+                "lg:bg-background-active"
             ]}
           >
             <div class="flex flex-col items-start gap-1">
@@ -52,7 +52,7 @@ defmodule AvelineWeb.ChatRoomListComponent do
               </div>
             </div>
             <div class="text-sm text-text-tertiary">
-              <span :if={chat_room.last_message_author_kind == "user"}>
+              <span :if={chat_room.last_message_author_kind == Enums.AuthorKind.user()}>
                 <span :if={chat_room.last_message_user_id == @current_user_id} class="font-bold">
                   You:
                 </span>

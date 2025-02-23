@@ -1,19 +1,15 @@
 defmodule AvelineWeb.ChatLive do
   alias Phoenix.LiveView.AsyncResult
   use AvelineWeb, :live_view
+  require Aveline.Enums.AuthorKind
   import AvelineWeb.ChatRoomListComponent
-
+  import AvelineWeb.Ui.ChatMessageComponent
   alias Aveline.Chat
+  alias Aveline.Enums
 
   @impl true
   def mount(_params, _session, socket) do
     current_user = socket.assigns.current_user
-
-    # CONTINUE(Arie): I just wired up the SQL.
-    #  - Continue with the `async_async` below, we need to set the `default_desktop_chat_room_id` accordingly.
-    #  - Maybe in handle params (?) we'll need to fetch the chat room with the `id` param (or the default)
-    #  - Tidy up the loading screens which currently look terrible, just say "loading". Even blank would be better. Skeleton loader would be premo!
-    #  - Close the PR! Move on the chat itself.
 
     {:ok,
      socket
@@ -21,7 +17,7 @@ defmodule AvelineWeb.ChatLive do
      |> assign(:making_new_chat_room, false)
      |> assign(:current_user_id, current_user.id)
      |> assign(:chat_rooms, AsyncResult.loading())
-     |> assign(:active_chat, AsyncResult.loading())}
+     |> assign(:active_chat_room, AsyncResult.loading())}
   end
 
   @impl true
@@ -35,8 +31,8 @@ defmodule AvelineWeb.ChatLive do
      |> start_async(:get_chat_rooms, fn ->
        get_chatrooms_with_last_message_and_default_desktop_chatroom(current_user.id)
      end)
-     |> start_async(:get_active_chat, fn ->
-       Chat.get_chat_room(%{user_id: current_user.id, chat_room_id: id})
+     |> start_async(:get_active_chat_room_with_messages, fn ->
+       Chat.get_chat_room_with_messages(%{user_id: current_user.id, chat_room_id: id})
      end)}
   end
 
@@ -70,8 +66,8 @@ defmodule AvelineWeb.ChatLive do
     else
       {:noreply,
        socket
-       |> start_async(:get_active_chat, fn ->
-         Chat.get_chat_room(%{user_id: current_user.id, chat_room_id: default_desktop_chat_room_id})
+       |> start_async(:get_active_chat_room_with_messages, fn ->
+         Chat.get_chat_room_with_messages(%{user_id: current_user.id, chat_room_id: default_desktop_chat_room_id})
        end)}
     end
   end
@@ -83,15 +79,19 @@ defmodule AvelineWeb.ChatLive do
   end
 
   @impl true
-  def handle_async(:get_active_chat, {:ok, fetched_active_chat}, socket) do
-    %{active_chat: active_chat} = socket.assigns
-    {:noreply, socket |> assign(:active_chat, AsyncResult.ok(active_chat, fetched_active_chat))}
+  def handle_async(:get_active_chat_room_with_messages, {:ok, %{chat_room: chat_room, messages: messages}}, socket) do
+    %{active_chat_room: active_chat_room} = socket.assigns
+
+    {:noreply,
+     socket
+     |> assign(:active_chat_room, AsyncResult.ok(active_chat_room, chat_room))
+     |> stream(:active_chat_room_messages, messages, reset: true)}
   end
 
   @impl true
-  def handle_async(:get_active_chat, {:exit, reason}, socket) do
-    %{active_chat: active_chat} = socket.assigns
-    {:noreply, socket |> assign(:active_chat, AsyncResult.failed(active_chat, {:exit, reason}))}
+  def handle_async(:get_active_chat_room_with_messages, {:exit, reason}, socket) do
+    %{active_chat_room: active_chat_room} = socket.assigns
+    {:noreply, socket |> assign(:active_chat_room, AsyncResult.failed(active_chat_room, {:exit, reason}))}
   end
 
   @impl true
@@ -99,7 +99,7 @@ defmodule AvelineWeb.ChatLive do
     ~H"""
     <div class="flex h-full w-full">
       <div class={[
-        "border-r border-border-secondary w-full lg:w-80 lg:block",
+        "border-r border-border-secondary w-full lg:w-80 xl:w-96 lg:block",
         (@selected_chat_room_id || @making_new_chat_room) && "hidden"
       ]}>
         <.async_result :let={{chat_rooms, default_desktop_chat_room_id}} assign={@chat_rooms}>
@@ -119,15 +119,29 @@ defmodule AvelineWeb.ChatLive do
       <div
         :if={!@making_new_chat_room}
         class={[
-          "h-full flex-1",
+          "h-full flex-1 bg-white px-6 pt-4",
           !@selected_chat_room_id && "hidden lg:block",
           @selected_chat_room_id && "block w-full"
         ]}
       >
-        <.async_result :let={active_chat} :if={!@making_new_chat_room} assign={@active_chat}>
+        <.async_result :let={active_chat_room} :if={!@making_new_chat_room} assign={@active_chat_room}>
           <:loading>Loading chat...</:loading>
           <:failed :let={_reason}>There was an error loading chat</:failed>
-          <h1 class="text-2xl font-bold">{active_chat.name}</h1>
+          <h1 class="text-2xl font-bold sm:hidden">{active_chat_room.name}</h1>
+          <%!-- Stream messages --%>
+          <div id="message-container" phx-update="stream" class="flex flex-col gap-4">
+            <div
+              :for={{dom_id, message} <- @streams.active_chat_room_messages}
+              id={dom_id}
+              class={"w-fit #{get_chat_message_self_alignment(@current_user_id, message.user_id)}"}
+            >
+              <.chat_message
+                message={message.content}
+                author_display_name={get_chat_message_author_display_name(@current_user_id, message)}
+                side={get_chat_message_side(@current_user_id, message.user_id)}
+              />
+            </div>
+          </div>
         </.async_result>
       </div>
       <div :if={@making_new_chat_room} class="h-full flex-1">
@@ -157,9 +171,45 @@ defmodule AvelineWeb.ChatLive do
 
   # Private
 
+  ## Chat Room Helpers
+
   defp get_chatrooms_with_last_message_and_default_desktop_chatroom(user_id) do
     chat_rooms = Chat.get_chat_rooms_with_last_message(%{user_id: user_id})
     default_desktop_chat_room_id = chat_rooms |> List.first() |> Map.get(:id)
     {chat_rooms, default_desktop_chat_room_id}
+  end
+
+  ## Chat Message Helpers
+
+  defp get_chat_message_author_display_name(current_user_id, %{
+         user_id: user_id,
+         author_kind: author_kind,
+         user_display_name: user_display_name
+       }) do
+    cond do
+      user_id == current_user_id ->
+        "You"
+
+      author_kind == Enums.AuthorKind.user() ->
+        user_display_name
+
+      author_kind == Enums.AuthorKind.ai() ->
+        "Aveline"
+    end
+  end
+
+  defp get_chat_message_side(current_user_id, message_user_id) do
+    if message_user_id == current_user_id do
+      "right"
+    else
+      "left"
+    end
+  end
+
+  defp get_chat_message_self_alignment(current_user_id, message_user_id) do
+    case get_chat_message_side(current_user_id, message_user_id) do
+      "right" -> "self-end"
+      "left" -> "self-start"
+    end
   end
 end

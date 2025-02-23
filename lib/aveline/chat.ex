@@ -4,6 +4,7 @@ defmodule Aveline.Chat do
   """
 
   import Ecto.Query
+  alias Aveline.Account.User
   alias Aveline.Chat.ChatRoom
   alias Aveline.Chat.ChatRoomMembership
   alias Aveline.Chat.Message
@@ -48,13 +49,35 @@ defmodule Aveline.Chat do
     |> Repo.all()
   end
 
-  def get_chat_room(%{user_id: user_id, chat_room_id: id}) do
-    from(cr in ChatRoom,
-      join: crm in ChatRoomMembership,
-      on: cr.id == crm.chat_room_id,
-      where: crm.user_id == ^user_id and cr.id == ^id
-    )
-    |> Repo.one()
+  def get_chat_room_with_messages(%{user_id: user_id, chat_room_id: id}) do
+    result =
+      [%{chat_room: chat_room} | _] =
+      from(cr in ChatRoom,
+        join: crm in ChatRoomMembership,
+        on: cr.id == crm.chat_room_id,
+        where: crm.user_id == ^user_id and cr.id == ^id,
+        join: m in Message,
+        on: m.chat_room_id == cr.id,
+        left_join: u in User,
+        on: m.user_id == u.id,
+        order_by: [desc: m.inserted_at],
+        select: %{
+          chat_room: %{name: cr.name},
+          message: %{
+            id: m.id,
+            content: m.content,
+            author_kind: m.author_kind,
+            inserted_at: m.inserted_at,
+            user_display_name: u.display_name,
+            user_id: u.id
+          }
+        }
+      )
+      |> Repo.all()
+
+    messages = result |> Enum.map(fn %{message: message} -> message end)
+
+    %{chat_room: chat_room, messages: messages}
   end
 
   def get_messages(id) do
