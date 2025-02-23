@@ -99,7 +99,7 @@ defmodule AvelineWeb.ChatLive do
     ~H"""
     <div class="flex h-full w-full">
       <div class={[
-        "border-r border-border-secondary w-full lg:w-80 lg:block",
+        "border-r border-border-secondary w-full lg:w-80 xl:w-96 lg:block",
         (@selected_chat_room_id || @making_new_chat_room) && "hidden"
       ]}>
         <.async_result :let={{chat_rooms, default_desktop_chat_room_id}} assign={@chat_rooms}>
