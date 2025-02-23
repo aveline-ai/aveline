@@ -96,6 +96,7 @@ module.exports = {
         },
         background: {
           active: "#FAFAFA",
+          "active-light": "#F9F9F9",
         }
       },
       fontFamily: {
