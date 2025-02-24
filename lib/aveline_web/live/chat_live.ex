@@ -30,7 +30,6 @@ defmodule AvelineWeb.ChatLive do
     {:noreply,
      socket
      |> assign(chat_id_from_path: id)
-     |> assign(:active_chat_room_id, id)
      |> assign(:new_message_form, to_form(%{"message" => ""}))
      |> assign(making_new_chat_room: false)
      |> start_async(:get_chat_rooms, fn ->
@@ -108,6 +107,7 @@ defmodule AvelineWeb.ChatLive do
     {:noreply,
      socket
      |> assign(:active_chat_room, AsyncResult.ok(active_chat_room, chat_room))
+     |> assign(:active_chat_room_id, chat_room.id)
      |> stream(:active_chat_room_messages, messages, reset: true)}
   end
 
@@ -207,6 +207,7 @@ defmodule AvelineWeb.ChatLive do
   def handle_event("on_new_message_submit", _, socket) do
     new_message = socket.assigns.new_message_form[:message].value
     new_message_trimmed_length = new_message |> String.trim() |> String.length()
+    active_chat_room_id = socket.assigns.active_chat_room_id
 
     if new_message_trimmed_length == 0 do
       {:noreply, socket}
