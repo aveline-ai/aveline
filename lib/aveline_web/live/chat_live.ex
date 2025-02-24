@@ -9,14 +9,11 @@ defmodule AvelineWeb.ChatLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    current_user = socket.assigns.current_user
-
     {:ok,
      socket
      |> assign(:chat_id_from_path, nil)
      |> assign(:active_chat_room_id, nil)
      |> assign(:making_new_chat_room, false)
-     |> assign(:current_user_id, current_user.id)
      |> assign(:chat_rooms, AsyncResult.loading())
      |> assign(:active_chat_room, AsyncResult.loading())
      |> assign(:new_message_form, to_form(%{"message" => ""}))
@@ -132,7 +129,7 @@ defmodule AvelineWeb.ChatLive do
             chat_rooms={chat_rooms}
             active_chat_room_id={@active_chat_room_id}
             making_new_chat_room={@making_new_chat_room}
-            current_user_id={@current_user_id}
+            current_user_id={@current_user.id}
             on_chat_room_click="select_chat_room"
             on_new_chat_room_click="new_chat_room"
           />
@@ -156,12 +153,12 @@ defmodule AvelineWeb.ChatLive do
               <div
                 :for={{dom_id, message} <- @streams.active_chat_room_messages}
                 id={dom_id}
-                class={"w-fit #{get_chat_message_self_alignment(@current_user_id, message.user_id)}"}
+                class={"w-fit #{get_chat_message_self_alignment(@current_user.id, message.user_id)}"}
               >
                 <.chat_message
                   message={message.content}
-                  author_display_name={get_chat_message_author_display_name(@current_user_id, message)}
-                  side={get_chat_message_side(@current_user_id, message.user_id)}
+                  author_display_name={get_chat_message_author_display_name(@current_user.id, message)}
+                  side={get_chat_message_side(@current_user.id, message.user_id)}
                 />
               </div>
             </div>
@@ -205,17 +202,38 @@ defmodule AvelineWeb.ChatLive do
 
   @impl true
   def handle_event("on_new_message_submit", _, socket) do
-    new_message = socket.assigns.new_message_form[:message].value
+    %{
+      current_user: current_user,
+      active_chat_room_id: active_chat_room_id,
+      new_message_form: new_message_form
+    } = socket.assigns
+
+    new_message = new_message_form[:message].value
     new_message_trimmed_length = new_message |> String.trim() |> String.length()
-    active_chat_room_id = socket.assigns.active_chat_room_id
 
     if new_message_trimmed_length == 0 do
       {:noreply, socket}
     else
+      {:ok, message} =
+        Chat.insert_chat_message_for_user(
+          %{user_id: current_user.id, chat_room_id: active_chat_room_id},
+          new_message
+        )
+
+      message_to_insert_into_stream = %{
+        id: message.id,
+        content: message.content,
+        author_kind: message.author_kind,
+        user_id: message.user_id,
+        user_display_name: current_user.display_name,
+        inserted_at: message.inserted_at
+      }
+
       {:noreply,
        socket
        |> assign(:new_message_counter, socket.assigns.new_message_counter + 1)
-       |> assign(:new_message_form, to_form(%{"message" => ""}))}
+       |> assign(:new_message_form, to_form(%{"message" => ""}))
+       |> stream_insert(:active_chat_room_messages, message_to_insert_into_stream)}
     end
   end
 

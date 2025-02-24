@@ -60,7 +60,7 @@ defmodule Aveline.Chat do
         on: m.chat_room_id == cr.id,
         left_join: u in User,
         on: m.user_id == u.id,
-        order_by: [desc: m.inserted_at],
+        order_by: [asc: m.inserted_at],
         select: %{
           chat_room: %{id: cr.id, name: cr.name},
           message: %{
@@ -80,6 +80,11 @@ defmodule Aveline.Chat do
     %{chat_room: chat_room, messages: messages}
   end
 
+  def insert_chat_message_for_user(%{user_id: user_id, chat_room_id: chat_room_id}, content) do
+    Message.new_message_for_user_id_changeset(%{user_id: user_id, chat_room_id: chat_room_id}, content)
+    |> Repo.insert()
+  end
+
   def get_messages(id) do
     Repo.all(from m in Message, where: m.chat_room_id == ^id, order_by: [asc: :inserted_at])
   end
@@ -93,12 +98,6 @@ defmodule Aveline.Chat do
   def create_chat_room_membership(attrs) do
     %ChatRoomMembership{}
     |> ChatRoomMembership.changeset(attrs)
-    |> Repo.insert()
-  end
-
-  def create_message(attrs) do
-    %Message{}
-    |> Message.changeset(attrs)
     |> Repo.insert()
   end
 end
