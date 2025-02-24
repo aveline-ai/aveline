@@ -11,6 +11,13 @@ export const ClearableAutosizingTextarea = {
         this.el.focus();
       }, 100);
     })
+    this.handleEvent("set-value", (event) => {
+      this.el.value = event.value;
+      autosize.update(this.el);
+      setTimeout(() => {
+        this.el.focus();
+      }, 100);
+    })
   },
   destroyed() {
     autosize.destroy(this.el)

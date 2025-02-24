@@ -179,7 +179,33 @@ defmodule AvelineWeb.ChatLive do
         <h1 class="text-2xl font-bold">New Chat</h1>
       </div>
     </div>
+    <%!-- Hidden form to recover the new message. Form above doesn't work because it's inside an async_result. --%>
+    <.form
+      id="hidden-new-message-form"
+      phx-change="on_new_message_change"
+      phx-auto-recover="recover"
+      for={@new_message_form}
+      class="hidden"
+    >
+      <textarea id="hidden-new-message-textarea" type="text" name="message" autocomplete="off">{Phoenix.HTML.Form.normalize_value("textarea", @new_message_form[:message].value)}</textarea>
+    </.form>
     """
+  end
+
+  def handle_event("recover", params, socket) do
+    message = params["message"]
+
+    if(message) do
+      {:noreply,
+       socket
+       |> assign(:new_message_form, to_form(%{"message" => message}))
+       |> push_event("set-value", %{value: message})}
+    else
+      {:noreply,
+       socket
+       |> assign(:new_message_form, to_form(%{"message" => ""}))
+       |> push_event("clear-value", %{})}
+    end
   end
 
   @impl true
@@ -189,7 +215,7 @@ defmodule AvelineWeb.ChatLive do
 
   @impl true
   def handle_event("on_new_message_change", %{"message" => message}, socket) do
-    {:noreply, socket |> assign(:new_message_form, to_form(%{"message" => "#{message} asdf"}))}
+    {:noreply, socket |> assign(:new_message_form, to_form(%{"message" => message}))}
   end
 
   @impl true
