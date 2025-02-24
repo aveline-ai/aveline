@@ -170,7 +170,6 @@ defmodule AvelineWeb.ChatLive do
               id={"new-message-form-#{@chat_id_from_path}"}
               phx-submit="on_new_message_submit"
               phx-change="on_new_message_change"
-              phx-window-keydown="on_new_message_window_keydown"
               for={@new_message_form}
               class="flex"
             >
@@ -182,12 +181,12 @@ defmodule AvelineWeb.ChatLive do
                 placeholder="Send a message"
                 autocomplete="off"
                 phx-update="ignore"
-                phx-hook="ClearableAutosizingTextarea"
+                phx-hook="EnhancedTextarea"
                 autofocus
               >{Phoenix.HTML.Form.normalize_value("textarea", @new_message_form[:message].value)}</textarea>
               <button
                 type="submit"
-                class="absolute right-9 bottom-7 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700"
+                class="absolute right-9 bottom-7 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Send
               </button>
@@ -210,15 +209,6 @@ defmodule AvelineWeb.ChatLive do
   @impl true
   def handle_event("on_new_message_change", %{"message" => message}, socket) do
     {:noreply, socket |> assign(:new_message_form, to_form(%{"message" => message}))}
-  end
-
-  @impl true
-  def handle_event("on_new_message_window_keydown", event, socket) do
-    if event["key"] == "Enter" && event["metaKey"] do
-      {:noreply, handle_submit_new_message(socket)}
-    else
-      {:noreply, socket}
-    end
   end
 
   @impl true

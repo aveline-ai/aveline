@@ -1,6 +1,6 @@
 import autosize from './autosize.min.js'
 
-export const ClearableAutosizingTextarea = {
+export const EnhancedTextarea = {
   mounted() {
     autosize(this.el)
     this.handleEvent("clear-value", () => {
@@ -10,14 +10,20 @@ export const ClearableAutosizingTextarea = {
       setTimeout(() => {
         this.el.focus();
       }, 100);
-    })
+    });
     this.handleEvent("set-value", (event) => {
       this.el.value = event.value;
       autosize.update(this.el);
       setTimeout(() => {
         this.el.focus();
       }, 100);
-    })
+    });
+    // Event listener for Command+Enter to submit the form
+    this.el.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && event.metaKey) {
+        this.el.form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}));
+      }
+    });
   },
   destroyed() {
     autosize.destroy(this.el)

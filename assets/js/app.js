@@ -20,30 +20,15 @@ import "phoenix_html"
 // Establish Phoenix Socket and LiveView configuration.
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
-import {ClearableAutosizingTextarea} from "./hooks"
+import {EnhancedTextarea} from "./hooks"
 import topbar from "../vendor/topbar"
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: { ClearableAutosizingTextarea },
-  metadata: {
-    keydown: (event) => {
-      console.log("KEYDOWN", event)
-      return {
-        key: event.key,
-        shiftKey: event.shiftKey,
-        metaKey: event.metaKey,
-        altKey: event.altKey,
-        ctrlKey: event.ctrlKey,
-        code: event.code,
-        keyCode: event.keyCode,
-        which: event.which,
-      }
-    }
-  }
-})
+  hooks: { EnhancedTextarea }
+});
 
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
