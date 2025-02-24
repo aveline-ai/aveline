@@ -19,7 +19,8 @@ defmodule AvelineWeb.ChatLive do
      |> assign(:current_user_id, current_user.id)
      |> assign(:chat_rooms, AsyncResult.loading())
      |> assign(:active_chat_room, AsyncResult.loading())
-     |> assign(:new_message_form, to_form(%{"message" => ""}))}
+     |> assign(:new_message_form, to_form(%{"message" => ""}))
+     |> assign(:new_message_counter, 0)}
   end
 
   @impl true
@@ -174,10 +175,10 @@ defmodule AvelineWeb.ChatLive do
               class="flex"
             >
               <textarea
-                id={"new-message-textarea-#{@chat_id_from_path}"}
+                id={"new-message-textarea-#{@chat_id_from_path}-#{@new_message_counter}"}
                 type="text"
                 name="message"
-                class="flex-1 rounded-lg min-h-24 max-h-96 hide-desktop-scrollbar pr-16 border-gray-300 focus:border-gray-300 focus:ring-0 resize-y"
+                class="flex-1 rounded-lg min-h-24 max-h-96 hide-desktop-scrollbar pr-16 border-gray-300 focus:border-gray-300 focus:ring-0 resize-y disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="Send a message"
                 autocomplete="off"
                 phx-update="ignore"
@@ -186,6 +187,7 @@ defmodule AvelineWeb.ChatLive do
               >{Phoenix.HTML.Form.normalize_value("textarea", @new_message_form[:message].value)}</textarea>
               <button
                 type="submit"
+                disabled={@new_message_form[:message].value == ""}
                 class="absolute right-9 bottom-7 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Send
@@ -202,8 +204,18 @@ defmodule AvelineWeb.ChatLive do
   end
 
   @impl true
-  def handle_event("on_new_message_submit", %{"message" => message}, socket) do
-    {:noreply, handle_submit_new_message(socket)}
+  def handle_event("on_new_message_submit", _, socket) do
+    new_message = socket.assigns.new_message_form[:message].value
+    new_message_trimmed_length = new_message |> String.trim() |> String.length()
+
+    if new_message_trimmed_length == 0 do
+      {:noreply, socket}
+    else
+      {:noreply,
+       socket
+       |> assign(:new_message_counter, socket.assigns.new_message_counter + 1)
+       |> assign(:new_message_form, to_form(%{"message" => ""}))}
+    end
   end
 
   @impl true
@@ -230,14 +242,6 @@ defmodule AvelineWeb.ChatLive do
   end
 
   # Private
-
-  ## Reusable Socket Helpers
-
-  defp handle_submit_new_message(socket) do
-    socket
-    |> assign(:new_message_form, to_form(%{"message" => ""}))
-    |> push_event("clear-value", %{})
-  end
 
   ## Chat Message Helpers
 

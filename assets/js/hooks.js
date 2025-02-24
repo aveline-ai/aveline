@@ -2,6 +2,19 @@ import autosize from './autosize.min.js'
 
 export const EnhancedTextarea = {
   mounted() {
+    this.el.focus();
+    this.el.form.addEventListener("submit", (event) => {
+      const newMessage = this.el.value;
+      const newMessageTrimmedLength = newMessage.trim().length;
+
+      if (newMessageTrimmedLength === 0) {
+        event.preventDefault();
+        return false;
+      }
+
+      this.el.disabled = true;
+      return true;
+    });
     autosize(this.el)
     this.handleEvent("clear-value", () => {
       this.el.value = "";
