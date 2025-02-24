@@ -149,6 +149,7 @@ defmodule AvelineWeb.ChatLive do
                 id="new-message-form"
                 phx-submit="on_new_message_submit"
                 phx-change="on_new_message_change"
+                phx-window-keydown="on_new_message_window_keydown"
                 for={@new_message_form}
                 class="flex"
               >
@@ -183,15 +184,21 @@ defmodule AvelineWeb.ChatLive do
 
   @impl true
   def handle_event("on_new_message_submit", %{"message" => message}, socket) do
-    {:noreply,
-     socket
-     |> assign(:new_message_form, to_form(%{"message" => ""}))
-     |> push_event("clear-value", %{})}
+    {:noreply, handle_submit_new_message(socket)}
   end
 
   @impl true
   def handle_event("on_new_message_change", %{"message" => message}, socket) do
     {:noreply, socket |> assign(:new_message_form, to_form(%{"message" => "#{message} asdf"}))}
+  end
+
+  @impl true
+  def handle_event("on_new_message_window_keydown", event, socket) do
+    if event["key"] == "Enter" && event["metaKey"] do
+      {:noreply, handle_submit_new_message(socket)}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -213,6 +220,14 @@ defmodule AvelineWeb.ChatLive do
   end
 
   # Private
+
+  ## Reusable Socket Helpers
+
+  defp handle_submit_new_message(socket) do
+    socket
+    |> assign(:new_message_form, to_form(%{"message" => ""}))
+    |> push_event("clear-value", %{})
+  end
 
   ## Chat Room Helpers
 
