@@ -14,8 +14,7 @@ defmodule AvelineWeb.ChatRoomListComponent do
   alias Aveline.Enums
 
   attr :chat_rooms, :list, required: true
-  attr :selected_chat_room_id, :string, default: nil
-  attr :default_desktop_chat_room_id, :string, default: nil
+  attr :active_chat_room_id, :string, default: nil
   attr :making_new_chat_room, :boolean, default: false
   attr :on_chat_room_click, :any, required: true
   attr :on_new_chat_room_click, :any, required: true
@@ -31,9 +30,7 @@ defmodule AvelineWeb.ChatRoomListComponent do
             phx-value-id={chat_room.id}
             class={[
               "flex flex-col gap-4 w-full p-4 text-left border-b border-border-secondary",
-              @selected_chat_room_id == chat_room.id && "bg-background-active",
-              !@selected_chat_room_id && !@making_new_chat_room && @default_desktop_chat_room_id == chat_room.id &&
-                "lg:bg-background-active"
+              @active_chat_room_id == chat_room.id && "lg:bg-background-active"
             ]}
           >
             <div class="flex flex-col items-start gap-1">

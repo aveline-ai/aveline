@@ -13,7 +13,8 @@ defmodule AvelineWeb.ChatLive do
 
     {:ok,
      socket
-     |> assign(:selected_chat_room_id, nil)
+     |> assign(:chat_id_from_path, nil)
+     |> assign(:active_chat_room_id, nil)
      |> assign(:making_new_chat_room, false)
      |> assign(:current_user_id, current_user.id)
      |> assign(:chat_rooms, AsyncResult.loading())
@@ -27,11 +28,12 @@ defmodule AvelineWeb.ChatLive do
 
     {:noreply,
      socket
-     |> assign(selected_chat_room_id: id)
+     |> assign(chat_id_from_path: id)
+     |> assign(:active_chat_room_id, id)
      |> assign(:new_message_form, to_form(%{"message" => ""}))
      |> assign(making_new_chat_room: false)
      |> start_async(:get_chat_rooms, fn ->
-       get_chatrooms_with_last_message_and_default_desktop_chatroom(current_user.id)
+       Chat.get_chat_rooms_with_last_message_for_user(current_user.id)
      end)
      |> start_async(:get_active_chat_room_with_messages, fn ->
        Chat.get_chat_room_with_messages_for_user(current_user.id, %{chat_room_id: id})
@@ -47,36 +49,53 @@ defmodule AvelineWeb.ChatLive do
 
     {:noreply,
      socket
-     |> assign(selected_chat_room_id: nil)
      |> assign(:new_message_form, to_form(%{"message" => ""}))
+     |> assign(:chat_id_from_path, nil)
      |> assign(making_new_chat_room: making_new_chat_room)
-     |> start_async(:get_chat_rooms, fn ->
-       get_chatrooms_with_last_message_and_default_desktop_chatroom(current_user.id)
+     |> start_async(:get_chat_rooms_and_set_active_chat_room_id_to_default_desktop_chatroom, fn ->
+       Chat.get_chat_rooms_with_last_message_for_user(current_user.id)
      end)}
   end
 
   @impl true
-  def handle_async(:get_chat_rooms, {:ok, {fetched_chat_rooms, default_desktop_chat_room_id}}, socket) do
-    %{current_user: current_user, chat_rooms: chat_rooms} = socket.assigns
+  def handle_async(:get_chat_rooms, {:ok, fetched_chat_rooms}, socket) do
+    %{chat_rooms: chat_rooms} = socket.assigns
 
-    socket =
-      socket
-      |> assign(:chat_rooms, AsyncResult.ok(chat_rooms, {fetched_chat_rooms, default_desktop_chat_room_id}))
-
-    # If we have a selected chat room, then the chat room is already being loaded in `handle_params`.
-    if socket.assigns.selected_chat_room_id do
-      {:noreply, socket}
-    else
-      {:noreply,
-       socket
-       |> start_async(:get_active_chat_room_with_messages, fn ->
-         Chat.get_chat_room_with_messages_for_user(current_user.id, %{chat_room_id: default_desktop_chat_room_id})
-       end)}
-    end
+    {:noreply,
+     socket
+     |> assign(:chat_rooms, AsyncResult.ok(chat_rooms, fetched_chat_rooms))}
   end
 
   @impl true
   def handle_async(:get_chat_rooms, {:exit, reason}, socket) do
+    %{chat_rooms: chat_rooms} = socket.assigns
+    {:noreply, socket |> assign(:chat_rooms, AsyncResult.failed(chat_rooms, {:exit, reason}))}
+  end
+
+  @impl true
+  def handle_async(
+        :get_chat_rooms_and_set_active_chat_room_id_to_default_desktop_chatroom,
+        {:ok, fetched_chat_rooms},
+        socket
+      ) do
+    %{chat_rooms: chat_rooms, current_user: current_user} = socket.assigns
+    [%{id: default_desktop_chat_room_id} | _] = fetched_chat_rooms
+
+    {:noreply,
+     socket
+     |> assign(:chat_rooms, AsyncResult.ok(chat_rooms, fetched_chat_rooms))
+     |> assign(:active_chat_room_id, default_desktop_chat_room_id)
+     |> start_async(:get_active_chat_room_with_messages, fn ->
+       Chat.get_chat_room_with_messages_for_user(current_user.id, %{chat_room_id: default_desktop_chat_room_id})
+     end)}
+  end
+
+  @impl true
+  def handle_async(
+        :get_chat_rooms_and_set_active_chat_room_id_to_default_desktop_chatroom,
+        {:exit, reason},
+        socket
+      ) do
     %{chat_rooms: chat_rooms} = socket.assigns
     {:noreply, socket |> assign(:chat_rooms, AsyncResult.failed(chat_rooms, {:exit, reason}))}
   end
@@ -103,15 +122,14 @@ defmodule AvelineWeb.ChatLive do
     <div class="flex h-full w-full">
       <div class={[
         "border-r border-border-secondary w-full lg:w-80 xl:w-96 lg:block",
-        (@selected_chat_room_id || @making_new_chat_room) && "hidden"
+        (@chat_id_from_path || @making_new_chat_room) && "hidden"
       ]}>
-        <.async_result :let={{chat_rooms, default_desktop_chat_room_id}} assign={@chat_rooms}>
+        <.async_result :let={chat_rooms} assign={@chat_rooms}>
           <:loading>Loading chat rooms...</:loading>
           <:failed :let={_reason}>There was an error loading chat rooms</:failed>
           <.chat_room_list
             chat_rooms={chat_rooms}
-            selected_chat_room_id={@selected_chat_room_id}
-            default_desktop_chat_room_id={default_desktop_chat_room_id}
+            active_chat_room_id={@active_chat_room_id}
             making_new_chat_room={@making_new_chat_room}
             current_user_id={@current_user_id}
             on_chat_room_click="select_chat_room"
@@ -122,9 +140,8 @@ defmodule AvelineWeb.ChatLive do
       <div
         :if={!@making_new_chat_room}
         class={[
-          "h-full w-full bg-white",
-          !@selected_chat_room_id && "hidden lg:block",
-          @selected_chat_room_id && "block w-full"
+          "h-full w-full bg-white block lg:!block",
+          !@chat_id_from_path && "hidden"
         ]}
       >
         <div class="flex flex-col h-full px-6 pt-4 justify-between">
@@ -150,7 +167,7 @@ defmodule AvelineWeb.ChatLive do
           </.async_result>
           <div id="message-input-container" class="pb-4">
             <.form
-              id={"new-message-form-#{@selected_chat_room_id}"}
+              id={"new-message-form-#{@chat_id_from_path}"}
               phx-submit="on_new_message_submit"
               phx-change="on_new_message_change"
               phx-window-keydown="on_new_message_window_keydown"
@@ -158,7 +175,7 @@ defmodule AvelineWeb.ChatLive do
               class="flex"
             >
               <textarea
-                id={"new-message-textarea-#{@selected_chat_room_id}"}
+                id={"new-message-textarea-#{@chat_id_from_path}"}
                 type="text"
                 name="message"
                 class="flex-1 rounded-lg min-h-24 max-h-96 hide-desktop-scrollbar pr-16 border-gray-300 focus:border-gray-300 focus:ring-0 resize-y"
@@ -246,14 +263,6 @@ defmodule AvelineWeb.ChatLive do
     socket
     |> assign(:new_message_form, to_form(%{"message" => ""}))
     |> push_event("clear-value", %{})
-  end
-
-  ## Chat Room Helpers
-
-  defp get_chatrooms_with_last_message_and_default_desktop_chatroom(user_id) do
-    chat_rooms = Chat.get_chat_rooms_with_last_message_for_user(user_id)
-    default_desktop_chat_room_id = chat_rooms |> List.first() |> Map.get(:id)
-    {chat_rooms, default_desktop_chat_room_id}
   end
 
   ## Chat Message Helpers
