@@ -28,6 +28,7 @@ defmodule AvelineWeb.ChatLive do
     {:noreply,
      socket
      |> assign(selected_chat_room_id: id)
+     |> assign(:new_message_form, to_form(%{"message" => ""}))
      |> assign(making_new_chat_room: false)
      |> start_async(:get_chat_rooms, fn ->
        get_chatrooms_with_last_message_and_default_desktop_chatroom(current_user.id)
@@ -47,6 +48,7 @@ defmodule AvelineWeb.ChatLive do
     {:noreply,
      socket
      |> assign(selected_chat_room_id: nil)
+     |> assign(:new_message_form, to_form(%{"message" => ""}))
      |> assign(making_new_chat_room: making_new_chat_room)
      |> start_async(:get_chat_rooms, fn ->
        get_chatrooms_with_last_message_and_default_desktop_chatroom(current_user.id)
@@ -146,7 +148,7 @@ defmodule AvelineWeb.ChatLive do
             </div>
             <div id="message-input-container" class="pb-4">
               <.form
-                id="new-message-form"
+                id={"new-message-form-#{active_chat_room.id}"}
                 phx-submit="on_new_message_submit"
                 phx-change="on_new_message_change"
                 phx-window-keydown="on_new_message_window_keydown"
@@ -154,7 +156,7 @@ defmodule AvelineWeb.ChatLive do
                 class="flex"
               >
                 <textarea
-                  id="new-message-textarea"
+                  id={"new-message-textarea-#{active_chat_room.id}"}
                   type="text"
                   name="message"
                   class="flex-1 rounded-lg min-h-24 max-h-96 hide-desktop-scrollbar pr-16 border-gray-300 focus:border-gray-300 focus:ring-0 resize-y"
