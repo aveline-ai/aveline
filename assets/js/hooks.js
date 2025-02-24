@@ -3,6 +3,8 @@ import autosize from './autosize.min.js'
 export const EnhancedTextarea = {
   mounted() {
     this.el.focus();
+    // Event listener to disable textarea on form submission. Because we use phx-update="ignore", Phoenix doesn't
+    // automatically disable the textarea when the form is submitted.
     this.el.form.addEventListener("submit", (event) => {
       const newMessage = this.el.value;
       const newMessageTrimmedLength = newMessage.trim().length;
@@ -14,15 +16,6 @@ export const EnhancedTextarea = {
 
       this.el.disabled = true;
       return true;
-    });
-    autosize(this.el)
-    this.handleEvent("clear-value", () => {
-      this.el.value = "";
-      autosize.update(this.el);
-      // TODO(Arie): Is there a more robust way to do this?
-      setTimeout(() => {
-        this.el.focus();
-      }, 100);
     });
     // Event listener for Command+Enter to submit the form
     this.el.addEventListener("keydown", (event) => {
