@@ -34,7 +34,7 @@ defmodule AvelineWeb.ChatLive do
        get_chatrooms_with_last_message_and_default_desktop_chatroom(current_user.id)
      end)
      |> start_async(:get_active_chat_room_with_messages, fn ->
-       Chat.get_chat_room_with_messages(%{user_id: current_user.id, chat_room_id: id})
+       Chat.get_chat_room_with_messages_for_user(current_user.id, %{chat_room_id: id})
      end)}
   end
 
@@ -70,7 +70,7 @@ defmodule AvelineWeb.ChatLive do
       {:noreply,
        socket
        |> start_async(:get_active_chat_room_with_messages, fn ->
-         Chat.get_chat_room_with_messages(%{user_id: current_user.id, chat_room_id: default_desktop_chat_room_id})
+         Chat.get_chat_room_with_messages_for_user(current_user.id, %{chat_room_id: default_desktop_chat_room_id})
        end)}
     end
   end
@@ -251,7 +251,7 @@ defmodule AvelineWeb.ChatLive do
   ## Chat Room Helpers
 
   defp get_chatrooms_with_last_message_and_default_desktop_chatroom(user_id) do
-    chat_rooms = Chat.get_chat_rooms_with_last_message(%{user_id: user_id})
+    chat_rooms = Chat.get_chat_rooms_with_last_message_for_user(user_id)
     default_desktop_chat_room_id = chat_rooms |> List.first() |> Map.get(:id)
     {chat_rooms, default_desktop_chat_room_id}
   end

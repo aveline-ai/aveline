@@ -3,6 +3,8 @@ defmodule Aveline.Chat.Message do
   use Aveline.Schema
   import Ecto.Changeset
 
+  require Aveline.Enums.AuthorKind
+
   alias Aveline.Account.User
   alias Aveline.Chat.ChatRoom
   alias Aveline.Enums
@@ -15,6 +17,16 @@ defmodule Aveline.Chat.Message do
     belongs_to :user, User
 
     timestamps()
+  end
+
+  def new_message_for_user_id_changeset(%{user_id: user_id, chat_room_id: chat_room_id}, content) do
+    %__MODULE__{}
+    |> cast(%{"content" => content}, [:content])
+    |> put_change(:user_id, user_id)
+    |> put_change(:chat_room_id, chat_room_id)
+    |> put_change(:author_kind, Enums.AuthorKind.user())
+    |> validate_length(:content, min: 2)
+    |> validate_required([:content, :user_id, :chat_room_id, :author_kind])
   end
 
   def changeset(message, attrs) do

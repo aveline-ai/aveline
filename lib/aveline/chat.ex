@@ -10,7 +10,7 @@ defmodule Aveline.Chat do
   alias Aveline.Chat.Message
   alias Aveline.Repo
 
-  def get_chat_rooms_with_last_message(%{user_id: user_id}) do
+  def get_chat_rooms_with_last_message_for_user(user_id) do
     from(cr in ChatRoom,
       as: :chat_room,
       join: crm in ChatRoomMembership,
@@ -49,7 +49,7 @@ defmodule Aveline.Chat do
     |> Repo.all()
   end
 
-  def get_chat_room_with_messages(%{user_id: user_id, chat_room_id: id}) do
+  def get_chat_room_with_messages_for_user(user_id, %{chat_room_id: id}) do
     result =
       [%{chat_room: chat_room} | _] =
       from(cr in ChatRoom,
