@@ -11,13 +11,6 @@ export const EnhancedTextarea = {
         this.el.focus();
       }, 100);
     });
-    this.handleEvent("set-value", (event) => {
-      this.el.value = event.value;
-      autosize.update(this.el);
-      setTimeout(() => {
-        this.el.focus();
-      }, 100);
-    });
     // Event listener for Command+Enter to submit the form
     this.el.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && event.metaKey) {
