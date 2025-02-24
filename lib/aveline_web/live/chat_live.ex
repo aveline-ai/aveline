@@ -127,10 +127,11 @@ defmodule AvelineWeb.ChatLive do
           @selected_chat_room_id && "block w-full"
         ]}
       >
-        <.async_result :let={active_chat_room} :if={!@making_new_chat_room} assign={@active_chat_room}>
-          <:loading>Loading chat...</:loading>
-          <:failed :let={_reason}>There was an error loading chat</:failed>
-          <div class="flex flex-col h-full px-6 pt-4 justify-between">
+        <div class="flex flex-col h-full px-6 pt-4 justify-between">
+          <.async_result :let={active_chat_room} :if={!@making_new_chat_room} assign={@active_chat_room}>
+            <:loading>Loading chat...</:loading>
+            <:failed :let={_reason}>There was an error loading chat</:failed>
+
             <h1 class="text-2xl font-bold sm:hidden">{active_chat_room.name}</h1>
             <%!-- Stream messages --%>
             <div id="message-container" phx-update="stream" class="flex flex-col gap-4 overflow-y-auto">
@@ -146,51 +147,41 @@ defmodule AvelineWeb.ChatLive do
                 />
               </div>
             </div>
-            <div id="message-input-container" class="pb-4">
-              <.form
-                id={"new-message-form-#{active_chat_room.id}"}
-                phx-submit="on_new_message_submit"
-                phx-change="on_new_message_change"
-                phx-window-keydown="on_new_message_window_keydown"
-                for={@new_message_form}
-                class="flex"
+          </.async_result>
+          <div id="message-input-container" class="pb-4">
+            <.form
+              id={"new-message-form-#{@selected_chat_room_id}"}
+              phx-submit="on_new_message_submit"
+              phx-change="on_new_message_change"
+              phx-window-keydown="on_new_message_window_keydown"
+              for={@new_message_form}
+              class="flex"
+            >
+              <textarea
+                id={"new-message-textarea-#{@selected_chat_room_id}"}
+                type="text"
+                name="message"
+                class="flex-1 rounded-lg min-h-24 max-h-96 hide-desktop-scrollbar pr-16 border-gray-300 focus:border-gray-300 focus:ring-0 resize-y"
+                placeholder="Send a message"
+                autocomplete="off"
+                phx-update="ignore"
+                phx-hook="ClearableAutosizingTextarea"
+                autofocus
+              >{Phoenix.HTML.Form.normalize_value("textarea", @new_message_form[:message].value)}</textarea>
+              <button
+                type="submit"
+                class="absolute right-9 bottom-7 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700"
               >
-                <textarea
-                  id={"new-message-textarea-#{active_chat_room.id}"}
-                  type="text"
-                  name="message"
-                  class="flex-1 rounded-lg min-h-24 max-h-96 hide-desktop-scrollbar pr-16 border-gray-300 focus:border-gray-300 focus:ring-0 resize-y"
-                  placeholder="Send a message"
-                  autocomplete="off"
-                  phx-update="ignore"
-                  phx-hook="ClearableAutosizingTextarea"
-                  autofocus
-                >{Phoenix.HTML.Form.normalize_value("textarea", @new_message_form[:message].value)}</textarea>
-                <button
-                  type="submit"
-                  class="absolute right-9 bottom-7 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700"
-                >
-                  Send
-                </button>
-              </.form>
-            </div>
+                Send
+              </button>
+            </.form>
           </div>
-        </.async_result>
+        </div>
       </div>
       <div :if={@making_new_chat_room} class="h-full flex-1">
         <h1 class="text-2xl font-bold">New Chat</h1>
       </div>
     </div>
-    <%!-- Hidden form to recover the new message. Form above doesn't work because it's inside an async_result. --%>
-    <.form
-      id="hidden-new-message-form"
-      phx-change="on_new_message_change"
-      phx-auto-recover="recover"
-      for={@new_message_form}
-      class="hidden"
-    >
-      <textarea id="hidden-new-message-textarea" type="text" name="message" autocomplete="off">{Phoenix.HTML.Form.normalize_value("textarea", @new_message_form[:message].value)}</textarea>
-    </.form>
     """
   end
 
