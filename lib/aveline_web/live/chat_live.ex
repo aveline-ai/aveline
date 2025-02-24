@@ -17,7 +17,8 @@ defmodule AvelineWeb.ChatLive do
      |> assign(:making_new_chat_room, false)
      |> assign(:current_user_id, current_user.id)
      |> assign(:chat_rooms, AsyncResult.loading())
-     |> assign(:active_chat_room, AsyncResult.loading())}
+     |> assign(:active_chat_room, AsyncResult.loading())
+     |> assign(:new_message_form, to_form(%{"message" => ""}))}
   end
 
   @impl true
@@ -144,23 +145,31 @@ defmodule AvelineWeb.ChatLive do
               </div>
             </div>
             <div id="message-input-container" class="pb-4">
-              <form phx-submit="send_message" class="flex">
+              <.form
+                id="new-message-form"
+                phx-submit="on_new_message_submit"
+                phx-change="on_new_message_change"
+                for={@new_message_form}
+                class="flex"
+              >
                 <textarea
-                  id={"message-textarea-#{active_chat_room.id}"}
+                  id="new-message-textarea"
                   type="text"
                   name="message"
                   class="flex-1 rounded-lg min-h-24 max-h-96 hide-desktop-scrollbar pr-16 border-gray-300 focus:border-gray-300 focus:ring-0 resize-y"
                   placeholder="Send a message"
                   autocomplete="off"
-                  phx-hook="AutosizeTextarea"
-                />
+                  phx-update="ignore"
+                  phx-hook="ClearableAutosizingTextarea"
+                  autofocus
+                >{Phoenix.HTML.Form.normalize_value("textarea", @new_message_form[:message].value)}</textarea>
                 <button
                   type="submit"
                   class="absolute right-9 bottom-7 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700"
                 >
                   Send
                 </button>
-              </form>
+              </.form>
             </div>
           </div>
         </.async_result>
@@ -170,6 +179,19 @@ defmodule AvelineWeb.ChatLive do
       </div>
     </div>
     """
+  end
+
+  @impl true
+  def handle_event("on_new_message_submit", %{"message" => message}, socket) do
+    {:noreply,
+     socket
+     |> assign(:new_message_form, to_form(%{"message" => ""}))
+     |> push_event("clear-value", %{})}
+  end
+
+  @impl true
+  def handle_event("on_new_message_change", %{"message" => message}, socket) do
+    {:noreply, socket |> assign(:new_message_form, to_form(%{"message" => "#{message} asdf"}))}
   end
 
   @impl true
