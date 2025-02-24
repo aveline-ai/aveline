@@ -202,22 +202,6 @@ defmodule AvelineWeb.ChatLive do
     """
   end
 
-  def handle_event("recover", params, socket) do
-    message = params["message"]
-
-    if(message) do
-      {:noreply,
-       socket
-       |> assign(:new_message_form, to_form(%{"message" => message}))
-       |> push_event("set-value", %{value: message})}
-    else
-      {:noreply,
-       socket
-       |> assign(:new_message_form, to_form(%{"message" => ""}))
-       |> push_event("clear-value", %{})}
-    end
-  end
-
   @impl true
   def handle_event("on_new_message_submit", %{"message" => message}, socket) do
     {:noreply, handle_submit_new_message(socket)}
