@@ -149,7 +149,11 @@ defmodule AvelineWeb.ChatLive do
 
             <h1 class="text-2xl font-bold sm:hidden">{active_chat_room.name}</h1>
             <%!-- Stream messages --%>
-            <div id="message-container" phx-update="stream" class="flex flex-col gap-4 overflow-y-auto">
+            <div
+              id="message-container"
+              phx-update="stream"
+              class="flex flex-col gap-4 overflow-y-auto hide-desktop-scrollbar"
+            >
               <div
                 :for={{dom_id, message} <- @streams.active_chat_room_messages}
                 id={dom_id}
