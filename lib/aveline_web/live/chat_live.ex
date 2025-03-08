@@ -103,13 +103,16 @@ defmodule AvelineWeb.ChatLive do
         {:ok, %{chat_room: fetched_chat_room, messages: fetched_messages}},
         socket
       ) do
-    %{active_chat_room: active_chat_room} = socket.assigns
+    %{active_chat_room: active_chat_room, current_user: %{id: current_user_id}} = socket.assigns
+
+    %{streamable_ui_elements: streamable_ui_elements, last_message: last_message} =
+      get_streamable_ui_elements_and_last_messsage(:initial_fetched_messages, fetched_messages, current_user_id)
 
     {:noreply,
      socket
      |> assign(:active_chat_room, AsyncResult.ok(active_chat_room, fetched_chat_room))
      |> assign(:active_chat_room_id, fetched_chat_room.id)
-     |> stream(:active_chat_room_messages, fetched_messages, reset: true)}
+     |> stream(:active_chat_room_streamable_ui_elements, streamable_ui_elements, reset: true)}
   end
 
   @impl true
@@ -159,14 +162,15 @@ defmodule AvelineWeb.ChatLive do
               class="flex flex-col gap-4 overflow-y-auto hide-desktop-scrollbar"
             >
               <div
-                :for={{dom_id, message} <- @streams.active_chat_room_messages}
+                :for={{dom_id, streamable_ui_element} <- @streams.active_chat_room_streamable_ui_elements}
                 id={dom_id}
-                class={"w-fit #{get_chat_message_self_alignment(@current_user.id, message.user_id)}"}
+                class={"w-fit #{streamable_ui_element.chat_message_self_alignment}"}
               >
                 <.chat_message
-                  message={message.content}
-                  author_display_name={get_chat_message_author_display_name(@current_user.id, message)}
-                  side={get_chat_message_side(@current_user.id, message.user_id)}
+                  side={streamable_ui_element.chat_message_side}
+                  message={streamable_ui_element.content}
+                  author_display_name={streamable_ui_element.author_display_name}
+                  should_display_author_display_name={streamable_ui_element.should_display_author_display_name}
                 />
               </div>
             </div>
@@ -241,7 +245,7 @@ defmodule AvelineWeb.ChatLive do
        socket
        |> assign(:new_message_counter, socket.assigns.new_message_counter + 1)
        |> assign(:new_message_form, to_form(%{"message" => ""}))
-       |> stream_insert(:active_chat_room_messages, message_to_insert_into_stream)}
+       |> stream_insert(:active_chat_room_streamable_ui_elements, message_to_insert_into_stream)}
     end
   end
 
@@ -270,37 +274,55 @@ defmodule AvelineWeb.ChatLive do
 
   # Private
 
-  ## Chat Message Helpers
+  ## Streamable UI element helpers
 
-  defp get_chat_message_author_display_name(current_user_id, %{
-         user_id: user_id,
-         author_kind: author_kind,
-         user_display_name: user_display_name
-       }) do
-    cond do
-      user_id == current_user_id ->
-        "You"
+  defp get_streamable_ui_elements_and_last_messsage(:initial_fetched_messages, fetched_messages, current_user_id) do
+    %{last_message: last_message, streamable_ui_elements: streamable_ui_elements} =
+      fetched_messages
+      |> Enum.reduce(%{streamable_ui_elements: [], last_message: nil}, fn message, acc ->
+        chat_message_side = get_chat_message_side(current_user_id, message.user_id)
+        chat_message_self_alignment = get_chat_message_self_alignment(chat_message_side)
 
-      author_kind == Enums.AuthorKind.user() ->
-        user_display_name
+        case message.author_kind do
+          Enums.AuthorKind.user() ->
+            should_display_author_display_name = acc.last_message == nil || acc.last_message.user_id != message.user_id
 
-      author_kind == Enums.AuthorKind.ai() ->
-        "Aveline"
-    end
+            new_streamable_ui_element = %{
+              id: message.id,
+              author_kind: Enums.AuthorKind.user(),
+              author_display_name: message.user_display_name,
+              should_display_author_display_name: should_display_author_display_name,
+              content: message.content,
+              chat_message_side: chat_message_side,
+              chat_message_self_alignment: chat_message_self_alignment
+            }
+
+            %{last_message: message, streamable_ui_elements: [new_streamable_ui_element | acc.streamable_ui_elements]}
+
+          Enums.AuthorKind.ai() ->
+            should_display_author_display_name = acc.last_message.author_kind != Enums.AuthorKind.ai()
+
+            new_streamable_ui_element = %{
+              id: message.id,
+              author_kind: Enums.AuthorKind.ai(),
+              author_display_name: "Aveline",
+              should_display_author_display_name: should_display_author_display_name,
+              content: message.content,
+              chat_message_side: chat_message_side,
+              chat_message_self_alignment: chat_message_self_alignment
+            }
+
+            %{last_message: message, streamable_ui_elements: [new_streamable_ui_element | acc.streamable_ui_elements]}
+        end
+      end)
+
+    # While we construct the streamable UI elements, we build the list in reverse order, therefore we reverse it again.
+    %{streamable_ui_elements: Enum.reverse(streamable_ui_elements), last_message: last_message}
   end
 
-  defp get_chat_message_side(current_user_id, message_user_id) do
-    if message_user_id == current_user_id do
-      "right"
-    else
-      "left"
-    end
-  end
+  defp get_chat_message_side(current_user_id, message_user_id) when message_user_id == current_user_id, do: "right"
+  defp get_chat_message_side(_current_user_id, _message_user_id), do: "left"
 
-  defp get_chat_message_self_alignment(current_user_id, message_user_id) do
-    case get_chat_message_side(current_user_id, message_user_id) do
-      "right" -> "self-end"
-      "left" -> "self-start"
-    end
-  end
+  defp get_chat_message_self_alignment("left"), do: "self-start"
+  defp get_chat_message_self_alignment("right"), do: "self-end"
 end
