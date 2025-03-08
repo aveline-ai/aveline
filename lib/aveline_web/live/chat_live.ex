@@ -98,14 +98,18 @@ defmodule AvelineWeb.ChatLive do
   end
 
   @impl true
-  def handle_async(:get_active_chat_room_with_messages, {:ok, %{chat_room: chat_room, messages: messages}}, socket) do
+  def handle_async(
+        :get_active_chat_room_with_messages,
+        {:ok, %{chat_room: fetched_chat_room, messages: fetched_messages}},
+        socket
+      ) do
     %{active_chat_room: active_chat_room} = socket.assigns
 
     {:noreply,
      socket
-     |> assign(:active_chat_room, AsyncResult.ok(active_chat_room, chat_room))
-     |> assign(:active_chat_room_id, chat_room.id)
-     |> stream(:active_chat_room_messages, messages, reset: true)}
+     |> assign(:active_chat_room, AsyncResult.ok(active_chat_room, fetched_chat_room))
+     |> assign(:active_chat_room_id, fetched_chat_room.id)
+     |> stream(:active_chat_room_messages, fetched_messages, reset: true)}
   end
 
   @impl true
