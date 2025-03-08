@@ -29,3 +29,15 @@ export const EnhancedTextarea = {
     autosize.destroy(this.el)
   }
 };
+
+export const ScrollToBottom = {
+  mounted() {
+    this.scrollToBottom();
+  },
+  updated() {
+    this.scrollToBottom();
+  },
+  scrollToBottom() {
+    this.el.scrollTop = this.el.scrollHeight;
+  }
+};

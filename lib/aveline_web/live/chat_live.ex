@@ -161,6 +161,7 @@ defmodule AvelineWeb.ChatLive do
             <div
               id="message-container"
               phx-update="stream"
+              phx-hook="ScrollToBottom"
               class="flex flex-col gap-4 overflow-y-auto hide-desktop-scrollbar"
             >
               <div
@@ -177,7 +178,7 @@ defmodule AvelineWeb.ChatLive do
               </div>
             </div>
           </.async_result>
-          <div id="message-input-container" class="pb-4">
+          <div id="message-input-container" class="pb-4 mt-4">
             <.form
               id={"new-message-form-#{@chat_id_from_path}"}
               phx-submit="on_new_message_submit"
