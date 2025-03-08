@@ -80,9 +80,22 @@ defmodule Aveline.Chat do
     %{chat_room: chat_room, messages: messages}
   end
 
-  def insert_chat_message_for_user(%{user_id: user_id, chat_room_id: chat_room_id}, content) do
-    Message.new_message_for_user_id_changeset(%{user_id: user_id, chat_room_id: chat_room_id}, content)
-    |> Repo.insert()
+  def insert_chat_message_for_user!(%{user_id: user_id, chat_room_id: chat_room_id}, content) do
+    message =
+      Message.new_message_for_user_id_changeset(%{user_id: user_id, chat_room_id: chat_room_id}, content)
+      |> Repo.insert!()
+
+    user = Repo.get!(User, user_id)
+
+    {:ok,
+     %{
+       id: message.id,
+       content: message.content,
+       author_kind: message.author_kind,
+       inserted_at: message.inserted_at,
+       user_display_name: user.display_name,
+       user_id: user.id
+     }}
   end
 
   def get_messages(id) do
