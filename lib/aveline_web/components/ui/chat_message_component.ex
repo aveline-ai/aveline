@@ -16,7 +16,7 @@ defmodule AvelineWeb.Ui.ChatMessageComponent do
         {@author_display_name}
       </div>
       <div class={"text-sm text-text-tertiary py-2.5 px-3.5 #{get_chat_message_color_scheme(@side)} rounded-lg #{get_square_border_side(@side)}"}>
-        {@message}
+        <span class="whitespace-pre-wrap">{@message}</span>
       </div>
     </div>
     """
