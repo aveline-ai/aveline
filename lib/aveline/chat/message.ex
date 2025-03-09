@@ -25,7 +25,7 @@ defmodule Aveline.Chat.Message do
     |> put_change(:user_id, user_id)
     |> put_change(:chat_room_id, chat_room_id)
     |> put_change(:author_kind, Enums.AuthorKind.user())
-    |> validate_length(:content, min: 2)
+    |> validate_length(:content, min: 1)
     |> validate_required([:content, :user_id, :chat_room_id, :author_kind])
   end
 
