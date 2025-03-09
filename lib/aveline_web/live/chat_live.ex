@@ -128,7 +128,7 @@ defmodule AvelineWeb.ChatLive do
     ~H"""
     <div class="flex h-full w-full">
       <div class={[
-        "border-r border-border-secondary w-full lg:w-80 xl:w-96 lg:block",
+        "border-r border-border-secondary w-full lg:w-80 xl:w-96 lg:block flex-shrink-0",
         (@chat_id_from_path || @making_new_chat_room) && "hidden"
       ]}>
         <.async_result :let={chat_rooms} assign={@chat_rooms}>
