@@ -29,14 +29,4 @@ defmodule Aveline.Chat.Message do
     |> validate_length(:content, min: 1)
     |> validate_required([:content, :user_id, :chat_room_id, :author_kind])
   end
-
-  # Private
-
-  defp validate_user_id_provided_for_user_messages(changeset) do
-    if get_field(changeset, :author_kind) == "user" do
-      validate_required(changeset, [:user_id])
-    else
-      changeset
-    end
-  end
 end
