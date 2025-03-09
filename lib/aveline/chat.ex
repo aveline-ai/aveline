@@ -10,7 +10,7 @@ defmodule Aveline.Chat do
   alias Aveline.Chat.Message
   alias Aveline.Repo
 
-  def get_chat_rooms_with_last_message(%{user_id: user_id}) do
+  def get_chat_rooms_with_last_message_for_user(user_id) do
     from(cr in ChatRoom,
       as: :chat_room,
       join: crm in ChatRoomMembership,
@@ -21,7 +21,7 @@ defmodule Aveline.Chat do
           from m in Message,
             left_join: u in assoc(m, :user),
             where: m.chat_room_id == parent_as(:chat_room).id,
-            order_by: [desc: :inserted_at],
+            order_by: [asc: :inserted_at],
             limit: 1,
             select: %{
               content: m.content,
@@ -49,7 +49,7 @@ defmodule Aveline.Chat do
     |> Repo.all()
   end
 
-  def get_chat_room_with_messages(%{user_id: user_id, chat_room_id: id}) do
+  def get_chat_room_with_messages_for_user(user_id, %{chat_room_id: id}) do
     result =
       [%{chat_room: chat_room} | _] =
       from(cr in ChatRoom,
@@ -60,9 +60,9 @@ defmodule Aveline.Chat do
         on: m.chat_room_id == cr.id,
         left_join: u in User,
         on: m.user_id == u.id,
-        order_by: [desc: m.inserted_at],
+        order_by: [asc: m.inserted_at],
         select: %{
-          chat_room: %{name: cr.name},
+          chat_room: %{id: cr.id, name: cr.name},
           message: %{
             id: m.id,
             content: m.content,
@@ -80,6 +80,24 @@ defmodule Aveline.Chat do
     %{chat_room: chat_room, messages: messages}
   end
 
+  def insert_chat_message_for_user!(%{user_id: user_id, chat_room_id: chat_room_id}, content) do
+    message =
+      Message.new_message_for_user_id_changeset(%{user_id: user_id, chat_room_id: chat_room_id}, content)
+      |> Repo.insert!()
+
+    user = Repo.get!(User, user_id)
+
+    {:ok,
+     %{
+       id: message.id,
+       content: message.content,
+       author_kind: message.author_kind,
+       inserted_at: message.inserted_at,
+       user_display_name: user.display_name,
+       user_id: user.id
+     }}
+  end
+
   def get_messages(id) do
     Repo.all(from m in Message, where: m.chat_room_id == ^id, order_by: [asc: :inserted_at])
   end
@@ -93,12 +111,6 @@ defmodule Aveline.Chat do
   def create_chat_room_membership(attrs) do
     %ChatRoomMembership{}
     |> ChatRoomMembership.changeset(attrs)
-    |> Repo.insert()
-  end
-
-  def create_message(attrs) do
-    %Message{}
-    |> Message.changeset(attrs)
     |> Repo.insert()
   end
 end
