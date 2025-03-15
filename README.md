@@ -15,7 +15,7 @@ The project is developed with [Postgres](https://www.postgresql.org/), [Elixir](
 ### Setup
 
   * Install correct Elixir/Erlang versions in `.tool_versions` with `asdf install`.
-  * Copy `.env-template` to `.env` and fill in environment variables. Then, `source .env` to set in shell.
+  * Copy `.env.example` to `.env` and fill in environment variables. Then, `source .env` to set in shell.
   * Install dependencies with `mix deps.get`
   * Assuming you already have Postgres installed, create and migrate your database with `mix ecto.setup`.
     * Check our `config/dev.exs` to see the expected username/password for your postgres user.
