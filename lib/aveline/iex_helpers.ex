@@ -57,10 +57,6 @@ defmodule Aveline.IexHelpers do
     |> DateTime.shift_zone!(timezone)
   end
 
-  def print(any) do
-    IO.inspect(any, limit: :infinity)
-  end
-
   def repo_count_all(x) do
     Repo.all(x) |> Enum.count()
   end
