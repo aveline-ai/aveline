@@ -162,7 +162,7 @@ defmodule AvelineWeb.ChatLive do
               id="message-container"
               phx-update="stream"
               phx-hook="ScrollToBottom"
-              class="flex flex-col gap-4 overflow-y-auto hide-desktop-scrollbar"
+              class="flex flex-col gap-1 overflow-y-auto hide-desktop-scrollbar"
             >
               <div
                 :for={{dom_id, streamable_ui_element} <- @streams.active_chat_room_streamable_ui_elements}
