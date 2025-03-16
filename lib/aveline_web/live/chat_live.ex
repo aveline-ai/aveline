@@ -319,11 +319,9 @@ defmodule AvelineWeb.ChatLive do
              active_chat_room: active_chat_room
            }) do
           Task.Supervisor.start_child(Aveline.TaskSupervisor, fn ->
-            Process.sleep(1000)
-
-            Chat.insert_chat_message_for_ai_and_broadcast_enriched_message!(%{
+            generate_ai_response_for_message_and_broadcast_enriched_message!(%{
               chat_room_id: active_chat_room_id,
-              content: "some AI response..."
+              message_id: enriched_chat_room_message.id
             })
           end)
         end
@@ -337,6 +335,20 @@ defmodule AvelineWeb.ChatLive do
   end
 
   # Private
+
+  ## AI Helpers
+
+  defp generate_ai_response_for_message_and_broadcast_enriched_message!(%{
+         chat_room_id: chat_room_id,
+         message_id: _message_id
+       }) do
+    Process.sleep(1000)
+
+    Chat.insert_chat_message_for_ai_and_broadcast_enriched_message!(%{
+      chat_room_id: chat_room_id,
+      content: "some AI response..."
+    })
+  end
 
   defp should_generate_ai_response?(%{
          enriched_chat_room_message: enriched_chat_room_message = %EnrichedChatRoomMessage{},
