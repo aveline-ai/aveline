@@ -238,7 +238,7 @@ defmodule AvelineWeb.ChatLive do
     if new_message_trimmed_length == 0 do
       {:noreply, socket}
     else
-      {:ok, enriched_chat_room_message = %EnrichedChatRoomMessage{}} =
+      enriched_chat_room_message =
         Chat.insert_chat_message_for_user_and_broadcast_enriched_message!(
           %{user_id: current_user.id, chat_room_id: active_chat_room_id},
           new_message
@@ -301,34 +301,38 @@ defmodule AvelineWeb.ChatLive do
     } = socket.assigns
 
     socket =
-      if active_chat_room_id != chat_room_id do
+      cond do
         # Ignore messages from other chat rooms, we only want to stream messages for the active chat room.
-        socket
-      else
-        # NOTE: We don't need to worry about inserting duplicates because streams handle this for us.
-        new_streamable_ui_element =
-          get_streamable_ui_element_from_enriched_chat_message(%{
-            enriched_chat_room_message: enriched_chat_room_message,
-            last_enriched_message: socket.assigns.active_chat_room_last_enriched_message,
-            current_user_id: current_user.id
-          })
+        active_chat_room_id != chat_room_id ->
+          socket
 
-        if should_generate_ai_response?(%{
-             enriched_chat_room_message: enriched_chat_room_message,
-             current_user_id: current_user.id,
-             active_chat_room: active_chat_room
-           }) do
-          Task.Supervisor.start_child(Aveline.TaskSupervisor, fn ->
-            generate_ai_response_for_message_and_broadcast_enriched_message!(%{
-              chat_room_id: active_chat_room_id,
-              message_id: enriched_chat_room_message.id
+        # If it is the users own message, then we want to trigger an AI response.
+        #
+        # NOTE: We don't need to update the UI because that happens immediately when the message is submitted.
+        enriched_chat_room_message.user_id == current_user.id ->
+          if should_generate_ai_response?(active_chat_room) do
+            Task.Supervisor.start_child(Aveline.TaskSupervisor, fn ->
+              generate_ai_response_for_message_and_broadcast_enriched_message!(%{
+                chat_room_id: active_chat_room_id,
+                message_id: enriched_chat_room_message.id
+              })
+            end)
+          end
+
+          socket
+
+        # For messages from the AI or other users, we need to update the UI but we don't need to trigger an AI response.
+        true ->
+          new_streamable_ui_element =
+            get_streamable_ui_element_from_enriched_chat_message(%{
+              enriched_chat_room_message: enriched_chat_room_message,
+              last_enriched_message: socket.assigns.active_chat_room_last_enriched_message,
+              current_user_id: current_user.id
             })
-          end)
-        end
 
-        socket
-        |> stream_insert(:active_chat_room_streamable_ui_elements, new_streamable_ui_element)
-        |> assign(:active_chat_room_last_enriched_message, enriched_chat_room_message)
+          socket
+          |> stream_insert(:active_chat_room_streamable_ui_elements, new_streamable_ui_element)
+          |> assign(:active_chat_room_last_enriched_message, enriched_chat_room_message)
       end
 
     {:noreply, socket}
@@ -350,14 +354,12 @@ defmodule AvelineWeb.ChatLive do
     })
   end
 
-  defp should_generate_ai_response?(%{
-         enriched_chat_room_message: enriched_chat_room_message = %EnrichedChatRoomMessage{},
-         current_user_id: current_user_id,
-         active_chat_room: active_chat_room
-       }) do
+  # Checks that the chat room is loaded and that the mode is one that warrants an AI response.
+  defp should_generate_ai_response?(active_chat_room) do
     case active_chat_room do
-      %Phoenix.LiveView.AsyncResult{ok?: true, result: %{mode: _mode}} ->
-        enriched_chat_room_message.user_id == current_user_id
+      # Currently all modes warrant an AI response. This will change with group chats.
+      %Phoenix.LiveView.AsyncResult{ok?: true, result: %{mode: mode}} ->
+        true
 
       _ ->
         false

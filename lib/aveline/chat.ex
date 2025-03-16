@@ -141,7 +141,7 @@ defmodule Aveline.Chat do
       enriched_chat_room_message
     )
 
-    {:ok, enriched_chat_room_message}
+    enriched_chat_room_message
   end
 
   def get_messages(id) do
