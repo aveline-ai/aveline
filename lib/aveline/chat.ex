@@ -10,6 +10,7 @@ defmodule Aveline.Chat do
   alias Aveline.Chat.Message
   alias Aveline.EventBus
   alias Aveline.Repo
+  alias Aveline.Structs.EnrichedChatRoomMessage
 
   def get_chat_rooms_with_last_message_for_user(user_id) do
     from(cr in ChatRoom,
@@ -50,7 +51,7 @@ defmodule Aveline.Chat do
     |> Repo.all()
   end
 
-  def get_chat_room_with_messages_for_user(user_id, %{chat_room_id: id}) do
+  def get_chat_room_with_enriched_messages_for_user(user_id, %{chat_room_id: id}) do
     result =
       [%{chat_room: chat_room} | _] =
       from(cr in ChatRoom,
@@ -64,7 +65,7 @@ defmodule Aveline.Chat do
         order_by: [asc: m.inserted_at],
         select: %{
           chat_room: %{id: cr.id, name: cr.name},
-          message: %{
+          enriched_message: %{
             id: m.id,
             content: m.content,
             author_kind: m.author_kind,
@@ -76,19 +77,33 @@ defmodule Aveline.Chat do
       )
       |> Repo.all()
 
-    messages = result |> Enum.map(fn %{message: message} -> message end)
+    enriched_messages =
+      result
+      |> Enum.map(fn %{enriched_message: enriched_message} ->
+        %EnrichedChatRoomMessage{
+          id: enriched_message.id,
+          content: enriched_message.content,
+          author_kind: enriched_message.author_kind,
+          inserted_at: enriched_message.inserted_at,
+          user_display_name: enriched_message.user_display_name,
+          user_id: enriched_message.user_id
+        }
+      end)
 
-    %{chat_room: chat_room, messages: messages}
+    %{chat_room: chat_room, enriched_messages: enriched_messages}
   end
 
-  def insert_chat_message_for_user!(%{user_id: user_id, chat_room_id: chat_room_id}, content) do
+  def insert_chat_message_for_user_and_broadcast_enriched_message!(
+        %{user_id: user_id, chat_room_id: chat_room_id},
+        content
+      ) do
     message =
       Message.new_message_for_user_id_changeset(%{user_id: user_id, chat_room_id: chat_room_id}, content)
       |> Repo.insert!()
 
     user = Repo.get!(User, user_id)
 
-    chat_message = %{
+    enriched_chat_room_message = %EnrichedChatRoomMessage{
       id: message.id,
       content: message.content,
       author_kind: message.author_kind,
@@ -100,10 +115,10 @@ defmodule Aveline.Chat do
     EventBus.broadcast!(
       {:chatroom, chat_room_id},
       :new_message,
-      chat_message
+      enriched_chat_room_message
     )
 
-    {:ok, chat_message}
+    {:ok, enriched_chat_room_message}
   end
 
   def get_messages(id) do

@@ -3,6 +3,8 @@ defmodule Aveline.EventBus do
   A simple event bus for the application powered by Phoenix.PubSub.
   """
 
+  alias Aveline.Structs.EnrichedChatRoomMessage
+
   # Chatroom Events
 
   @doc """
@@ -20,19 +22,12 @@ defmodule Aveline.EventBus do
   def broadcast!(
         {:chatroom, chatroom_id},
         kind = :new_message,
-        message = %{
-          id: _id,
-          content: _content,
-          author_kind: _author_kind,
-          inserted_at: _inserted_at,
-          user_display_name: _user_display_name,
-          user_id: _user_id
-        }
+        enriched_chat_room_message = %EnrichedChatRoomMessage{}
       ) do
     Phoenix.PubSub.broadcast!(Aveline.PubSub, topic(:chatroom, chatroom_id), %{
       kind: kind,
       chat_room_id: chatroom_id,
-      message: message
+      enriched_chat_room_message: enriched_chat_room_message
     })
   end
 
