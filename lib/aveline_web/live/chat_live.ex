@@ -2,6 +2,7 @@ defmodule AvelineWeb.ChatLive do
   alias Phoenix.LiveView.AsyncResult
   use AvelineWeb, :live_view
   require Aveline.Enums.AuthorKind
+  require Aveline.Enums.ChatRoomMode
   import AvelineWeb.ChatRoomListComponent
   import AvelineWeb.Ui.ChatMessageComponent
   alias Aveline.Chat
@@ -358,9 +359,11 @@ defmodule AvelineWeb.ChatLive do
   # Checks that the chat room is loaded and that the mode is one that warrants an AI response.
   defp should_generate_ai_response?(active_chat_room) do
     case active_chat_room do
-      # Currently all modes warrant an AI response. This will change with group chats.
       %Phoenix.LiveView.AsyncResult{ok?: true, result: %{mode: mode}} ->
-        true
+        Enums.ChatRoomMode.map!(mode, %{
+          Enums.ChatRoomMode.book_buddy() => true,
+          Enums.ChatRoomMode.chat_companion() => true
+        })
 
       _ ->
         false
