@@ -31,7 +31,7 @@ defmodule AvelineWeb.ChatLive do
      |> assign(chat_id_from_path: id)
      |> assign(:new_message_form, to_form(%{"message" => ""}))
      |> assign(making_new_chat_room: false)
-     |> assign(:active_chat_room_last_message, nil)
+     |> assign(:active_chat_room_last_enriched_message, nil)
      |> start_async(:get_chat_rooms, fn ->
        Chat.get_chat_rooms_with_last_message_for_user(current_user.id)
      end)
@@ -111,8 +111,8 @@ defmodule AvelineWeb.ChatLive do
     # We've authenticated the user has access to this chat room so we subscribe to the event bus.
     EventBus.subscribe({:chatroom, fetched_chat_room.id})
 
-    %{streamable_ui_elements: streamable_ui_elements, last_message: last_message} =
-      get_streamable_ui_elements_and_last_messsage(
+    %{streamable_ui_elements: streamable_ui_elements, last_enriched_message: last_enriched_message} =
+      get_streamable_ui_elements_and_last_enriched_messsage(
         :initial_fetched_enriched_messages,
         fetched_enriched_messages,
         current_user_id
@@ -122,7 +122,7 @@ defmodule AvelineWeb.ChatLive do
      socket
      |> assign(:active_chat_room, AsyncResult.ok(active_chat_room, fetched_chat_room))
      |> assign(:active_chat_room_id, fetched_chat_room.id)
-     |> assign(:active_chat_room_last_message, last_message)
+     |> assign(:active_chat_room_last_enriched_message, last_enriched_message)
      |> stream(:active_chat_room_streamable_ui_elements, streamable_ui_elements, reset: true)}
   end
 
@@ -247,7 +247,7 @@ defmodule AvelineWeb.ChatLive do
       new_streamable_ui_element =
         get_streamable_ui_element_from_enriched_chat_message(%{
           enriched_chat_room_message: enriched_chat_room_message,
-          last_message: socket.assigns.active_chat_room_last_message,
+          last_enriched_message: socket.assigns.active_chat_room_last_enriched_message,
           current_user_id: current_user.id
         })
 
@@ -255,7 +255,7 @@ defmodule AvelineWeb.ChatLive do
        socket
        |> assign(:new_message_counter, socket.assigns.new_message_counter + 1)
        |> assign(:new_message_form, to_form(%{"message" => ""}))
-       |> assign(:active_chat_room_last_message, enriched_chat_room_message)
+       |> assign(:active_chat_room_last_enriched_message, enriched_chat_room_message)
        |> stream_insert(:active_chat_room_streamable_ui_elements, new_streamable_ui_element)}
     end
   end
@@ -305,13 +305,13 @@ defmodule AvelineWeb.ChatLive do
         new_streamable_ui_element =
           get_streamable_ui_element_from_enriched_chat_message(%{
             enriched_chat_room_message: enriched_chat_room_message,
-            last_message: socket.assigns.active_chat_room_last_message,
+            last_enriched_message: socket.assigns.active_chat_room_last_enriched_message,
             current_user_id: current_user.id
           })
 
         socket
         |> stream_insert(:active_chat_room_streamable_ui_elements, new_streamable_ui_element)
-        |> assign(:active_chat_room_last_message, enriched_chat_room_message)
+        |> assign(:active_chat_room_last_enriched_message, enriched_chat_room_message)
       end
 
     {:noreply, socket}
@@ -321,38 +321,38 @@ defmodule AvelineWeb.ChatLive do
 
   ## Streamable UI element helpers
 
-  defp get_streamable_ui_elements_and_last_messsage(
+  defp get_streamable_ui_elements_and_last_enriched_messsage(
          :initial_fetched_enriched_messages,
          fetched_enriched_messages,
          current_user_id
        ) do
-    %{last_message: last_message, streamable_ui_elements: streamable_ui_elements} =
+    %{last_enriched_message: last_enriched_message, streamable_ui_elements: streamable_ui_elements} =
       fetched_enriched_messages
       |> Enum.reduce(
-        %{streamable_ui_elements: [], last_message: nil},
+        %{streamable_ui_elements: [], last_enriched_message: nil},
         fn enriched_chat_room_message = %EnrichedChatRoomMessage{}, acc ->
           new_streamable_ui_element =
             get_streamable_ui_element_from_enriched_chat_message(%{
               enriched_chat_room_message: enriched_chat_room_message,
-              last_message: acc.last_message,
+              last_enriched_message: acc.last_enriched_message,
               current_user_id: current_user_id
             })
 
           # Insert into front of list for effeciency, note this will reverse the order.
           %{
-            last_message: enriched_chat_room_message,
+            last_enriched_message: enriched_chat_room_message,
             streamable_ui_elements: [new_streamable_ui_element | acc.streamable_ui_elements]
           }
         end
       )
 
     # While we construct the streamable UI elements, we build the list in reverse order, therefore we reverse it again.
-    %{streamable_ui_elements: Enum.reverse(streamable_ui_elements), last_message: last_message}
+    %{streamable_ui_elements: Enum.reverse(streamable_ui_elements), last_enriched_message: last_enriched_message}
   end
 
   defp get_streamable_ui_element_from_enriched_chat_message(%{
          enriched_chat_room_message: enriched_chat_room_message,
-         last_message: last_message,
+         last_enriched_message: last_enriched_message,
          current_user_id: current_user_id
        }) do
     chat_message_side = get_chat_message_side(current_user_id, enriched_chat_room_message.user_id)
@@ -362,10 +362,10 @@ defmodule AvelineWeb.ChatLive do
       case enriched_chat_room_message.author_kind do
         Enums.AuthorKind.user() ->
           {enriched_chat_room_message.user_display_name,
-           last_message == nil || last_message.user_id != enriched_chat_room_message.user_id}
+           last_enriched_message == nil || last_enriched_message.user_id != enriched_chat_room_message.user_id}
 
         Enums.AuthorKind.ai() ->
-          {"Aveline", last_message == nil || last_message.author_kind != Enums.AuthorKind.ai()}
+          {"Aveline", last_enriched_message == nil || last_enriched_message.author_kind != Enums.AuthorKind.ai()}
       end
 
     %{
