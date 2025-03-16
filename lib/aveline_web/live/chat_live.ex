@@ -7,6 +7,7 @@ defmodule AvelineWeb.ChatLive do
   alias Aveline.Chat
   alias Aveline.Enums
   alias Aveline.EventBus
+  alias Aveline.OpenAi
   alias Aveline.Structs.EnrichedChatRoomMessage
 
   @impl true
@@ -344,13 +345,13 @@ defmodule AvelineWeb.ChatLive do
 
   defp generate_ai_response_for_message_and_broadcast_enriched_message!(%{
          chat_room_id: chat_room_id,
-         message_id: _message_id
+         message_id: message_id
        }) do
-    Process.sleep(1000)
+    open_ai_response = OpenAi.generate_chat_completion!(%{chat_room_id: chat_room_id, message_id: message_id})
 
     Chat.insert_chat_message_for_ai_and_broadcast_enriched_message!(%{
       chat_room_id: chat_room_id,
-      content: "some AI response..."
+      content: open_ai_response
     })
   end
 
