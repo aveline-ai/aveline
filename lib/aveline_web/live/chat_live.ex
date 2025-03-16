@@ -290,11 +290,15 @@ defmodule AvelineWeb.ChatLive do
         %{
           kind: :new_message,
           chat_room_id: chat_room_id,
-          enriched_chat_room_message: enriched_chat_room_message
+          enriched_chat_room_message: enriched_chat_room_message = %EnrichedChatRoomMessage{}
         },
         socket
       ) do
-    %{current_user: current_user, active_chat_room_id: active_chat_room_id} = socket.assigns
+    %{
+      current_user: current_user,
+      active_chat_room_id: active_chat_room_id,
+      active_chat_room: active_chat_room
+    } = socket.assigns
 
     socket =
       if active_chat_room_id != chat_room_id do
@@ -309,6 +313,21 @@ defmodule AvelineWeb.ChatLive do
             current_user_id: current_user.id
           })
 
+        if should_generate_ai_response?(%{
+             enriched_chat_room_message: enriched_chat_room_message,
+             current_user_id: current_user.id,
+             active_chat_room: active_chat_room
+           }) do
+          Task.Supervisor.start_child(Aveline.TaskSupervisor, fn ->
+            Process.sleep(1000)
+
+            Chat.insert_chat_message_for_ai_and_broadcast_enriched_message!(%{
+              chat_room_id: active_chat_room_id,
+              content: "some AI response..."
+            })
+          end)
+        end
+
         socket
         |> stream_insert(:active_chat_room_streamable_ui_elements, new_streamable_ui_element)
         |> assign(:active_chat_room_last_enriched_message, enriched_chat_room_message)
@@ -318,6 +337,20 @@ defmodule AvelineWeb.ChatLive do
   end
 
   # Private
+
+  defp should_generate_ai_response?(%{
+         enriched_chat_room_message: enriched_chat_room_message = %EnrichedChatRoomMessage{},
+         current_user_id: current_user_id,
+         active_chat_room: active_chat_room
+       }) do
+    case active_chat_room do
+      %Phoenix.LiveView.AsyncResult{ok?: true, result: %{mode: _mode}} ->
+        enriched_chat_room_message.user_id == current_user_id
+
+      _ ->
+        false
+    end
+  end
 
   ## Streamable UI element helpers
 

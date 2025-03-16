@@ -64,7 +64,7 @@ defmodule Aveline.Chat do
         on: m.user_id == u.id,
         order_by: [asc: m.inserted_at],
         select: %{
-          chat_room: %{id: cr.id, name: cr.name},
+          chat_room: %{id: cr.id, name: cr.name, mode: cr.chat_room_mode},
           enriched_message: %{
             id: m.id,
             content: m.content,
@@ -91,6 +91,29 @@ defmodule Aveline.Chat do
       end)
 
     %{chat_room: chat_room, enriched_messages: enriched_messages}
+  end
+
+  def insert_chat_message_for_ai_and_broadcast_enriched_message!(%{chat_room_id: chat_room_id, content: content}) do
+    message =
+      Message.new_message_for_ai_changeset(%{chat_room_id: chat_room_id}, content)
+      |> Repo.insert!()
+
+    enriched_chat_room_message = %EnrichedChatRoomMessage{
+      id: message.id,
+      content: message.content,
+      author_kind: message.author_kind,
+      inserted_at: message.inserted_at,
+      user_id: nil,
+      user_display_name: nil
+    }
+
+    EventBus.broadcast!(
+      {:chatroom, chat_room_id},
+      :new_message,
+      enriched_chat_room_message
+    )
+
+    {:ok, enriched_chat_room_message}
   end
 
   def insert_chat_message_for_user_and_broadcast_enriched_message!(

@@ -19,6 +19,16 @@ defmodule Aveline.Chat.Message do
     timestamps()
   end
 
+  def new_message_for_ai_changeset(%{chat_room_id: chat_room_id}, content) do
+    %__MODULE__{}
+    |> cast(%{"content" => content}, [:content])
+    |> update_change(:content, &String.trim/1)
+    |> put_change(:chat_room_id, chat_room_id)
+    |> put_change(:author_kind, Enums.AuthorKind.ai())
+    |> validate_length(:content, min: 1)
+    |> validate_required([:content, :chat_room_id, :author_kind])
+  end
+
   def new_message_for_user_id_changeset(%{user_id: user_id, chat_room_id: chat_room_id}, content) do
     %__MODULE__{}
     |> cast(%{"content" => content}, [:content])
