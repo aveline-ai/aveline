@@ -8,6 +8,7 @@ defmodule Aveline.Chat do
   alias Aveline.Chat.ChatRoom
   alias Aveline.Chat.ChatRoomMembership
   alias Aveline.Chat.Message
+  alias Aveline.EventBus
   alias Aveline.Repo
 
   def get_chat_rooms_with_last_message_for_user(user_id) do
@@ -87,15 +88,22 @@ defmodule Aveline.Chat do
 
     user = Repo.get!(User, user_id)
 
-    {:ok,
-     %{
-       id: message.id,
-       content: message.content,
-       author_kind: message.author_kind,
-       inserted_at: message.inserted_at,
-       user_display_name: user.display_name,
-       user_id: user.id
-     }}
+    chat_message = %{
+      id: message.id,
+      content: message.content,
+      author_kind: message.author_kind,
+      inserted_at: message.inserted_at,
+      user_display_name: user.display_name,
+      user_id: user.id
+    }
+
+    EventBus.broadcast!(
+      {:chatroom, chat_room_id},
+      :new_message,
+      chat_message
+    )
+
+    {:ok, chat_message}
   end
 
   def get_messages(id) do

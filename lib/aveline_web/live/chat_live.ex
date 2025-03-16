@@ -6,6 +6,7 @@ defmodule AvelineWeb.ChatLive do
   import AvelineWeb.Ui.ChatMessageComponent
   alias Aveline.Chat
   alias Aveline.Enums
+  alias Aveline.EventBus
 
   @impl true
   def mount(_params, _session, socket) do
@@ -105,6 +106,9 @@ defmodule AvelineWeb.ChatLive do
         socket
       ) do
     %{active_chat_room: active_chat_room, current_user: %{id: current_user_id}} = socket.assigns
+
+    # We've authenticated the user has access to this chat room so we subscribe to the event bus.
+    EventBus.subscribe({:chatroom, fetched_chat_room.id})
 
     %{streamable_ui_elements: streamable_ui_elements, last_message: last_message} =
       get_streamable_ui_elements_and_last_messsage(:initial_fetched_messages, fetched_messages, current_user_id)
@@ -272,6 +276,33 @@ defmodule AvelineWeb.ChatLive do
        to: ~p"/chat/new",
        replace: false
      )}
+  end
+
+  # Handle Event Bus messages
+
+  @impl true
+  def handle_info(%{kind: :new_message, chat_room_id: chat_room_id, message: message}, socket) do
+    %{current_user: current_user, active_chat_room_id: active_chat_room_id} = socket.assigns
+
+    socket =
+      if active_chat_room_id != chat_room_id do
+        # Ignore messages from other chat rooms, we only want to stream messages for the active chat room.
+        socket
+      else
+        # NOTE: We don't need to worry about inserting duplicates because streams handle this for us.
+        new_streamable_ui_element =
+          get_streamable_ui_element_from_message(%{
+            message: message,
+            last_message: socket.assigns.active_chat_room_last_message,
+            current_user_id: current_user.id
+          })
+
+        socket
+        |> stream_insert(:active_chat_room_streamable_ui_elements, new_streamable_ui_element)
+        |> assign(:active_chat_room_last_message, message)
+      end
+
+    {:noreply, socket}
   end
 
   # Private
