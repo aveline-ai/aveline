@@ -312,13 +312,21 @@ defmodule AvelineWeb.ChatLive do
         #
         # NOTE: We don't need to update the UI because that happens immediately when the message is submitted.
         enriched_chat_room_message.user_id == current_user.id ->
-          if should_generate_ai_response?(active_chat_room) do
-            Task.Supervisor.start_child(Aveline.TaskSupervisor, fn ->
-              generate_ai_response_for_message_and_broadcast_enriched_message!(%{
-                chat_room_id: active_chat_room_id,
-                message_id: enriched_chat_room_message.id
-              })
-            end)
+          case active_chat_room do
+            %Phoenix.LiveView.AsyncResult{ok?: true, result: active_chat_room} ->
+              if should_generate_ai_response?(active_chat_room.mode) do
+                Task.Supervisor.start_child(Aveline.TaskSupervisor, fn ->
+                  generate_ai_response_for_message_and_broadcast_enriched_message!(%{
+                    chat_room_id: active_chat_room.id,
+                    chat_room_mode: active_chat_room.mode,
+                    chat_room_base_language: active_chat_room.base_language,
+                    chat_room_learning_language: active_chat_room.learning_language,
+                    message_id: enriched_chat_room_message.id,
+                    user_id: current_user.id,
+                    user_local_timezone: current_user.local_timezone
+                  })
+                end)
+              end
           end
 
           socket
@@ -346,9 +354,23 @@ defmodule AvelineWeb.ChatLive do
 
   defp generate_ai_response_for_message_and_broadcast_enriched_message!(%{
          chat_room_id: chat_room_id,
-         message_id: message_id
+         chat_room_mode: chat_room_mode,
+         chat_room_base_language: chat_room_base_language,
+         chat_room_learning_language: chat_room_learning_language,
+         message_id: message_id,
+         user_id: user_id,
+         user_local_timezone: user_local_timezone
        }) do
-    open_ai_response = OpenAi.generate_chat_completion!(%{chat_room_id: chat_room_id, message_id: message_id})
+    open_ai_response =
+      OpenAi.generate_chat_completion!(%{
+        chat_room_id: chat_room_id,
+        chat_room_mode: chat_room_mode,
+        chat_room_base_language: chat_room_base_language,
+        chat_room_learning_language: chat_room_learning_language,
+        message_id: message_id,
+        user_id: user_id,
+        user_local_timezone: user_local_timezone
+      })
 
     Chat.insert_chat_message_for_ai_and_broadcast_enriched_message!(%{
       chat_room_id: chat_room_id,
@@ -356,18 +378,12 @@ defmodule AvelineWeb.ChatLive do
     })
   end
 
-  # Checks that the chat room is loaded and that the mode is one that warrants an AI response.
-  defp should_generate_ai_response?(active_chat_room) do
-    case active_chat_room do
-      %Phoenix.LiveView.AsyncResult{ok?: true, result: %{mode: mode}} ->
-        Enums.ChatRoomMode.map!(mode, %{
-          Enums.ChatRoomMode.book_buddy() => true,
-          Enums.ChatRoomMode.chat_companion() => true
-        })
-
-      _ ->
-        false
-    end
+  # Checks that the mode is one that warrants an AI response.
+  defp should_generate_ai_response?(mode) do
+    Enums.ChatRoomMode.map!(mode, %{
+      Enums.ChatRoomMode.book_buddy() => true,
+      Enums.ChatRoomMode.chat_companion() => true
+    })
   end
 
   ## Streamable UI element helpers
