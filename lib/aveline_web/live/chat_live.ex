@@ -63,6 +63,11 @@ defmodule AvelineWeb.ChatLive do
   def handle_async(:get_chat_rooms, {:ok, fetched_chat_rooms}, socket) do
     %{chat_rooms: chat_rooms} = socket.assigns
 
+    fetched_chat_rooms
+    |> Enum.each(fn fetched_chat_room ->
+      EventBus.subscribe({:chatroom, fetched_chat_room.id})
+    end)
+
     {:noreply,
      socket
      |> assign(:chat_rooms, AsyncResult.ok(chat_rooms, fetched_chat_rooms))}
@@ -82,6 +87,11 @@ defmodule AvelineWeb.ChatLive do
       ) do
     %{chat_rooms: chat_rooms, current_user: current_user} = socket.assigns
     [%{id: default_desktop_chat_room_id} | _] = fetched_chat_rooms
+
+    fetched_chat_rooms
+    |> Enum.each(fn fetched_chat_room ->
+      EventBus.subscribe({:chatroom, fetched_chat_room.id})
+    end)
 
     {:noreply,
      socket
@@ -109,9 +119,6 @@ defmodule AvelineWeb.ChatLive do
         socket
       ) do
     %{active_chat_room: active_chat_room, current_user: %{id: current_user_id}} = socket.assigns
-
-    # We've authenticated the user has access to this chat room so we subscribe to the event bus.
-    EventBus.subscribe({:chatroom, fetched_chat_room.id})
 
     %{streamable_ui_elements: streamable_ui_elements, last_enriched_message: last_enriched_message} =
       get_streamable_ui_elements_and_last_enriched_messsage(
@@ -306,9 +313,13 @@ defmodule AvelineWeb.ChatLive do
       ) do
     %{
       current_user: current_user,
-      active_chat_room_id: active_chat_room_id
+      active_chat_room_id: active_chat_room_id,
+      chat_rooms: chat_rooms,
+      new_sent_message_ids: new_sent_message_ids,
+      active_chat_room_last_enriched_message: active_chat_room_last_enriched_message
     } = socket.assigns
 
+    # Handle inserting the message into the chat room.
     socket =
       cond do
         # Ignore messages from other chat rooms, we only want to stream messages for the active chat room.
@@ -316,7 +327,7 @@ defmodule AvelineWeb.ChatLive do
           socket
 
         # Ignore new messages we sent because those get added to the UI immediately after `on_new_message_submit`.
-        MapSet.member?(socket.assigns.new_sent_message_ids, enriched_chat_room_message.id) ->
+        MapSet.member?(new_sent_message_ids, enriched_chat_room_message.id) ->
           socket
 
         # For messages from the AI or other users, we need to update the UI but we don't need to trigger an AI response.
@@ -324,13 +335,26 @@ defmodule AvelineWeb.ChatLive do
           new_streamable_ui_element =
             get_streamable_ui_element_from_enriched_chat_message(%{
               enriched_chat_room_message: enriched_chat_room_message,
-              last_enriched_message: socket.assigns.active_chat_room_last_enriched_message,
+              last_enriched_message: active_chat_room_last_enriched_message,
               current_user_id: current_user.id
             })
 
           socket
           |> stream_insert(:active_chat_room_streamable_ui_elements, new_streamable_ui_element)
           |> assign(:active_chat_room_last_enriched_message, enriched_chat_room_message)
+      end
+
+    # Handle updating the last message for each chat room
+    socket =
+      case chat_rooms do
+        %AsyncResult{ok?: true, result: chat_rooms} ->
+          chat_rooms = update_chat_room_last_enriched_message(chat_rooms, chat_room_id, enriched_chat_room_message)
+
+          socket
+          |> assign(:chat_rooms, AsyncResult.ok(chat_rooms))
+
+        _ ->
+          socket
       end
 
     {:noreply, socket}
@@ -462,4 +486,22 @@ defmodule AvelineWeb.ChatLive do
 
   defp get_chat_message_self_alignment("left"), do: "self-start"
   defp get_chat_message_self_alignment("right"), do: "self-end"
+
+  defp update_chat_room_last_enriched_message(chat_rooms, chat_room_id, enriched_chat_room_message) do
+    chat_rooms
+    |> Enum.map(fn chat_room ->
+      if chat_room.id == chat_room_id do
+        %{
+          chat_room
+          | last_message: enriched_chat_room_message.content,
+            last_message_author_kind: enriched_chat_room_message.author_kind,
+            last_message_user_display_name: enriched_chat_room_message.user_display_name,
+            last_message_user_id: enriched_chat_room_message.user_id,
+            last_message_inserted_at: enriched_chat_room_message.inserted_at
+        }
+      else
+        chat_room
+      end
+    end)
+  end
 end
