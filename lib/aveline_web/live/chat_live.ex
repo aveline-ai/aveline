@@ -21,7 +21,7 @@ defmodule AvelineWeb.ChatLive do
      |> assign(:chat_rooms, AsyncResult.loading())
      |> assign(:active_chat_room, AsyncResult.loading())
      |> assign(:new_message_form, to_form(%{"message" => ""}))
-     |> assign(:new_message_counter, 0)}
+     |> assign(:new_sent_message_ids, MapSet.new())}
   end
 
   @impl true
@@ -198,7 +198,7 @@ defmodule AvelineWeb.ChatLive do
               class="flex"
             >
               <textarea
-                id={"new-message-textarea-#{@chat_id_from_path}-#{@new_message_counter}"}
+                id={"new-message-textarea-#{@chat_id_from_path}-#{Enum.count(@new_sent_message_ids)}"}
                 type="text"
                 name="message"
                 class="flex-1 rounded-lg min-h-24 max-h-96 hide-desktop-scrollbar pr-16 border-gray-300 focus:border-gray-300 focus:ring-0 resize-y disabled:opacity-50 disabled:cursor-not-allowed"
@@ -231,7 +231,9 @@ defmodule AvelineWeb.ChatLive do
     %{
       current_user: current_user,
       active_chat_room_id: active_chat_room_id,
-      new_message_form: new_message_form
+      active_chat_room: active_chat_room,
+      new_message_form: new_message_form,
+      new_sent_message_ids: new_sent_message_ids
     } = socket.assigns
 
     new_message = new_message_form[:message].value
@@ -253,9 +255,15 @@ defmodule AvelineWeb.ChatLive do
           current_user_id: current_user.id
         })
 
+      conditionally_start_async_task_to_generate_ai_response(%{
+        active_chat_room: active_chat_room,
+        enriched_chat_room_message: enriched_chat_room_message,
+        current_user: current_user
+      })
+
       {:noreply,
        socket
-       |> assign(:new_message_counter, socket.assigns.new_message_counter + 1)
+       |> assign(:new_sent_message_ids, MapSet.put(new_sent_message_ids, enriched_chat_room_message.id))
        |> assign(:new_message_form, to_form(%{"message" => ""}))
        |> assign(:active_chat_room_last_enriched_message, enriched_chat_room_message)
        |> stream_insert(:active_chat_room_streamable_ui_elements, new_streamable_ui_element)}
@@ -298,8 +306,7 @@ defmodule AvelineWeb.ChatLive do
       ) do
     %{
       current_user: current_user,
-      active_chat_room_id: active_chat_room_id,
-      active_chat_room: active_chat_room
+      active_chat_room_id: active_chat_room_id
     } = socket.assigns
 
     socket =
@@ -308,27 +315,8 @@ defmodule AvelineWeb.ChatLive do
         active_chat_room_id != chat_room_id ->
           socket
 
-        # If it is the users own message, then we want to trigger an AI response.
-        #
-        # NOTE: We don't need to update the UI because that happens immediately when the message is submitted.
-        enriched_chat_room_message.user_id == current_user.id ->
-          case active_chat_room do
-            %Phoenix.LiveView.AsyncResult{ok?: true, result: active_chat_room} ->
-              if should_generate_ai_response?(active_chat_room.mode) do
-                Task.Supervisor.start_child(Aveline.TaskSupervisor, fn ->
-                  generate_ai_response_for_message_and_broadcast_enriched_message!(%{
-                    chat_room_id: active_chat_room.id,
-                    chat_room_mode: active_chat_room.mode,
-                    chat_room_base_language: active_chat_room.base_language,
-                    chat_room_learning_language: active_chat_room.learning_language,
-                    message_id: enriched_chat_room_message.id,
-                    user_id: current_user.id,
-                    user_local_timezone: current_user.local_timezone
-                  })
-                end)
-              end
-          end
-
+        # Ignore new messages we sent because those get added to the UI immediately after `on_new_message_submit`.
+        MapSet.member?(socket.assigns.new_sent_message_ids, enriched_chat_room_message.id) ->
           socket
 
         # For messages from the AI or other users, we need to update the UI but we don't need to trigger an AI response.
@@ -351,6 +339,30 @@ defmodule AvelineWeb.ChatLive do
   # Private
 
   ## AI Helpers
+
+  defp conditionally_start_async_task_to_generate_ai_response(%{
+         active_chat_room: %AsyncResult{ok?: true, result: active_chat_room},
+         enriched_chat_room_message: enriched_chat_room_message,
+         current_user: current_user
+       }) do
+    if should_generate_ai_response?(active_chat_room.mode) do
+      Task.Supervisor.start_child(Aveline.TaskSupervisor, fn ->
+        generate_ai_response_for_message_and_broadcast_enriched_message!(%{
+          chat_room_id: active_chat_room.id,
+          chat_room_mode: active_chat_room.mode,
+          chat_room_base_language: active_chat_room.base_language,
+          chat_room_learning_language: active_chat_room.learning_language,
+          message_id: enriched_chat_room_message.id,
+          user_id: current_user.id,
+          user_local_timezone: current_user.local_timezone
+        })
+      end)
+
+      true
+    end
+  end
+
+  defp conditionally_start_async_task_to_generate_ai_response(_), do: false
 
   defp generate_ai_response_for_message_and_broadcast_enriched_message!(%{
          chat_room_id: chat_room_id,
