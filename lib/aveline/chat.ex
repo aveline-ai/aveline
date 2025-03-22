@@ -23,7 +23,7 @@ defmodule Aveline.Chat do
           from m in Message,
             left_join: u in assoc(m, :user),
             where: m.chat_room_id == parent_as(:chat_room).id,
-            order_by: [asc: :inserted_at],
+            order_by: [desc: :inserted_at],
             limit: 1,
             select: %{
               content: m.content,
