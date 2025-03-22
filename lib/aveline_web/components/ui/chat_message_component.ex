@@ -12,7 +12,7 @@ defmodule AvelineWeb.Ui.ChatMessageComponent do
   def chat_message(assigns) do
     ~H"""
     <div class="flex flex-col gap-1.5 w-fit">
-      <div :if={@should_display_author_display_name} class="text-xs font-medium text-text-secondary">
+      <div :if={@should_display_author_display_name} class="text-xs font-medium text-text-secondary pt-3">
         {@author_display_name}
       </div>
       <div class={"text-sm text-text-tertiary py-2.5 px-3.5 #{get_chat_message_color_scheme(@side)} rounded-lg #{get_square_border_side(@side)}"}>

@@ -20,6 +20,13 @@ if System.get_env("PHX_SERVER") do
   config :aveline, AvelineWeb.Endpoint, server: true
 end
 
+## Open AI
+
+config :aveline, :openai,
+  api_key: System.get_env("OPEN_AI_API_KEY") || raise("Missing OPEN_AI_API_KEY"),
+  organization_key: System.get_env("OPEN_AI_ORGANIZATION_KEY") || raise("Missing OPEN_AI_ORGANIZATION_KEY"),
+  http_options: [recv_timeout: 120_000]
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

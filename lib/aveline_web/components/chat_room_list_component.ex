@@ -37,30 +37,27 @@ defmodule AvelineWeb.ChatRoomListComponent do
               <div class="font-medium text-sm">{chat_room.name}</div>
               <div class="flex flex-row gap-1">
                 <.badge_color_with_icon
-                  label={badge_pretty_print!(chat_room.learning_language, :capitalize)}
+                  label={get_language_badge_label!(chat_room.learning_language)}
                   color="gray"
                   icon="hero-language"
                 />
                 <.badge_color_with_icon
-                  label={badge_pretty_print!(chat_room.chat_room_mode, :capitalize)}
-                  color={get_chat_room_mode_badge_color_scheme(chat_room.chat_room_mode)}
-                  icon={get_chat_room_mode_badge_icon(chat_room.chat_room_mode)}
+                  label={get_chat_room_mode_badge_label!(chat_room.chat_room_mode)}
+                  color={get_chat_room_mode_badge_color_scheme!(chat_room.chat_room_mode)}
+                  icon={get_chat_room_mode_badge_icon!(chat_room.chat_room_mode)}
                 />
               </div>
             </div>
-            <div class="text-sm text-text-tertiary">
-              <span :if={chat_room.last_message_author_kind == Enums.AuthorKind.user()}>
-                <span :if={chat_room.last_message_user_id == @current_user_id} class="font-bold">
-                  You:
+            <div class="text-sm text-text-tertiary h-10">
+              <span>
+                <span class="font-bold">
+                  {get_display_name(
+                    chat_room.last_message_author_kind,
+                    chat_room.last_message_user_id == @current_user_id,
+                    chat_room.last_message_user_display_name
+                  )}:
                 </span>
-                <span :if={chat_room.last_message_user_id != @current_user_id} class="font-bold">
-                  {chat_room.last_message_user_display_name}:
-                </span>
-                <span>{chat_room.last_message}</span>
-              </span>
-              <span :if={chat_room.last_message_author_kind == Enums.AuthorKind.ai()}>
-                <span class="font-bold">Aveline:</span>
-                <span>{chat_room.last_message}</span>
+                <span>{get_truncated_message(chat_room.last_message)}</span>
               </span>
             </div>
           </div>
@@ -79,23 +76,58 @@ defmodule AvelineWeb.ChatRoomListComponent do
 
   # Private
 
-  defp get_chat_room_mode_badge_color_scheme(chat_room_mode) do
-    case chat_room_mode do
-      Enums.ChatRoomMode.book_buddy() -> "orange"
-      Enums.ChatRoomMode.chat_companion() -> "blue-light"
+  defp get_display_name(_, true, _), do: "You"
+
+  defp get_display_name(author_kind, _, user_display_name) do
+    Enums.AuthorKind.map!(author_kind, %{
+      Enums.AuthorKind.user() => user_display_name,
+      Enums.AuthorKind.ai() => "Aveline"
+    })
+  end
+
+  defp get_truncated_message(message) do
+    truncate_length = 70
+
+    if String.length(message) > truncate_length do
+      message
+      |> String.slice(0, truncate_length)
+      |> String.trim()
+      |> String.pad_trailing(truncate_length + 3, "...")
+    else
+      message
     end
   end
 
-  defp badge_pretty_print!(Enums.ChatRoomMode.book_buddy(), :capitalize), do: "Book Buddy"
-  defp badge_pretty_print!(Enums.ChatRoomMode.chat_companion(), :capitalize), do: "Chat Companion"
-  defp badge_pretty_print!(Enums.Language.english(), :capitalize), do: "English"
-  defp badge_pretty_print!(Enums.Language.french(), :capitalize), do: "French"
-  defp badge_pretty_print!(Enums.Language.spanish(), :capitalize), do: "Spanish"
-  defp badge_pretty_print!(Enums.Language.german(), :capitalize), do: "German"
-  defp badge_pretty_print!(Enums.Language.italian(), :capitalize), do: "Italian"
-  defp badge_pretty_print!(Enums.Language.japanese(), :capitalize), do: "Japanese"
-  defp badge_pretty_print!(Enums.Language.korean(), :capitalize), do: "Korean"
+  defp get_chat_room_mode_badge_color_scheme!(chat_room_mode) do
+    Enums.ChatRoomMode.map!(chat_room_mode, %{
+      Enums.ChatRoomMode.group_chat() => "orange",
+      Enums.ChatRoomMode.private_chat() => "blue-light"
+    })
+  end
 
-  defp get_chat_room_mode_badge_icon(Enums.ChatRoomMode.book_buddy()), do: "hero-book-open"
-  defp get_chat_room_mode_badge_icon(Enums.ChatRoomMode.chat_companion()), do: "hero-chat-bubble-left-right"
+  defp get_language_badge_label!(language) do
+    Enums.Language.map!(language, %{
+      Enums.Language.english() => "English",
+      Enums.Language.french() => "French",
+      Enums.Language.spanish() => "Spanish",
+      Enums.Language.german() => "German",
+      Enums.Language.italian() => "Italian",
+      Enums.Language.japanese() => "Japanese",
+      Enums.Language.korean() => "Korean"
+    })
+  end
+
+  defp get_chat_room_mode_badge_label!(chat_room_mode) do
+    Enums.ChatRoomMode.map!(chat_room_mode, %{
+      Enums.ChatRoomMode.group_chat() => "Group Chat",
+      Enums.ChatRoomMode.private_chat() => "Private Chat"
+    })
+  end
+
+  defp get_chat_room_mode_badge_icon!(chat_room_mode) do
+    Enums.ChatRoomMode.map!(chat_room_mode, %{
+      Enums.ChatRoomMode.group_chat() => "hero-user-group",
+      Enums.ChatRoomMode.private_chat() => "hero-chat-bubble-left-right"
+    })
+  end
 end
