@@ -183,7 +183,7 @@ defmodule AvelineWeb.ChatLive do
               <div
                 :for={{dom_id, streamable_ui_element} <- @streams.active_chat_room_streamable_ui_elements}
                 id={dom_id}
-                class={"w-fit #{streamable_ui_element.chat_message_self_alignment}"}
+                class={"w-fit max-w-[80%] #{streamable_ui_element.chat_message_self_alignment}"}
               >
                 <.chat_message
                   side={streamable_ui_element.chat_message_side}
