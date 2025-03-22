@@ -417,8 +417,8 @@ defmodule AvelineWeb.ChatLive do
   # Checks that the mode is one that warrants an AI response.
   defp should_generate_ai_response?(mode) do
     Enums.ChatRoomMode.map!(mode, %{
-      Enums.ChatRoomMode.book_buddy() => true,
-      Enums.ChatRoomMode.chat_companion() => true
+      Enums.ChatRoomMode.group_chat() => true,
+      Enums.ChatRoomMode.private_chat() => true
     })
   end
 

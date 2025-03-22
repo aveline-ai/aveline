@@ -10,15 +10,15 @@ defmodule Aveline.OpenAi.Prompts do
     Enums.ChatRoomMode.map!(
       chat_room_mode,
       %{
-        Enums.ChatRoomMode.book_buddy() =>
-          book_buddy_prompt(%{base_language: base_language, learning_language: learning_language}),
-        Enums.ChatRoomMode.chat_companion() =>
-          chat_companion_prompt(%{base_language: base_language, learning_language: learning_language})
+        Enums.ChatRoomMode.group_chat() =>
+          group_chat_prompt(%{base_language: base_language, learning_language: learning_language}),
+        Enums.ChatRoomMode.private_chat() =>
+          private_chat_prompt(%{base_language: base_language, learning_language: learning_language})
       }
     )
   end
 
-  defp book_buddy_prompt(%{base_language: base_language, learning_language: learning_language}) do
+  defp group_chat_prompt(%{base_language: base_language, learning_language: learning_language}) do
     """
     You are a terse & effective language teacher helping a student learn #{learning_language}.
 
@@ -41,7 +41,7 @@ defmodule Aveline.OpenAi.Prompts do
     """
   end
 
-  defp chat_companion_prompt(%{base_language: base_language, learning_language: learning_language}) do
+  defp private_chat_prompt(%{base_language: base_language, learning_language: learning_language}) do
     """
     You are a helpful & kind language teacher helping a student learn #{learning_language}.
 

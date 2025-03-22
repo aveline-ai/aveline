@@ -100,8 +100,8 @@ defmodule AvelineWeb.ChatRoomListComponent do
 
   defp get_chat_room_mode_badge_color_scheme!(chat_room_mode) do
     Enums.ChatRoomMode.map!(chat_room_mode, %{
-      Enums.ChatRoomMode.book_buddy() => "orange",
-      Enums.ChatRoomMode.chat_companion() => "blue-light"
+      Enums.ChatRoomMode.group_chat() => "orange",
+      Enums.ChatRoomMode.private_chat() => "blue-light"
     })
   end
 
@@ -119,15 +119,15 @@ defmodule AvelineWeb.ChatRoomListComponent do
 
   defp get_chat_room_mode_badge_label!(chat_room_mode) do
     Enums.ChatRoomMode.map!(chat_room_mode, %{
-      Enums.ChatRoomMode.book_buddy() => "Book Buddy",
-      Enums.ChatRoomMode.chat_companion() => "Chat Companion"
+      Enums.ChatRoomMode.group_chat() => "Group Chat",
+      Enums.ChatRoomMode.private_chat() => "Private Chat"
     })
   end
 
   defp get_chat_room_mode_badge_icon!(chat_room_mode) do
     Enums.ChatRoomMode.map!(chat_room_mode, %{
-      Enums.ChatRoomMode.book_buddy() => "hero-book-open",
-      Enums.ChatRoomMode.chat_companion() => "hero-chat-bubble-left-right"
+      Enums.ChatRoomMode.group_chat() => "hero-user-group",
+      Enums.ChatRoomMode.private_chat() => "hero-chat-bubble-left-right"
     })
   end
 end

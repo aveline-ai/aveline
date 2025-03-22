@@ -6,31 +6,31 @@ defmodule Aveline.Enums.ChatRoomMode do
   alias Aveline.Enums.Helpers
 
   # All chat room modes as macros so it can be used in pattern matching
-  defmacro book_buddy, do: quote(do: :book_buddy)
-  defmacro chat_companion, do: quote(do: :chat_companion)
+  defmacro group_chat, do: quote(do: :group_chat)
+  defmacro private_chat, do: quote(do: :private_chat)
 
   @doc """
   Returns a list of all supported chat room modes.
   """
-  def chat_room_modes, do: [book_buddy(), chat_companion()]
+  def chat_room_modes, do: [group_chat(), private_chat()]
 
   @doc """
   Converts a string to a chat room mode atom.
   """
-  def from_string!("book_buddy"), do: book_buddy()
-  def from_string!("chat_companion"), do: chat_companion()
+  def from_string!("group_chat"), do: group_chat()
+  def from_string!("private_chat"), do: private_chat()
   def from_string!(string), do: raise("Invalid chat room mode: #{string}")
 
   @doc """
   A type-smart enum mapper. Raises an error if the chat room mode is invalid.
   """
   def map!(chat_room_mode, %{
-        book_buddy() => book_buddy_value_or_fn,
-        chat_companion() => chat_companion_value_or_fn
+        group_chat() => group_chat_value_or_fn,
+        private_chat() => private_chat_value_or_fn
       }) do
     case chat_room_mode do
-      book_buddy() -> Helpers.run_fn_or_return_value(book_buddy_value_or_fn)
-      chat_companion() -> Helpers.run_fn_or_return_value(chat_companion_value_or_fn)
+      group_chat() -> Helpers.run_fn_or_return_value(group_chat_value_or_fn)
+      private_chat() -> Helpers.run_fn_or_return_value(private_chat_value_or_fn)
       _ -> raise("Invalid chat room mode: #{chat_room_mode}")
     end
   end
