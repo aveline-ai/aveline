@@ -173,8 +173,6 @@ defmodule AvelineWeb.ChatLive do
           <.async_result :let={active_chat_room} :if={!@making_new_chat_room} assign={@active_chat_room}>
             <:loading>Loading chat...</:loading>
             <:failed :let={_reason}>There was an error loading chat</:failed>
-
-            <h1 class="text-2xl font-bold sm:hidden">{active_chat_room.name}</h1>
             <%!-- Stream messages --%>
             <div
               id="message-container"
