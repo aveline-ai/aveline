@@ -12,6 +12,7 @@ defmodule Aveline.OpenAi do
 
   # How many messages to include in the context of the AI response.
   @context_message_limit 10
+  @model "gpt-4o"
 
   # Warning: Does not perform any validation. Should not be used directly by the user.
   def generate_chat_completion!(%{
@@ -24,6 +25,11 @@ defmodule Aveline.OpenAi do
       }) do
     messages = Chat.get_messages_for_ai_completion(%{message_id: message_id, message_limit: @context_message_limit})
 
+    chat_completion_messages =
+      messages
+      |> Enum.reverse()
+      |> Enum.map(&open_ai_chat_completion_message_from_chat_message/1)
+
     prompt =
       Prompts.get_prompt(%{
         chat_room_mode: chat_room_mode,
@@ -31,17 +37,12 @@ defmodule Aveline.OpenAi do
         learning_language: chat_room_learning_language
       })
 
-    chat_completion_messages =
-      messages
-      |> Enum.reverse()
-      |> Enum.map(&open_ai_chat_completion_message_from_chat_message/1)
-
     chat_completion_messages_with_system_prompt =
       [%{role: "system", content: prompt} | chat_completion_messages]
 
     %{"choices" => [%{"message" => %{"content" => content}}]} =
       Completions.create!(open_ai_client(), %{
-        model: "gpt-4o-mini",
+        model: @model,
         messages: chat_completion_messages_with_system_prompt
       })
 
