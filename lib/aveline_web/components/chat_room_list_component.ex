@@ -48,19 +48,16 @@ defmodule AvelineWeb.ChatRoomListComponent do
                 />
               </div>
             </div>
-            <div class="text-sm text-text-tertiary">
-              <span :if={chat_room.last_message_author_kind == Enums.AuthorKind.user()}>
-                <span :if={chat_room.last_message_user_id == @current_user_id} class="font-bold">
-                  You:
+            <div class="text-sm text-text-tertiary h-10">
+              <span>
+                <span class="font-bold">
+                  {get_display_name(
+                    chat_room.last_message_author_kind,
+                    chat_room.last_message_user_id == @current_user_id,
+                    chat_room.last_message_user_display_name
+                  )}:
                 </span>
-                <span :if={chat_room.last_message_user_id != @current_user_id} class="font-bold">
-                  {chat_room.last_message_user_display_name}:
-                </span>
-                <span>{chat_room.last_message}</span>
-              </span>
-              <span :if={chat_room.last_message_author_kind == Enums.AuthorKind.ai()}>
-                <span class="font-bold">Aveline:</span>
-                <span>{chat_room.last_message}</span>
+                <span>{get_truncated_message(chat_room.last_message)}</span>
               </span>
             </div>
           </div>
@@ -78,6 +75,28 @@ defmodule AvelineWeb.ChatRoomListComponent do
   end
 
   # Private
+
+  defp get_display_name(_, true, _), do: "You"
+
+  defp get_display_name(author_kind, _, user_display_name) do
+    Enums.AuthorKind.map!(author_kind, %{
+      Enums.AuthorKind.user() => user_display_name,
+      Enums.AuthorKind.ai() => "Aveline"
+    })
+  end
+
+  defp get_truncated_message(message) do
+    truncate_length = 70
+
+    if String.length(message) > truncate_length do
+      message
+      |> String.slice(0, truncate_length)
+      |> String.trim()
+      |> String.pad_trailing(truncate_length + 3, "...")
+    else
+      message
+    end
+  end
 
   defp get_chat_room_mode_badge_color_scheme!(chat_room_mode) do
     Enums.ChatRoomMode.map!(chat_room_mode, %{
