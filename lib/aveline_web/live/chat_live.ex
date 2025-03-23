@@ -193,6 +193,7 @@ defmodule AvelineWeb.ChatLive do
                   message={streamable_ui_element.content}
                   author_display_name={streamable_ui_element.author_display_name}
                   should_display_author_display_name={streamable_ui_element.should_display_author_display_name}
+                  should_display_learn_action={streamable_ui_element.should_display_learn_action}
                 />
               </div>
             </div>
@@ -472,6 +473,9 @@ defmodule AvelineWeb.ChatLive do
     should_display_author_display_name =
       !Helpers.same_author?(last_enriched_message, enriched_chat_room_message)
 
+    should_display_learn_action =
+      enriched_chat_room_message.author_kind == Enums.AuthorKind.ai()
+
     %{
       id: enriched_chat_room_message.id,
       author_kind: enriched_chat_room_message.author_kind,
@@ -479,7 +483,8 @@ defmodule AvelineWeb.ChatLive do
       should_display_author_display_name: should_display_author_display_name,
       content: enriched_chat_room_message.content,
       chat_message_side: chat_message_side,
-      chat_message_self_alignment: chat_message_self_alignment
+      chat_message_self_alignment: chat_message_self_alignment,
+      should_display_learn_action: should_display_learn_action
     }
   end
 
