@@ -191,9 +191,11 @@ defmodule AvelineWeb.ChatLive do
                 <.chat_message
                   side={streamable_ui_element.chat_message_side}
                   message={streamable_ui_element.content}
+                  message_id={streamable_ui_element.id}
                   author_display_name={streamable_ui_element.author_display_name}
                   should_display_author_display_name={streamable_ui_element.should_display_author_display_name}
                   should_display_learn_action={streamable_ui_element.should_display_learn_action}
+                  on_learn_action="learn_message"
                 />
               </div>
             </div>
@@ -233,6 +235,11 @@ defmodule AvelineWeb.ChatLive do
       </div>
     </div>
     """
+  end
+
+  @impl true
+  def handle_event("learn_message", unsigned_params, socket) do
+    {:noreply, socket}
   end
 
   @impl true

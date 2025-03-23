@@ -4,11 +4,16 @@ defmodule AvelineWeb.Ui.ChatMessageComponent do
   """
   use Phoenix.Component
 
+  import AvelineWeb.Ui.Button
+
+  attr :message_id, :string, required: true
   attr :message, :string, required: true
   attr :author_display_name, :string, required: true
   attr :side, :string, required: true, values: ["left", "right"]
   attr :should_display_author_display_name, :boolean, required: true
+
   attr :should_display_learn_action, :boolean, required: true
+  attr :on_learn_action, :string, required: true
 
   def chat_message(assigns) do
     ~H"""
@@ -19,9 +24,16 @@ defmodule AvelineWeb.Ui.ChatMessageComponent do
       <div class={"text-sm text-text-tertiary py-2.5 px-3.5 #{get_chat_message_color_scheme(@side)} rounded-lg #{get_square_border_side(@side)}"}>
         <span class="whitespace-pre-wrap">{@message}</span>
       </div>
-      <div :if={@should_display_learn_action} class="text-xs font-medium text-text-secondary self-end">
-        Learn
-      </div>
+      <.button
+        :if={@should_display_learn_action}
+        size="sm"
+        hierarchy="secondary_gray"
+        label="Learn"
+        on_click={@on_learn_action}
+        disabled={false}
+        leading_icon="hero-academic-cap"
+        phx-value-message-id={@message_id}
+      />
     </div>
     """
   end
