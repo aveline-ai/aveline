@@ -4,6 +4,7 @@ defmodule AvelineWeb.ChatLive do
   require Aveline.Enums.AuthorKind
   require Aveline.Enums.ChatRoomMode
   import AvelineWeb.ChatRoomListComponent
+  import AvelineWeb.ChatRoomListSkeletonComponent
   import AvelineWeb.Ui.ChatMessageComponent
   alias Aveline.Chat
   alias Aveline.Enums
@@ -150,7 +151,7 @@ defmodule AvelineWeb.ChatLive do
         (@chat_id_from_path || @making_new_chat_room) && "hidden"
       ]}>
         <.async_result :let={chat_rooms} assign={@chat_rooms}>
-          <:loading>Loading chat rooms...</:loading>
+          <:loading><.chat_room_list_skeleton /></:loading>
           <:failed :let={_reason}>There was an error loading chat rooms</:failed>
           <.chat_room_list
             chat_rooms={chat_rooms}
