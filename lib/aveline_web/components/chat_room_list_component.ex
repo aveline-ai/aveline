@@ -127,7 +127,7 @@ defmodule AvelineWeb.ChatRoomListComponent do
   defp get_chat_room_mode_badge_icon!(chat_room_mode) do
     Enums.ChatRoomMode.map!(chat_room_mode, %{
       Enums.ChatRoomMode.group_chat() => "hero-user-group",
-      Enums.ChatRoomMode.private_chat() => "hero-chat-bubble-left-right"
+      Enums.ChatRoomMode.private_chat() => "hero-chat-bubble-left-ellipsis"
     })
   end
 end
