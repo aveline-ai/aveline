@@ -96,6 +96,9 @@ module.exports = {
         },
         background: {
           active: "#FAFAFA"
+        },
+        button: {
+          "secondary-fg": "#414651",
         }
       },
       fontFamily: {

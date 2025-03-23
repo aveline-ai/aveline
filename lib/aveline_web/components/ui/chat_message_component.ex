@@ -17,7 +17,7 @@ defmodule AvelineWeb.Ui.ChatMessageComponent do
 
   def chat_message(assigns) do
     ~H"""
-    <div class="flex flex-col gap-1.5 w-fit">
+    <div class="flex flex-col gap-1 w-fit min-w-64">
       <div :if={@should_display_author_display_name} class="text-xs font-medium text-text-secondary pt-3">
         {@author_display_name}
       </div>
@@ -33,6 +33,7 @@ defmodule AvelineWeb.Ui.ChatMessageComponent do
         disabled={false}
         leading_icon="hero-academic-cap"
         phx-value-message-id={@message_id}
+        class="self-end"
       />
     </div>
     """
