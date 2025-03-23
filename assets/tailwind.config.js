@@ -98,7 +98,12 @@ module.exports = {
           active: "#FAFAFA"
         },
         button: {
+          "secondary-border": "#D5D7DA",
+          "secondary-border-hover": "#D5D7DA",
           "secondary-fg": "#414651",
+          "secondary-fg-hover": "#252B37",
+          "secondary-bg": "white",
+          "secondary-bg-hover": "#FAFAFA"
         }
       },
       fontFamily: {
