@@ -12,6 +12,7 @@ defmodule AvelineWeb.ChatLive do
   alias Aveline.EventBus
   alias Aveline.OpenAi
   alias Aveline.Structs.EnrichedChatRoomMessage
+  alias AvelineWeb.Helpers
 
   @impl true
   def mount(_params, _session, socket) do
@@ -461,14 +462,15 @@ defmodule AvelineWeb.ChatLive do
     chat_message_side = get_chat_message_side(current_user_id, enriched_chat_room_message.user_id)
     chat_message_self_alignment = get_chat_message_self_alignment(chat_message_side)
 
-    {author_display_name, should_display_author_display_name} =
-      Enums.AuthorKind.map!(enriched_chat_room_message.author_kind, %{
-        Enums.AuthorKind.user() =>
-          {enriched_chat_room_message.user_display_name,
-           last_enriched_message == nil || last_enriched_message.user_id != enriched_chat_room_message.user_id},
-        Enums.AuthorKind.ai() =>
-          {"Aveline", last_enriched_message == nil || last_enriched_message.author_kind != Enums.AuthorKind.ai()}
-      })
+    author_display_name =
+      Helpers.get_display_name(
+        enriched_chat_room_message.author_kind,
+        enriched_chat_room_message.user_id == current_user_id,
+        enriched_chat_room_message.user_display_name
+      )
+
+    should_display_author_display_name =
+      !Helpers.same_author?(last_enriched_message, enriched_chat_room_message)
 
     %{
       id: enriched_chat_room_message.id,

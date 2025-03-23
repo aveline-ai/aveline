@@ -12,6 +12,7 @@ defmodule AvelineWeb.ChatRoomListComponent do
   import AvelineWeb.Ui.IconButton, only: [icon_button: 1]
 
   alias Aveline.Enums
+  alias AvelineWeb.Helpers
 
   attr :chat_rooms, :list, required: true
   attr :active_chat_room_id, :string, default: nil
@@ -51,7 +52,7 @@ defmodule AvelineWeb.ChatRoomListComponent do
             <div class="text-sm text-text-tertiary h-10">
               <span>
                 <span class="font-bold">
-                  {get_display_name(
+                  {Helpers.get_display_name(
                     chat_room.last_message_author_kind,
                     chat_room.last_message_user_id == @current_user_id,
                     chat_room.last_message_user_display_name
@@ -75,15 +76,6 @@ defmodule AvelineWeb.ChatRoomListComponent do
   end
 
   # Private
-
-  defp get_display_name(_, true, _), do: "You"
-
-  defp get_display_name(author_kind, _, user_display_name) do
-    Enums.AuthorKind.map!(author_kind, %{
-      Enums.AuthorKind.user() => user_display_name,
-      Enums.AuthorKind.ai() => "Aveline"
-    })
-  end
 
   defp get_truncated_message(message) do
     truncate_length = 70
