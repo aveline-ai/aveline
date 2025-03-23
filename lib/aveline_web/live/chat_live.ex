@@ -6,6 +6,7 @@ defmodule AvelineWeb.ChatLive do
   import AvelineWeb.ChatRoomListComponent
   import AvelineWeb.ChatRoomListSkeletonComponent
   import AvelineWeb.Ui.ChatMessageComponent
+  import AvelineWeb.Ui.LoadingSpinnerComponent
   alias Aveline.Chat
   alias Aveline.Enums
   alias Aveline.EventBus
@@ -172,7 +173,7 @@ defmodule AvelineWeb.ChatLive do
       >
         <div class="flex flex-col h-full px-6 pt-4 justify-between">
           <.async_result :let={active_chat_room} :if={!@making_new_chat_room} assign={@active_chat_room}>
-            <:loading>Loading chat...</:loading>
+            <:loading><.loading_spinner /></:loading>
             <:failed :let={_reason}>There was an error loading chat</:failed>
             <%!-- Stream messages --%>
             <div
