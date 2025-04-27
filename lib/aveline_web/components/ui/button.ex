@@ -18,7 +18,7 @@ defmodule AvelineWeb.Ui.Button do
   attr :trailing_icon, :string, default: nil
 
   attr :label, :string, required: true
-  attr :on_click, :string, required: true
+  attr :on_click, :any, required: true
   attr :disabled, :boolean, required: true
 
   attr :class, :string, default: nil

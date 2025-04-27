@@ -13,7 +13,7 @@ defmodule AvelineWeb.Ui.ChatMessageComponent do
   attr :should_display_author_display_name, :boolean, required: true
 
   attr :should_display_learn_action, :boolean, required: true
-  attr :on_learn_action, :string, required: true
+  attr :on_learn_action, :any, required: true
 
   def chat_message(assigns) do
     ~H"""

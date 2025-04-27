@@ -24,7 +24,8 @@ defmodule AvelineWeb.ChatLive do
      |> assign(:chat_rooms, AsyncResult.loading())
      |> assign(:active_chat_room, AsyncResult.loading())
      |> assign(:new_message_form, to_form(%{"message" => ""}))
-     |> assign(:new_sent_message_ids, MapSet.new())}
+     |> assign(:new_sent_message_ids, MapSet.new())
+     |> assign(:learn_modal_data, %{show: false})}
   end
 
   @impl true
@@ -148,6 +149,9 @@ defmodule AvelineWeb.ChatLive do
   def render(assigns) do
     ~H"""
     <div class="flex h-full w-full">
+      <.modal id="learn-modal">
+        This is a modal.
+      </.modal>
       <div class={[
         "border-r border-border-secondary w-full lg:w-80 xl:w-96 lg:block flex-shrink-0",
         (@chat_id_from_path || @making_new_chat_room) && "hidden"
@@ -195,7 +199,7 @@ defmodule AvelineWeb.ChatLive do
                   author_display_name={streamable_ui_element.author_display_name}
                   should_display_author_display_name={streamable_ui_element.should_display_author_display_name}
                   should_display_learn_action={streamable_ui_element.should_display_learn_action}
-                  on_learn_action="learn_message"
+                  on_learn_action={JS.push("learn_message", value: %{test: 5, value: "other"}) |> show_modal("learn-modal")}
                 />
               </div>
             </div>
@@ -239,6 +243,7 @@ defmodule AvelineWeb.ChatLive do
 
   @impl true
   def handle_event("learn_message", unsigned_params, socket) do
+    IO.inspect(unsigned_params)
     {:noreply, socket}
   end
 
