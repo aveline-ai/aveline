@@ -8,6 +8,8 @@ defmodule AvelineWeb.Router do
   # Public routes (accessible to everyone)
   scope "/", AvelineWeb do
     pipe_through :api
+
+    get "/", PingController, :ping
   end
 
   # Enable Swoosh mailbox preview in development

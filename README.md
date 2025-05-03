@@ -16,7 +16,7 @@ The project is developed with [Postgres](https://www.postgresql.org/), [Elixir](
     * Check our `config/dev.exs` to see the expected username/password for your postgres user.
   * Start Phoenix endpoint with `mix phx.server` or inside a REPL with `iex -S mix phx.server`
 
-Now you can visit [`localhost:4000/ping`](http://localhost:4000/ping) from your browser.
+Visting [`localhost:4000`](http://localhost:4000) should return `{"status":"ok"}`.
 
 ### Tests
 
