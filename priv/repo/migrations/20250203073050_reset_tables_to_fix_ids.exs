@@ -1,4 +1,4 @@
-defmodule Aveline.Repo.Migrations.AddUsersAndLoginToken do
+defmodule Aveline.Repo.Migrations.ResetTablesToFixIds do
   use Ecto.Migration
 
   def change do

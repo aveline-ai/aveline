@@ -1,16 +1,11 @@
 # Aveline
 
-Learn french with Aveline.
-
-## Project Status
-
-Working on a basic prototype.
+This is the API that powers Aveline.
 
 ## Development
 
-The project is developed with [Postgres](https://www.postgresql.org/), [Elixir](https://elixir-lang.org/),
-[Phoenix](https://www.phoenixframework.org/), and
-[LiveView](https://hexdocs.pm/phoenix_live_view/Phoenix.LiveView.html).
+The project is developed with [Postgres](https://www.postgresql.org/), [Elixir](https://elixir-lang.org/), and
+[Phoenix](https://www.phoenixframework.org/).
 
 ### Setup
 
@@ -21,7 +16,7 @@ The project is developed with [Postgres](https://www.postgresql.org/), [Elixir](
     * Check our `config/dev.exs` to see the expected username/password for your postgres user.
   * Start Phoenix endpoint with `mix phx.server` or inside a REPL with `iex -S mix phx.server`
 
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
+Visting [`localhost:4000`](http://localhost:4000) should return `{"status":"ok"}`.
 
 ### Tests
 
