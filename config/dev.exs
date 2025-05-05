@@ -24,7 +24,9 @@ config :aveline, AvelineWeb.Endpoint,
   code_reloader: true,
   debug_errors: true,
   secret_key_base: "7H/trW1vBKZbfFFfgcoBGfneWKA9UAUXUNFSHLmUDJD2NzNYrMqI7nRZLuzWQVmp",
-  watchers: [],
+  watchers: []
+
+config :aveline,
   client_base_url: "http://localhost:5173"
 
 # ## SSL Support

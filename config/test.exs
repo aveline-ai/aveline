@@ -18,7 +18,9 @@ config :aveline, Aveline.Repo,
 config :aveline, AvelineWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "XBXzJBJn2ZLvEcJ9YqUj17gLi9uwQ72pPOeOcvcQxch4PC7so2Er83kIndEJLszD",
-  server: false,
+  server: false
+
+config :aveline,
   client_base_url: "http://localhost:5173"
 
 # In test we don't send emails

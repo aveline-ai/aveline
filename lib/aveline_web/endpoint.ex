@@ -41,7 +41,7 @@ defmodule AvelineWeb.Endpoint do
   plug Plug.Head
 
   plug Corsica,
-    origins: [Application.compile_env!(:aveline, AvelineWeb.Endpoint)[:client_base_url]],
+    origins: [Aveline.Config.client_base_url!()],
     allow_credentials: true,
     max_age: 600,
     allow_methods: :all,
