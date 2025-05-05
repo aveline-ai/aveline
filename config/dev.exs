@@ -27,7 +27,14 @@ config :aveline, AvelineWeb.Endpoint,
   watchers: []
 
 config :aveline,
-  client_base_url: "http://localhost:5173"
+  client_base_url: "http://localhost:5173",
+  session_options: [
+    store: :cookie,
+    key: "_aveline_key",
+    signing_salt: "D5I5dAJs",
+    same_site: "None",
+    secure: true
+  ]
 
 # ## SSL Support
 #

@@ -13,4 +13,12 @@ config :logger, level: :info
 # of environment variables, is done on config/runtime.exs.
 
 config :aveline,
-  client_base_url: "https://app.aveline.ai"
+  client_base_url: "https://app.aveline.ai",
+  session_options: [
+    store: :cookie,
+    key: "_aveline_key",
+    signing_salt: "D5I5dAJs",
+    same_site: "Lax",
+    domain: ".aveline.ai",
+    secure: true
+  ]
