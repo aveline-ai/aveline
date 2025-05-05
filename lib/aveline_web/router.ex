@@ -3,13 +3,17 @@ defmodule AvelineWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug :fetch_session
   end
 
   # Public routes (accessible to everyone)
   scope "/", AvelineWeb do
-    pipe_through :api
+    pipe_through [:api]
 
     get "/", PingController, :ping
+    post "/register", AuthController, :register
+    post "/login", AuthController, :login
+    post "/logout", AuthController, :logout
   end
 
   # Enable Swoosh mailbox preview in development

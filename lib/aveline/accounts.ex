@@ -4,7 +4,10 @@ defmodule Aveline.Accounts do
   """
 
   alias Aveline.Accounts.User
+  alias Aveline.Accounts.UserToken
   alias Aveline.Repo
+
+  ## User
 
   def get_user_by_id(id) do
     Repo.get(User, id)
@@ -27,5 +30,13 @@ defmodule Aveline.Accounts do
 
   def change_user_registration(%User{} = user, attrs \\ %{}) do
     User.registration_changeset(user, attrs, hash_password: false, validate_email: false)
+  end
+
+  ## User Token
+
+  def generate_user_session_token!(user) do
+    {token, user_token} = UserToken.build_session_token(user)
+    Repo.insert!(user_token)
+    token
   end
 end

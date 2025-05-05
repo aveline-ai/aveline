@@ -49,7 +49,8 @@ defmodule Aveline.MixProject do
       {:openai_ex, "~> 0.9.0"},
       {:accessible, "~> 0.3.0"},
       {:tzdata, "~> 1.1"},
-      {:bcrypt_elixir, "~> 3.0"}
+      {:bcrypt_elixir, "~> 3.0"},
+      {:corsica, "~> 2.0"}
     ]
   end
 

@@ -8,7 +8,8 @@ defmodule AvelineWeb.Endpoint do
     store: :cookie,
     key: "_aveline_key",
     signing_salt: "D5I5dAJs",
-    same_site: "Lax"
+    same_site: "None",
+    secure: true
   ]
 
   # Serve at "/" the static files from "priv/static" directory.
@@ -38,6 +39,14 @@ defmodule AvelineWeb.Endpoint do
 
   plug Plug.MethodOverride
   plug Plug.Head
+
+  plug Corsica,
+    origins: [Application.compile_env!(:aveline, AvelineWeb.Endpoint)[:client_base_url]],
+    allow_credentials: true,
+    max_age: 600,
+    allow_methods: :all,
+    allow_headers: :all
+
   plug Plug.Session, @session_options
   plug AvelineWeb.Router
 end
