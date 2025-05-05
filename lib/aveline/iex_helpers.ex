@@ -7,8 +7,7 @@ defmodule Aveline.IexHelpers do
   Additional iex-only helpers can be placed here (eg. to help inspect logs manually in prod).
   """
 
-  alias Aveline.Account.LoginToken
-  alias Aveline.Account.User
+  alias Aveline.Accounts.User
   alias Aveline.Repo
 
   defmacro __using__(_) do
@@ -16,36 +15,14 @@ defmodule Aveline.IexHelpers do
       import Ecto.Query
       import Aveline.IexHelpers
 
-      alias Aveline.Account
-      alias Aveline.Account.LoginToken
-      alias Aveline.Account.User
+      alias Aveline.Accounts
+      alias Aveline.Accounts.User
 
-      alias Aveline.Chat
-      alias Aveline.Chat.ChatRoom
-      alias Aveline.Chat.ChatRoomMembership
-      alias Aveline.Chat.Message
-
-      alias Aveline.Enums.ChatRoomMode
       alias Aveline.Enums.Language
       alias Aveline.Repo
 
       :ok
     end
-  end
-
-  def insert_user(:arie) do
-    %User{}
-    |> User.registration_changeset(%{
-      email: "arie.milner@hey.com",
-      display_name: "Arie",
-      local_timezone: "America/Los_Angeles"
-    })
-    |> Repo.insert()
-  end
-
-  def insert_login_token(user_id) do
-    LoginToken.new_login_token_changeset(user_id)
-    |> Repo.insert()
   end
 
   def get_user(:arie) do

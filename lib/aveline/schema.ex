@@ -1,7 +1,7 @@
 defmodule Aveline.Schema do
   @moduledoc """
   A simple wrapper around Ecto.Schema to use project defaults.
-   * utc_datetime for timestamps by default
+   * utc_datetime_usec for timestamps by default
    * binary_id for primary / foreign keys by default
   """
 
