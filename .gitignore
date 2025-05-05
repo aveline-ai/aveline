@@ -37,3 +37,6 @@ npm-debug.log
 
 # Ignore env vars
 .env
+
+# Ignore bruno for now
+bruno/

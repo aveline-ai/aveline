@@ -26,6 +26,16 @@ config :aveline, AvelineWeb.Endpoint,
   secret_key_base: "7H/trW1vBKZbfFFfgcoBGfneWKA9UAUXUNFSHLmUDJD2NzNYrMqI7nRZLuzWQVmp",
   watchers: []
 
+config :aveline,
+  client_base_url: "http://localhost:5173",
+  session_options: [
+    store: :cookie,
+    key: "_aveline_key",
+    signing_salt: "D5I5dAJs",
+    same_site: "None",
+    secure: true
+  ]
+
 # ## SSL Support
 #
 # In order to use HTTPS in development, a self-signed

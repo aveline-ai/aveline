@@ -20,6 +20,9 @@ config :aveline, AvelineWeb.Endpoint,
   secret_key_base: "XBXzJBJn2ZLvEcJ9YqUj17gLi9uwQ72pPOeOcvcQxch4PC7so2Er83kIndEJLszD",
   server: false
 
+config :aveline,
+  client_base_url: "http://localhost:5173"
+
 # In test we don't send emails
 config :aveline, Aveline.Mailer, adapter: Swoosh.Adapters.Test
 

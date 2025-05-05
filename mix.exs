@@ -47,7 +47,10 @@ defmodule Aveline.MixProject do
       {:bandit, "~> 1.5"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:openai_ex, "~> 0.9.0"},
-      {:accessible, "~> 0.3.0"}
+      {:accessible, "~> 0.3.0"},
+      {:tzdata, "~> 1.1"},
+      {:bcrypt_elixir, "~> 3.0"},
+      {:corsica, "~> 2.0"}
     ]
   end
 

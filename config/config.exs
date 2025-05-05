@@ -27,6 +27,9 @@ config :aveline, AvelineWeb.Endpoint,
   ],
   pubsub_server: Aveline.PubSub
 
+# Use Tzdata for time zone database, refer to: https://github.com/lau/tzdata
+config :elixir, :time_zone_database, Tzdata.TimeZoneDatabase
+
 # Configures the mailer
 #
 # By default it uses the "Local" adapter which stores the emails
