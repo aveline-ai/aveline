@@ -21,7 +21,14 @@ config :aveline, AvelineWeb.Endpoint,
   server: false
 
 config :aveline,
-  client_base_url: "http://localhost:5173"
+  client_base_url: "http://localhost:5173",
+  session_options: [
+    store: :cookie,
+    key: "_aveline_key",
+    signing_salt: "D5I5dAJs",
+    same_site: "None",
+    secure: true
+  ]
 
 # In test we don't send emails
 config :aveline, Aveline.Mailer, adapter: Swoosh.Adapters.Test

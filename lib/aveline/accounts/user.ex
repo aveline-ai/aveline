@@ -9,6 +9,7 @@ defmodule Aveline.Accounts.User do
 
   alias Tzdata
 
+  @derive {Jason.Encoder, only: [:id, :email, :first_name]}
   schema "users" do
     field :email, :string
     field :password, :string, virtual: true
