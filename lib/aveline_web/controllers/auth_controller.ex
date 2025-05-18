@@ -4,8 +4,18 @@ defmodule AvelineWeb.AuthController do
   alias Aveline.Accounts
   alias Aveline.Accounts.UserToken
 
-  def register(conn, %{"user" => user_params}) do
-    case Accounts.register_user(user_params) do
+  def register(conn, %{
+        "email" => email,
+        "password" => password,
+        "first_name" => first_name,
+        "local_timezone" => local_timezone
+      }) do
+    case Accounts.register_user(%{
+           email: email,
+           password: password,
+           first_name: first_name,
+           local_timezone: local_timezone
+         }) do
       {:ok, user} ->
         token = Accounts.generate_user_session_token!(user)
 
@@ -61,9 +71,18 @@ defmodule AvelineWeb.AuthController do
     end
   end
 
+  def current_user(conn, _params) do
+    if token = get_session(conn, :user_token) do
+      {:ok, query} = UserToken.verify_session_token_query(token)
+      user = Aveline.Repo.one(query)
+      conn |> json(%{status: "ok", data: %{user: user}})
+    end
+  end
+
   def logout(conn, _params) do
     if token = get_session(conn, :user_token) do
-      Aveline.Repo.delete_all(UserToken.verify_session_token_query(token))
+      {:ok, query} = UserToken.verify_session_token_query(token)
+      Aveline.Repo.delete_all(query)
     end
 
     conn
