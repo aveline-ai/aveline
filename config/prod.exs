@@ -20,5 +20,6 @@ config :aveline,
     signing_salt: "D5I5dAJs",
     same_site: "Lax",
     domain: ".aveline.ai",
-    secure: true
+    secure: true,
+    max_age: 60 * 60 * 24 * 365
   ]

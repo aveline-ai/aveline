@@ -27,7 +27,8 @@ config :aveline,
     key: "_aveline_key",
     signing_salt: "D5I5dAJs",
     same_site: "None",
-    secure: true
+    secure: true,
+    max_age: 60 * 60 * 24 * 365
   ]
 
 # In test we don't send emails
