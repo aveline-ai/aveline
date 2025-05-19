@@ -48,7 +48,9 @@ defmodule AvelineWeb.AuthPlug do
   # Private
 
   defp put_current_user(conn, user) do
-    LL.metadata_add_current_user_id(user.id)
+    if user do
+      LL.metadata_add_current_user_id(user.id)
+    end
 
     conn
     |> assign(:current_user, user)
