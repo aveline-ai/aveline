@@ -8,6 +8,8 @@ defmodule AvelineWeb.AuthPlug do
   alias Aveline.Accounts
   alias AvelineWeb.ErrorHandler
 
+  alias Aveline.LittleLogger, as: LL
+
   def put_current_user_from_session(conn, _opts) do
     user_token = get_session(conn, :user_token)
 
@@ -46,6 +48,8 @@ defmodule AvelineWeb.AuthPlug do
   # Private
 
   defp put_current_user(conn, user) do
+    LL.metadata_add_current_user_id(user.id)
+
     conn
     |> assign(:current_user, user)
   end

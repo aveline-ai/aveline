@@ -4,12 +4,16 @@ defmodule AvelineWeb.AuthController do
   alias Aveline.Accounts
   alias Aveline.Accounts.UserToken
 
+  alias Aveline.LittleLogger, as: LL
+
   def register(conn, %{
         "email" => email,
         "password" => password,
         "first_name" => first_name,
         "local_timezone" => local_timezone
       }) do
+    LL.info_event("register")
+
     case Accounts.register_user(%{
            email: email,
            password: password,
@@ -44,6 +48,8 @@ defmodule AvelineWeb.AuthController do
   end
 
   def login(conn, %{"email" => email, "password" => password}) do
+    LL.info_event("login")
+
     if user = Accounts.get_user_by_email_and_password(email, password) do
       token = Accounts.generate_user_session_token!(user)
 
@@ -72,6 +78,8 @@ defmodule AvelineWeb.AuthController do
   end
 
   def current_user(conn, _params) do
+    LL.info_event("current_user")
+
     if token = get_session(conn, :user_token) do
       {:ok, query} = UserToken.verify_session_token_query(token)
       user = Aveline.Repo.one(query)
@@ -80,6 +88,8 @@ defmodule AvelineWeb.AuthController do
   end
 
   def logout(conn, _params) do
+    LL.info_event("logout")
+
     if token = get_session(conn, :user_token) do
       {:ok, query} = UserToken.verify_session_token_query(token)
       Aveline.Repo.delete_all(query)

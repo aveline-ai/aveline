@@ -50,7 +50,8 @@ defmodule Aveline.MixProject do
       {:accessible, "~> 0.3.0"},
       {:tzdata, "~> 1.1"},
       {:bcrypt_elixir, "~> 3.0"},
-      {:corsica, "~> 2.0"}
+      {:corsica, "~> 2.0"},
+      {:logflare_logger_backend, "~> 0.11.4"}
     ]
   end
 
