@@ -14,6 +14,7 @@ defmodule AvelineWeb.Router do
   scope "/", AvelineWeb do
     pipe_through [:api]
     get "/", PingController, :ping
+    get "/error", PingController, :error
   end
 
   ## Authenticated Routes (you must be logged in to access these routes)

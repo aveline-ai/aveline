@@ -52,6 +52,9 @@ COPY lib lib
 # Compile the release
 RUN mix compile
 
+# Package source code for Sentry
+RUN mix sentry.package_source_code
+
 # Changes to config/runtime.exs don't require recompiling the code
 COPY config/runtime.exs config/
 

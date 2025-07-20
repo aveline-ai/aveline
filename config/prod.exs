@@ -23,3 +23,9 @@ config :aveline,
     secure: true,
     max_age: 60 * 60 * 24 * 365
   ]
+
+config :sentry,
+  dsn: "https://0ffae7310c5a87bd1f4fd8361a83ddaa@o4509698496397312.ingest.us.sentry.io/4509699399155712",
+  environment_name: "prod",
+  enable_source_code_context: true,
+  root_source_code_paths: [File.cwd!()]

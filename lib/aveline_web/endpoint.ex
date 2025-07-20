@@ -1,5 +1,6 @@
 defmodule AvelineWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :aveline
+  use Sentry.PlugCapture
 
   # Serve at "/" the static files from "priv/static" directory.
   #
@@ -25,6 +26,8 @@ defmodule AvelineWeb.Endpoint do
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
     json_decoder: Phoenix.json_library()
+
+  plug Sentry.PlugContext
 
   plug Plug.MethodOverride
   plug Plug.Head
