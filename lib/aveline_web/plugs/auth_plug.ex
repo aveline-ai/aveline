@@ -9,6 +9,7 @@ defmodule AvelineWeb.AuthPlug do
   alias AvelineWeb.ErrorHandler
 
   alias Aveline.LittleLogger, as: LL
+  alias Sentry
 
   def put_current_user_from_session(conn, _opts) do
     user_token = get_session(conn, :user_token)
@@ -50,6 +51,7 @@ defmodule AvelineWeb.AuthPlug do
   defp put_current_user(conn, user) do
     if user do
       LL.metadata_add_current_user_id(user.id)
+      Sentry.Context.set_user_context(%{id: user.id, email: user.email})
     end
 
     conn
