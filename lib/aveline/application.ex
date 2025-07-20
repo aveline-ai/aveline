@@ -11,6 +11,7 @@ defmodule Aveline.Application do
       {Task.Supervisor, name: Aveline.TaskSupervisor},
       AvelineWeb.Telemetry,
       Aveline.Repo,
+      {Oban, Application.fetch_env!(:aveline, Oban)},
       {DNSCluster, query: Application.get_env(:aveline, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Aveline.PubSub},
       # Start the Finch HTTP client for sending emails
