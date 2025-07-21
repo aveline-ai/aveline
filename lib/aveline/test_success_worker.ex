@@ -1,5 +1,5 @@
-defmodule Aveline.TestWorker do
-  use Oban.Worker, queue: :default
+defmodule Aveline.TestSuccessWorker do
+  use Oban.Worker, queue: :test_success
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"message" => message}}) do

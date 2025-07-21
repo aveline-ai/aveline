@@ -7,6 +7,12 @@ defmodule Aveline.Application do
 
   @impl true
   def start(_type, _args) do
+    # Initialize Sentry logger handler
+    Logger.add_handlers(:aveline)
+
+    # Setup Oban job logging to Logflare
+    setup_oban_logging()
+
     children = [
       {Task.Supervisor, name: Aveline.TaskSupervisor},
       AvelineWeb.Telemetry,
@@ -35,4 +41,60 @@ defmodule Aveline.Application do
     AvelineWeb.Endpoint.config_change(changed, removed)
     :ok
   end
+
+  # Setup Oban telemetry for job start and failure logging
+  defp setup_oban_logging do
+    :telemetry.attach_many(
+      "oban-job-logger",
+      [
+        [:oban, :job, :start],
+        [:oban, :job, :exception]
+      ],
+      &__MODULE__.handle_oban_event/4,
+      %{}
+    )
+  end
+
+  # Handle Oban telemetry events for logging job lifecycle
+  def handle_oban_event([:oban, :job, :start], _measurements, %{job: job}, _config) do
+    alias Aveline.LittleLogger, as: LL
+
+    LL.info_job_step(
+      job.worker,
+      "started",
+      %{
+        job_id: job.id,
+        queue: job.queue,
+        attempt_number: job.attempt,
+        max_attempts: job.max_attempts
+      }
+    )
+  end
+
+  def handle_oban_event([:oban, :job, :exception], _measurements, %{job: job} = meta, _config) do
+    alias Aveline.LittleLogger, as: LL
+
+    LL.error_job(
+      job.worker,
+      "failed",
+      # Don't send stacktrace to avoid nested lists
+      [],
+      %{
+        job_id: job.id,
+        queue: job.queue,
+        attempt_number: job.attempt,
+        max_attempts: job.max_attempts,
+        error_kind: to_string(Map.get(meta, :kind, "unknown")),
+        error_reason:
+          case Map.get(meta, :reason) do
+            %{message: msg} when is_binary(msg) -> msg
+            reason when is_binary(reason) -> reason
+            # Truncate long errors
+            reason -> inspect(reason) |> String.slice(0, 200)
+          end
+      }
+    )
+  end
+
+  def handle_oban_event(_event, _measurements, _metadata, _config), do: :ok
 end
