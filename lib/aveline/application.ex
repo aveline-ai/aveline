@@ -42,12 +42,13 @@ defmodule Aveline.Application do
     :ok
   end
 
-  # Setup Oban telemetry for job start and failure logging
+  # Setup Oban telemetry for job start, completion, and failure logging
   defp setup_oban_logging do
     :telemetry.attach_many(
       "oban-job-logger",
       [
         [:oban, :job, :start],
+        [:oban, :job, :stop],
         [:oban, :job, :exception]
       ],
       &__MODULE__.handle_oban_event/4,
@@ -67,6 +68,23 @@ defmodule Aveline.Application do
         queue: job.queue,
         attempt_number: job.attempt,
         max_attempts: job.max_attempts
+      }
+    )
+  end
+
+  def handle_oban_event([:oban, :job, :stop], measurements, %{job: job}, _config) do
+    alias Aveline.LittleLogger, as: LL
+
+    duration_ms = System.convert_time_unit(measurements.duration, :native, :millisecond)
+
+    LL.info_job_step(
+      job.worker,
+      "completed",
+      %{
+        job_id: job.id,
+        queue: job.queue,
+        attempt_number: job.attempt,
+        duration_ms: duration_ms
       }
     )
   end
