@@ -47,6 +47,28 @@ config :logger, :console,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# Configure Sentry Logger Handler to capture process crashes
+config :aveline, :logger, [
+  {:handler, :sentry_handler, Sentry.LoggerHandler,
+   %{
+     config: %{
+       metadata: [:file, :line, :request_id, :current_user_id, :job, :event_name],
+       # Don't capture log messages in Sentry, we capture these in Logflare.
+       capture_log_messages: false
+     }
+   }}
+]
+
+# Configure Oban
+config :aveline, Oban,
+  repo: Aveline.Repo,
+  # prune jobs older than 7 days, run prune every 24 hours
+  plugins: [{Oban.Plugins.Pruner, max_age: 7 * 24 * 60 * 60, interval: 24 * 60 * 60_000}],
+  queues: [
+    test_success: 10,
+    test_error: 10
+  ]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

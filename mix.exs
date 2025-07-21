@@ -52,7 +52,8 @@ defmodule Aveline.MixProject do
       {:bcrypt_elixir, "~> 3.0"},
       {:corsica, "~> 2.0"},
       {:logflare_logger_backend, "~> 0.11.4"},
-      {:sentry, "~> 10.2.0"}
+      {:sentry, "~> 11.0.2"},
+      {:oban, "~> 2.18"}
     ]
   end
 
