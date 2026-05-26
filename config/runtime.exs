@@ -1,0 +1,63 @@
+import Config
+
+# config/runtime.exs is executed for all environments, including during releases.
+# It is executed after compilation and before the system starts.
+
+if System.get_env("PHX_SERVER") do
+  config :aveline, AvelineWeb.Endpoint, server: true
+end
+
+# Logging — stdout, captured by Fly. Sentry handles errors + Logs.
+if config_env() == :prod do
+  config :logger, level: :info
+end
+
+# Sentry — only fully enable when DSN is set, so the app is a no-op locally
+# without SENTRY_DSN. enable_logs ships Logger calls (info/warn/error) to
+# Sentry's Logs product in addition to errors.
+if dsn = System.get_env("SENTRY_DSN") do
+  config :sentry,
+    dsn: dsn,
+    enable_logs: true,
+    logs: [
+      level: :info,
+      metadata: [:request_id, :current_user_id, :event_name]
+    ]
+end
+
+if config_env() == :prod do
+  database_url =
+    System.get_env("DATABASE_URL") ||
+      raise """
+      environment variable DATABASE_URL is missing.
+      For example: ecto://USER:PASS@HOST/DATABASE
+      """
+
+  maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
+
+  config :aveline, Aveline.Repo,
+    url: database_url,
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+    socket_options: maybe_ipv6
+
+  secret_key_base =
+    System.get_env("SECRET_KEY_BASE") ||
+      raise """
+      environment variable SECRET_KEY_BASE is missing.
+      You can generate one by calling: mix phx.gen.secret
+      """
+
+  host = System.get_env("PHX_HOST") || "example.com"
+  port = String.to_integer(System.get_env("PORT") || "4000")
+
+  config :aveline, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
+
+  config :aveline, AvelineWeb.Endpoint,
+    url: [host: host, port: 443, scheme: "https"],
+    http: [
+      ip: {0, 0, 0, 0, 0, 0, 0, 0},
+      port: port
+    ],
+    secret_key_base: secret_key_base,
+    check_origin: [Aveline.Config.client_base_url!()]
+end

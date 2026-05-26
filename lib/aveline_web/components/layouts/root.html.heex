@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <.live_title default="Aveline">
+      {assigns[:page_title]}
+    </.live_title>
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}></script>
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:#0a0a0a;color:#e8e8e8}
+      body{display:flex;align-items:center;justify-content:center;padding:2rem}
+    </style>
+  </head>
+  <body>
+    {@inner_content}
+  </body>
+</html>
