@@ -11,6 +11,8 @@ import Ecto.Query
 
 alias Aveline.Accounts
 alias Aveline.Items
+alias Aveline.Messages
+alias Aveline.Messages.ItemMessage
 alias Aveline.Repo
 alias Aveline.Tokens.ApiToken
 alias Aveline.Views
@@ -252,6 +254,45 @@ Enum.each(view_specs, fn spec ->
   end
 end)
 
+# ===== Thread messages =====
+
+# A few canned replies so the thread UI feels real out of the box.
+# Idempotent: skipped if any reply with the same body already exists on the item.
+
+thread_specs = [
+  %{item_slug: "stack-overview", author: "bob",
+    body: "Worth noting: the Session pooler limit on Supabase free tier is 200 connections — we'll hit it before we hit Fly's process limit."},
+  %{item_slug: "stack-overview", author: "alice",
+    body: "Good call. Should probably add a note to [[architecture-decisions]] when we make the call to upgrade."},
+  %{item_slug: "oncall-runbook", author: "alice",
+    body: "Reminder: the page button in Sentry now defaults to **all responders**, so be specific about who you're paging in the slack note."}
+]
+
+Enum.each(thread_specs, fn spec ->
+  item = Items.get_active_by_slug(workspace.id, spec.item_slug)
+  author = Map.fetch!(users_by_username, spec.author)
+
+  exists? =
+    Repo.exists?(
+      from m in ItemMessage,
+        where:
+          m.item_id == ^item.id and
+            m.author_id == ^author.id and
+            m.body == ^spec.body and
+            is_nil(m.deleted_at)
+    )
+
+  unless exists? do
+    {:ok, _} =
+      Messages.create_message(%{
+        "item_id" => item.id,
+        "author_id" => author.id,
+        "body" => spec.body,
+        "created_via" => "seed"
+      })
+  end
+end)
+
 # ===== Summary =====
 
 IO.puts("")
@@ -265,5 +306,5 @@ Enum.each(users, fn {spec, _} ->
 end)
 
 IO.puts("")
-IO.puts("Seeded #{length(note_files)} notes and #{length(view_specs)} views.")
+IO.puts("Seeded #{length(note_files)} notes, #{length(view_specs)} views, and #{length(thread_specs)} thread messages.")
 IO.puts("")

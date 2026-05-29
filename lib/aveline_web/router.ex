@@ -67,6 +67,12 @@ defmodule AvelineWeb.Router do
     delete "/items/:item_slug", ItemController, :delete
     post "/items/:item_slug/restore", ItemController, :restore
 
+    get "/items/:item_slug/messages", MessageController, :index
+    post "/items/:item_slug/messages", MessageController, :create
+    patch "/items/:item_slug/messages/:id", MessageController, :update
+    put "/items/:item_slug/messages/:id", MessageController, :update
+    delete "/items/:item_slug/messages/:id", MessageController, :delete
+
     get "/views", ViewController, :index
     post "/views", ViewController, :create
     get "/views/:view_slug", ViewController, :show

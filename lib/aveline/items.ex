@@ -5,6 +5,7 @@ defmodule Aveline.Items do
 
   import Ecto.Query
 
+  alias Aveline.Broadcasts
   alias Aveline.Items.Item
   alias Aveline.Repo
   alias Aveline.Views
@@ -96,14 +97,14 @@ defmodule Aveline.Items do
     %Item{}
     |> Item.create_changeset(attrs)
     |> Repo.insert()
-    |> preload_if_ok()
+    |> preload_and_broadcast(:item_created)
   end
 
   def update_item(%Item{} = item, attrs) do
     item
     |> Item.update_changeset(attrs)
     |> Repo.update()
-    |> preload_if_ok()
+    |> preload_and_broadcast(:item_updated)
   end
 
   def soft_delete_item(%Item{} = item, deleted_by_id) do
@@ -113,18 +114,23 @@ defmodule Aveline.Items do
       deleted_by_id: deleted_by_id
     })
     |> Repo.update()
-    |> preload_if_ok()
+    |> preload_and_broadcast(:item_deleted)
   end
 
   def restore_item(%Item{} = item) do
     item
     |> Ecto.Changeset.change(%{deleted_at: nil, deleted_by_id: nil})
     |> Repo.update()
-    |> preload_if_ok()
+    |> preload_and_broadcast(:item_restored)
   end
 
-  defp preload_if_ok({:ok, item}), do: {:ok, Repo.preload(item, [:owner, :created_by])}
-  defp preload_if_ok(other), do: other
+  defp preload_and_broadcast({:ok, item}, event) do
+    item = Repo.preload(item, [:owner, :created_by])
+    Broadcasts.publish_item_event(event, item)
+    {:ok, item}
+  end
+
+  defp preload_and_broadcast(other, _event), do: other
 
   @doc """
   Items in the same workspace that share at least one tag with the given

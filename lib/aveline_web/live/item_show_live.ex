@@ -2,7 +2,9 @@ defmodule AvelineWeb.ItemShowLive do
   @moduledoc false
   use AvelineWeb, :live_view
 
+  alias Aveline.Broadcasts
   alias Aveline.Items
+  alias Aveline.Messages
   alias Aveline.Views
   alias AvelineWeb.LiveSession
 
@@ -20,9 +22,15 @@ defmodule AvelineWeb.ItemShowLive do
              |> push_navigate(to: ~p"/w/#{ws.slug}")}
 
           item ->
+            if connected?(socket) do
+              Broadcasts.subscribe(Broadcasts.item_messages_topic(item.id))
+              Broadcasts.subscribe(Broadcasts.item_topic(item.id))
+            end
+
             body_html = render_markdown(item.body || "")
             related = Items.related_items(item, 5)
             all_items = Items.list_items(ws.id)
+            messages = Messages.list_for_item(item.id)
 
             {:ok,
              assign(socket,
@@ -36,7 +44,9 @@ defmodule AvelineWeb.ItemShowLive do
                topbar_title: item.title,
                item: item,
                body_html: body_html,
-               related: related
+               related: related,
+               messages: messages,
+               reply_text: ""
              )}
         end
 
@@ -47,6 +57,90 @@ defmodule AvelineWeb.ItemShowLive do
         {:ok, socket |> put_flash(:error, "Forbidden.") |> push_navigate(to: ~p"/")}
     end
   end
+
+  @impl true
+  def handle_event("update_reply", %{"value" => v}, socket) do
+    {:noreply, assign(socket, :reply_text, v)}
+  end
+
+  def handle_event("post_reply", _params, socket) do
+    %{current_user: user, item: item, reply_text: body} = socket.assigns
+    body = String.trim(body || "")
+
+    cond do
+      user == nil ->
+        {:noreply, put_flash(socket, :error, "Sign in to post.")}
+
+      body == "" ->
+        {:noreply, socket}
+
+      true ->
+        case Messages.create_message(%{
+               "item_id" => item.id,
+               "author_id" => user.id,
+               "body" => body,
+               "created_via" => "web"
+             }) do
+          {:ok, _msg} ->
+            {:noreply, assign(socket, :reply_text, "")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Could not post reply.")}
+        end
+    end
+  end
+
+  def handle_event("delete_message", %{"id" => id}, socket) do
+    %{current_user: user} = socket.assigns
+
+    with %_{} = msg <- Messages.get_message(id),
+         {:ok, _} <- Messages.soft_delete_message(msg, user && user.id) do
+      {:noreply, socket}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Could not delete.")}
+    end
+  end
+
+  @impl true
+  def handle_info({event, msg}, socket)
+      when event in [:message_created, :message_updated, :message_deleted] do
+    msgs =
+      case event do
+        :message_created ->
+          socket.assigns.messages ++ [msg]
+
+        :message_updated ->
+          Enum.map(socket.assigns.messages, fn m -> if m.id == msg.id, do: msg, else: m end)
+
+        :message_deleted ->
+          Enum.reject(socket.assigns.messages, fn m -> m.id == msg.id end)
+      end
+
+    {:noreply, assign(socket, :messages, msgs)}
+  end
+
+  def handle_info({:item_updated, item}, socket) do
+    if item.id == socket.assigns.item.id do
+      {:noreply,
+       assign(socket,
+         item: item,
+         body_html: render_markdown(item.body || ""),
+         topbar_title: item.title
+       )}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:item_deleted, item}, socket) do
+    if item.id == socket.assigns.item.id do
+      {:noreply, assign(socket, :item, item)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info(_other, socket), do: {:noreply, socket}
 
   defp render_markdown(""), do: ""
 
@@ -60,6 +154,19 @@ defmodule AvelineWeb.ItemShowLive do
   defp owner(%{owner: %Ecto.Association.NotLoaded{}}), do: nil
   defp owner(%{owner: o}), do: o
   defp owner(_), do: nil
+
+  defp author_of(%{author: %Ecto.Association.NotLoaded{}}), do: nil
+  defp author_of(%{author: a}), do: a
+  defp author_of(_), do: nil
+
+  defp message_body_html(body) when is_binary(body) do
+    case Earmark.as_html(body, escape: true) do
+      {:ok, html, _} -> html
+      {:error, html, _} -> html
+    end
+  end
+
+  defp message_body_html(_), do: ""
 
   @impl true
   def render(assigns) do
@@ -121,6 +228,81 @@ defmodule AvelineWeb.ItemShowLive do
       <article class="prose">
         {Phoenix.HTML.raw(@body_html)}
       </article>
+
+      <section class="thread" id="thread">
+        <div class="section-label" style="margin-top:48px">
+          Thread <span class="count">{length(@messages)}</span>
+          <span class="live-dot" title="Live updates via PubSub"></span>
+        </div>
+
+        <%= if @messages == [] do %>
+          <div class="empty" style="padding:24px">No replies yet. Be the first to post.</div>
+        <% else %>
+          <ol class="thread-list">
+            <li :for={m <- @messages} class="thread-message" id={"m-#{m.id}"}>
+              <div class="thread-avatar">
+                <%= if author_of(m) do %>
+                  <span
+                    class="avatar-sm"
+                    style={"background:hsl(#{avatar_hue(author_of(m).username)},65%,18%);color:hsl(#{avatar_hue(author_of(m).username)},75%,75%)"}
+                  >
+                    {initial(author_of(m).username)}
+                  </span>
+                <% else %>
+                  <span class="avatar-sm">?</span>
+                <% end %>
+              </div>
+              <div class="thread-body">
+                <div class="thread-meta">
+                  <span class="thread-author">
+                    {if author_of(m), do: author_of(m).username, else: "?"}
+                  </span>
+                  <span class="card-meta-dot">·</span>
+                  <span title={absolute_time(m.inserted_at)}>{relative_time(m.inserted_at)}</span>
+                  <%= if m.edited_at do %>
+                    <span class="card-meta-dot">·</span>
+                    <span class="thread-edited" title={absolute_time(m.edited_at)}>edited</span>
+                  <% end %>
+                  <%= if m.created_via && m.created_via != "web" do %>
+                    <span class="card-meta-dot">·</span>
+                    <span class="thread-via">via {m.created_via}</span>
+                  <% end %>
+                  <%= if @current_user && author_of(m) && author_of(m).id == @current_user.id do %>
+                    <span class="thread-actions">
+                      <button
+                        phx-click="delete_message"
+                        phx-value-id={m.id}
+                        data-confirm="Delete this reply?"
+                        class="thread-action-btn"
+                      >
+                        delete
+                      </button>
+                    </span>
+                  <% end %>
+                </div>
+                <div class="thread-content">{Phoenix.HTML.raw(message_body_html(m.body))}</div>
+              </div>
+            </li>
+          </ol>
+        <% end %>
+
+        <%= if @current_user do %>
+          <form phx-submit="post_reply" phx-change="update_reply" class="reply-composer">
+            <textarea
+              name="value"
+              class="reply-input"
+              placeholder="Reply to this note… (markdown ok)"
+              rows="2"
+            >{@reply_text}</textarea>
+            <div class="reply-footer">
+              <span class="reply-hint">Cmd+Enter to post</span>
+              <button type="submit" class="reply-submit" disabled={String.trim(@reply_text) == ""}>
+                Post
+              </button>
+            </div>
+          </form>
+        <% end %>
+      </section>
 
       <%= if @related != [] do %>
         <div class="section-label" style="margin-top:48px">

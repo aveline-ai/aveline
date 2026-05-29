@@ -5,6 +5,7 @@ defmodule Aveline.Views do
 
   import Ecto.Query
 
+  alias Aveline.Broadcasts
   alias Aveline.Items
   alias Aveline.Repo
   alias Aveline.Views.View
@@ -93,12 +94,14 @@ defmodule Aveline.Views do
     %View{}
     |> View.create_changeset(attrs)
     |> Repo.insert()
+    |> broadcast(:view_created)
   end
 
   def update_view(%View{} = view, attrs) do
     view
     |> View.update_changeset(attrs)
     |> Repo.update()
+    |> broadcast(:view_updated)
   end
 
   def soft_delete_view(%View{} = view, deleted_by_id) do
@@ -108,13 +111,22 @@ defmodule Aveline.Views do
       deleted_by_id: deleted_by_id
     })
     |> Repo.update()
+    |> broadcast(:view_deleted)
   end
 
   def restore_view(%View{} = view) do
     view
     |> Ecto.Changeset.change(%{deleted_at: nil, deleted_by_id: nil})
     |> Repo.update()
+    |> broadcast(:view_restored)
   end
+
+  defp broadcast({:ok, view}, event) do
+    Broadcasts.publish_view_event(event, view)
+    {:ok, view}
+  end
+
+  defp broadcast(other, _event), do: other
 
   @doc """
   Items matching a view's tag_filter.
