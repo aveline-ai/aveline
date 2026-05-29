@@ -1,8 +1,13 @@
 defmodule AvelineWeb.LiveSession do
   @moduledoc """
-  Lightweight session helper for v0 LiveViews. Real session auth is v0.1; for
-  now the "current user" comes from `SEED_USER_EMAIL` if set, otherwise
-  falls back to alice@local.test (the first seeded user in dev).
+  Lightweight session helper for v0 LiveViews.
+
+  Resolution order for the current user:
+    1. `user_id` in the session cookie (set by `/login/:token`)
+    2. `SEED_USER_EMAIL` env var (escape hatch for scripted runs)
+    3. `alice@local.test` in dev so the browser flow works fresh
+
+  Real session auth with refresh, expiry, etc. is v0.1.
   """
 
   alias Aveline.Accounts
@@ -10,7 +15,16 @@ defmodule AvelineWeb.LiveSession do
 
   @dev_default_email "alice@local.test"
 
-  def current_user do
+  def current_user(session) when is_map(session) do
+    case session["user_id"] do
+      nil -> fallback_user()
+      id -> Accounts.get_user(id) || fallback_user()
+    end
+  end
+
+  def current_user(_), do: fallback_user()
+
+  defp fallback_user do
     email =
       case System.get_env("SEED_USER_EMAIL") do
         nil -> @dev_default_email

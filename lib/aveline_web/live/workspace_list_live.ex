@@ -6,8 +6,8 @@ defmodule AvelineWeb.WorkspaceListLive do
   alias AvelineWeb.LiveSession
 
   @impl true
-  def mount(_params, _session, socket) do
-    user = LiveSession.current_user()
+  def mount(_params, session, socket) do
+    user = LiveSession.current_user(session)
 
     workspaces =
       case user do
@@ -30,16 +30,16 @@ defmodule AvelineWeb.WorkspaceListLive do
       <h1 style="font-size:1.75rem;font-weight:600;margin-bottom:0.25rem">Workspaces</h1>
       <p style="color:rgba(232,232,232,0.55);margin-bottom:1.5rem">
         <%= if @current_user do %>
-          Signed in as {@current_user.username}
+          Signed in as {@current_user.username} · <.link href={~p"/logout"} style="color:inherit;text-decoration:underline">log out</.link>
         <% else %>
-          No session.
+          Not signed in.
         <% end %>
       </p>
 
       <%= if is_nil(@current_user) do %>
         <div style="padding:1rem;border:1px solid rgba(232,232,232,0.15);border-radius:8px;background:rgba(232,232,232,0.04)">
-          No user. Run <code>mix ecto.setup</code> to seed alice / bob / carol,
-          or set <code>SEED_USER_EMAIL</code> in the env to pick a specific one.
+          Visit <code>/login/&lt;your-token&gt;</code> to sign in. Local tokens
+          are printed by <code>mix ecto.setup</code>.
         </div>
       <% else %>
         <%= if @workspaces == [] do %>

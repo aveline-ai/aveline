@@ -6,8 +6,8 @@ defmodule AvelineWeb.ItemShowLive do
   alias AvelineWeb.LiveSession
 
   @impl true
-  def mount(%{"slug" => slug, "item_slug" => item_slug}, _session, socket) do
-    user = LiveSession.current_user()
+  def mount(%{"slug" => slug, "item_slug" => item_slug}, session, socket) do
+    user = LiveSession.current_user(session)
 
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->

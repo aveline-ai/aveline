@@ -28,6 +28,9 @@ defmodule AvelineWeb.Router do
   scope "/", AvelineWeb do
     pipe_through :browser
 
+    get "/login/:token", SessionController, :create
+    get "/logout", SessionController, :delete
+
     live "/", WorkspaceListLive, :index
     live "/w/:slug", WorkspaceShowLive, :index
     live "/w/:slug/i/:item_slug", ItemShowLive, :show
