@@ -2,38 +2,25 @@ defmodule AvelineWeb.LiveSession do
   @moduledoc """
   Lightweight session helper for v0 LiveViews.
 
-  Resolution order for the current user:
-    1. `user_id` in the session cookie (set by `/login/:token`)
-    2. `SEED_USER_EMAIL` env var (escape hatch for scripted runs)
-    3. `alice@local.test` in dev so the browser flow works fresh
+  Resolves the current user from the session cookie's `user_id`, which is
+  set by `/login/:token` or `POST /login` after `Aveline.Tokens.verify/1`
+  succeeds.
 
-  Real session auth with refresh, expiry, etc. is v0.1.
+  Drops to `nil` when no session is set — the page should redirect to
+  /signup or /login.
   """
 
   alias Aveline.Accounts
   alias Aveline.Workspaces
 
-  @dev_default_email "alice@local.test"
-
   def current_user(session) when is_map(session) do
     case session["user_id"] do
-      nil -> fallback_user()
-      id -> Accounts.get_user(id) || fallback_user()
+      nil -> nil
+      id -> Accounts.get_user(id)
     end
   end
 
-  def current_user(_), do: fallback_user()
-
-  defp fallback_user do
-    email =
-      case System.get_env("SEED_USER_EMAIL") do
-        nil -> @dev_default_email
-        "" -> @dev_default_email
-        e -> e
-      end
-
-    Accounts.get_user_by_email(email)
-  end
+  def current_user(_), do: nil
 
   @doc """
   Resolve workspace + verify membership. Returns `{:ok, ws}`, `:not_found`, or

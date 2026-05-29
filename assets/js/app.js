@@ -65,6 +65,76 @@ const Hooks = {
       this.el.scrollTop = this.el.scrollHeight
     },
   },
+
+  // Copies the textContent of `data-target` (CSS selector) to the
+  // clipboard when this element is clicked. Dispatches `phx:token-copied`
+  // so other elements (the Continue button, the unload guard) can react.
+  CopyToken: {
+    mounted() {
+      this.el.addEventListener("click", async (e) => {
+        e.preventDefault()
+        const targetSel = this.el.dataset.target
+        const target = document.querySelector(targetSel)
+        if (!target) return
+        const text = target.textContent.trim()
+        try {
+          await navigator.clipboard.writeText(text)
+        } catch (err) {
+          // fall through — selection-based copy fallback below
+          try {
+            const range = document.createRange()
+            range.selectNodeContents(target)
+            const sel = window.getSelection()
+            sel.removeAllRanges()
+            sel.addRange(range)
+            document.execCommand("copy")
+            sel.removeAllRanges()
+          } catch (err2) {
+            this.el.textContent = "Couldn't copy — select the token above manually"
+            return
+          }
+        }
+        this.el.textContent = "Copied ✓"
+        this.el.classList.add("copied")
+        window.dispatchEvent(new CustomEvent("phx:token-copied"))
+      })
+    },
+  },
+
+  // Guards an unsaved-token page: warns on reload/close until a
+  // `phx:token-copied` event fires; also enables the Continue button
+  // once the token is copied.
+  UnsavedTokenGuard: {
+    mounted() {
+      this.copied = false
+      this.beforeUnload = (e) => {
+        if (this.copied) return
+        e.preventDefault()
+        e.returnValue =
+          "You haven't copied your API token yet. If you leave, you'll never see it again."
+      }
+      window.addEventListener("beforeunload", this.beforeUnload)
+
+      this.onCopied = () => {
+        this.copied = true
+        const continueBtn = document.getElementById("continue-btn")
+        if (continueBtn) continueBtn.disabled = false
+      }
+      window.addEventListener("phx:token-copied", this.onCopied)
+
+      // Allow form submit (continue) to navigate without the unload prompt.
+      const form = document.getElementById("continue-form")
+      if (form) {
+        form.addEventListener("submit", () => {
+          this.copied = true
+        })
+      }
+    },
+    destroyed() {
+      window.removeEventListener("beforeunload", this.beforeUnload)
+      window.removeEventListener("phx:token-copied", this.onCopied)
+    },
+  },
 }
 
 const liveSocket = new LiveSocket("/live", Socket, {
