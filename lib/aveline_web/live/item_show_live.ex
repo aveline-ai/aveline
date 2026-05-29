@@ -51,51 +51,64 @@ defmodule AvelineWeb.ItemShowLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div style="max-width:760px;margin:0 auto;padding:2rem 1rem">
-      <.link
-        navigate={~p"/w/#{@workspace.slug}"}
-        style="color:rgba(232,232,232,0.55);font-size:0.85rem;text-decoration:none"
-      >
-        ← {@workspace.name}
-      </.link>
-
+    <div class="container-narrow">
       <%= if @item.deleted_at do %>
-        <div style="margin:1rem 0;padding:0.75rem 1rem;border:1px solid rgba(255,130,130,0.3);background:rgba(255,130,130,0.06);border-radius:6px;font-size:0.85rem;color:rgba(255,180,180,0.95)">
-          This item is deleted. URL preserved for archive purposes.
+        <div class="banner banner-warning">
+          This note is deleted. URL preserved for archive.
         </div>
       <% end %>
 
-      <h1 style="font-size:2rem;font-weight:600;margin:0.5rem 0 0.25rem">
-        {@item.title}
-      </h1>
+      <header class="article-header">
+        <div class="page-eyebrow">
+          {@workspace.name} ·
+          <span class="mono">{@item.slug}</span>
+        </div>
+        <h1 class="article-title">
+          <%= if @item.pinned do %>
+            <span class="pin" title="Pinned" style="margin-right:8px">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2l2.39 7.36H22l-6.18 4.49L18.21 22 12 17.27 5.79 22l2.39-8.15L2 9.36h7.61z" />
+              </svg>
+            </span>
+          <% end %>
+          {@item.title}
+        </h1>
 
-      <div style="display:flex;gap:1rem;flex-wrap:wrap;color:rgba(232,232,232,0.55);font-size:0.85rem;margin-bottom:1rem">
-        <span :if={@item.pinned}>📌 pinned</span>
-        <span :if={loaded_owner(@item)}>owner: {loaded_owner(@item).username}</span>
-        <span>via: {@item.created_via}</span>
-      </div>
+        <%= if @item.summary && @item.summary != "" do %>
+          <p class="article-summary">{@item.summary}</p>
+        <% end %>
 
-      <div :if={@item.tags != []} style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:1.5rem">
-        <span
-          :for={tag <- @item.tags}
-          style="padding:0.15rem 0.55rem;border-radius:999px;border:1px solid rgba(232,232,232,0.15);font-size:0.75rem"
-        >
-          {tag}
-        </span>
-      </div>
+        <%= if @item.tags != [] do %>
+          <div class="chip-row" style="margin-bottom:12px">
+            <span :for={tag <- @item.tags} class="chip chip-accent">{tag}</span>
+          </div>
+        <% end %>
 
-      <div :if={@item.summary && @item.summary != ""} style="font-style:italic;color:rgba(232,232,232,0.75);margin-bottom:1.5rem">
-        {@item.summary}
-      </div>
+        <div class="article-meta">
+          <%= if loaded_owner(@item) do %>
+            <span class="article-meta-item">
+              <span class="article-meta-key">Owner</span>
+              <span class="article-meta-val">{loaded_owner(@item).username}</span>
+            </span>
+          <% end %>
+          <span class="article-meta-item">
+            <span class="article-meta-key">Created via</span>
+            <span class="article-meta-val mono">{@item.created_via}</span>
+          </span>
+          <span class="article-meta-item">
+            <span class="article-meta-key">Updated</span>
+            <span class="article-meta-val">{format_date(@item.updated_at)}</span>
+          </span>
+        </div>
+      </header>
 
-      <div style="line-height:1.6">
+      <article class="prose">
         {Phoenix.HTML.raw(@body_html)}
-      </div>
+      </article>
 
-      <p style="margin-top:2.5rem;padding:0.85rem 1rem;border:1px dashed rgba(232,232,232,0.15);border-radius:6px;font-size:0.85rem;color:rgba(232,232,232,0.55)">
-        To edit this item, use the <code>aveline</code> CLI:
-        <code>aveline edit {@item.slug}</code>.
-      </p>
+      <div class="banner" style="margin-top:48px">
+        Edit via the CLI: <code>aveline edit {@item.slug}</code>
+      </div>
     </div>
     """
   end
@@ -103,4 +116,10 @@ defmodule AvelineWeb.ItemShowLive do
   defp loaded_owner(%{owner: %Ecto.Association.NotLoaded{}}), do: nil
   defp loaded_owner(%{owner: owner}), do: owner
   defp loaded_owner(_), do: nil
+
+  defp format_date(%DateTime{} = dt) do
+    Calendar.strftime(dt, "%b %-d, %Y")
+  end
+
+  defp format_date(_), do: ""
 end

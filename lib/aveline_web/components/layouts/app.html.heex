@@ -1,3 +1,31 @@
-<main style="width:100%;max-width:560px">
-  {@inner_content}
-</main>
+<div class="shell">
+  <nav class="nav">
+    <.link navigate={~p"/"} class="nav-brand">
+      <span class="nav-brand-mark">A</span>
+      <span>aveline</span>
+    </.link>
+    <%= if assigns[:workspace] do %>
+      <span class="nav-sep">/</span>
+      <.link navigate={~p"/w/#{@workspace.slug}"} class="nav-crumb">{@workspace.name}</.link>
+    <% end %>
+    <div class="nav-spacer"></div>
+    <%= if assigns[:current_user] do %>
+      <div class="nav-user">
+        <span class="avatar">{String.first(@current_user.username) |> String.upcase()}</span>
+        <span>{@current_user.username}</span>
+        <span class="nav-sep">·</span>
+        <a href={~p"/logout"}>log out</a>
+      </div>
+    <% end %>
+  </nav>
+
+  <%= for {kind, msg} <- @flash do %>
+    <div class={"flash-fixed " <> if kind == "error", do: "flash-error", else: ""}>
+      {msg}
+    </div>
+  <% end %>
+
+  <main>
+    {@inner_content}
+  </main>
+</div>

@@ -12,7 +12,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
         items = Items.list_items(ws.id)
-        pinned = Enum.filter(items, & &1.pinned)
 
         tag_counts =
           items
@@ -26,9 +25,9 @@ defmodule AvelineWeb.WorkspaceShowLive do
            current_user: user,
            workspace: ws,
            items: items,
-           pinned: pinned,
            tag_counts: tag_counts,
            selected_tag: nil,
+           pinned_only: false,
            search: ""
          )}
 
@@ -47,17 +46,22 @@ defmodule AvelineWeb.WorkspaceShowLive do
   end
 
   @impl true
-  def handle_event("set_tag", %{"tag" => tag}, socket) do
+  def handle_event("toggle_tag", %{"tag" => tag}, socket) do
     new_tag = if socket.assigns.selected_tag == tag, do: nil, else: tag
     {:noreply, assign(socket, :selected_tag, new_tag)}
+  end
+
+  def handle_event("toggle_pinned", _, socket) do
+    {:noreply, assign(socket, :pinned_only, not socket.assigns.pinned_only)}
   end
 
   def handle_event("search", %{"value" => v}, socket) do
     {:noreply, assign(socket, :search, v)}
   end
 
-  defp filtered(items, tag, search) do
+  defp filtered(items, tag, pinned_only, search) do
     items
+    |> Enum.filter(fn i -> not pinned_only or i.pinned end)
     |> Enum.filter(fn i -> is_nil(tag) or tag in i.tags end)
     |> Enum.filter(fn i ->
       case String.trim(search || "") do
@@ -70,79 +74,94 @@ defmodule AvelineWeb.WorkspaceShowLive do
   @impl true
   def render(assigns) do
     assigns =
-      assign(assigns, :filtered_items, filtered(assigns.items, assigns.selected_tag, assigns.search))
+      assign(assigns,
+        filtered_items:
+          filtered(assigns.items, assigns.selected_tag, assigns.pinned_only, assigns.search),
+        pinned_count: Enum.count(assigns.items, & &1.pinned)
+      )
 
     ~H"""
-    <div style="max-width:760px;margin:0 auto;padding:2rem 1rem">
-      <.link
-        navigate={~p"/"}
-        style="color:rgba(232,232,232,0.55);font-size:0.85rem;text-decoration:none"
-      >
-        ← All workspaces
-      </.link>
-      <h1 style="font-size:1.75rem;font-weight:600;margin:0.5rem 0 0.25rem">{@workspace.name}</h1>
-      <div style="display:flex;gap:1rem;color:rgba(232,232,232,0.55);font-size:0.85rem;margin-bottom:1.5rem">
-        <span>{@workspace.slug}</span>
-        <.link navigate={~p"/w/#{@workspace.slug}/views"} style="color:inherit">
-          views
+    <div class="container">
+      <div class="page-eyebrow">Workspace</div>
+      <h1 class="page-title">{@workspace.name}</h1>
+      <p class="page-subtitle">
+        <span class="mono">{@workspace.slug}</span>
+        · {length(@items)} notes
+      </p>
+
+      <div class="tabs">
+        <button
+          phx-click="toggle_pinned"
+          class={"tab " <> if @pinned_only, do: "", else: "tab-active"}
+        >
+          All <span class="count">{length(@items)}</span>
+        </button>
+        <button
+          phx-click="toggle_pinned"
+          class={"tab " <> if @pinned_only, do: "tab-active", else: ""}
+        >
+          Pinned <span class="count">{@pinned_count}</span>
+        </button>
+        <.link navigate={~p"/w/#{@workspace.slug}/views"} class="tab">
+          Views <span class="count">{length(Aveline.Views.list_views(@workspace.id))}</span>
         </.link>
       </div>
 
-      <%= if @pinned != [] do %>
-        <h2 style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:rgba(232,232,232,0.55);margin:0 0 0.5rem">
-          Pinned
-        </h2>
-        <ul style="list-style:none;padding:0;margin:0 0 1.5rem;display:flex;flex-direction:column;gap:0.4rem">
-          <li :for={i <- @pinned}>
-            <.link
-              navigate={~p"/w/#{@workspace.slug}/i/#{i.slug}"}
-              style="display:block;padding:0.6rem 0.85rem;border:1px solid rgba(232,232,232,0.15);border-radius:6px;color:inherit;text-decoration:none"
+      <div class="filter-bar">
+        <form phx-change="search">
+          <input
+            type="text"
+            name="value"
+            value={@search}
+            placeholder="Search notes…"
+            class="search-input"
+          />
+        </form>
+        <%= if @tag_counts != [] do %>
+          <div class="chip-row">
+            <button
+              :for={{tag, count} <- @tag_counts}
+              phx-click="toggle_tag"
+              phx-value-tag={tag}
+              class={"chip " <> if @selected_tag == tag, do: "chip-active", else: ""}
             >
-              {i.title}
+              {tag} <span style="opacity:0.55;margin-left:4px">{count}</span>
+            </button>
+          </div>
+        <% end %>
+      </div>
+
+      <%= if @filtered_items == [] do %>
+        <div class="empty">No notes match the current filter.</div>
+      <% else %>
+        <ul class="card-list">
+          <li :for={i <- @filtered_items}>
+            <.link navigate={~p"/w/#{@workspace.slug}/i/#{i.slug}"} class="card">
+              <div class="card-title">
+                <%= if i.pinned do %>
+                  <span class="pin" title="Pinned">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2l2.39 7.36H22l-6.18 4.49L18.21 22 12 17.27 5.79 22l2.39-8.15L2 9.36h7.61z" />
+                    </svg>
+                  </span>
+                <% end %>
+                {i.title}
+              </div>
+              <%= if i.summary do %>
+                <div class="card-summary">{i.summary}</div>
+              <% end %>
+              <div class="card-meta">
+                <span class="card-slug">{i.slug}</span>
+                <%= if i.tags != [] do %>
+                  <span style="display:flex;gap:4px;flex-wrap:wrap">
+                    <span :for={t <- i.tags} class="chip">{t}</span>
+                  </span>
+                <% end %>
+              </div>
             </.link>
           </li>
         </ul>
       <% end %>
-
-      <form phx-change="search" style="margin-bottom:1rem">
-        <input
-          type="text"
-          name="value"
-          value={@search}
-          placeholder="search titles…"
-          style="width:100%;padding:0.55rem 0.75rem;border-radius:6px;border:1px solid rgba(232,232,232,0.15);background:rgba(232,232,232,0.04);color:#f5f5f5;font-family:inherit"
-        />
-      </form>
-
-      <%= if @tag_counts != [] do %>
-        <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:1rem">
-          <button
-            :for={{tag, count} <- @tag_counts}
-            phx-click="set_tag"
-            phx-value-tag={tag}
-            style={"padding:0.25rem 0.6rem;border-radius:999px;border:1px solid rgba(232,232,232,0.15);background:#{if @selected_tag == tag, do: "rgba(245,245,245,0.15)", else: "transparent"};color:inherit;font-family:inherit;font-size:0.8rem;cursor:pointer"}
-          >
-            {tag} <span style="opacity:0.55">({count})</span>
-          </button>
-        </div>
-      <% end %>
-
-      <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.4rem">
-        <li :for={i <- @filtered_items}>
-          <.link
-            navigate={~p"/w/#{@workspace.slug}/i/#{i.slug}"}
-            style="display:block;padding:0.6rem 0.85rem;border:1px solid rgba(232,232,232,0.1);border-radius:6px;color:inherit;text-decoration:none"
-          >
-            <div style="font-weight:500">{i.title}</div>
-            <div :if={i.tags != []} style="font-size:0.75rem;color:rgba(232,232,232,0.55);margin-top:0.15rem">
-              {Enum.join(i.tags, " · ")}
-            </div>
-          </.link>
-        </li>
-      </ul>
-      <p :if={@filtered_items == []} style="color:rgba(232,232,232,0.55);margin-top:1rem">
-        No items match.
-      </p>
     </div>
     """
   end

@@ -47,62 +47,74 @@ defmodule AvelineWeb.ViewShowLive do
 
   @impl true
   def render(assigns) do
-    assigns =
-      assign(
-        assigns,
-        :shown_items,
-        if(assigns.pinned_only, do: Enum.filter(assigns.items, & &1.pinned), else: assigns.items)
-      )
+    pinned_count = Enum.count(assigns.items, & &1.pinned)
+    shown = if assigns.pinned_only, do: Enum.filter(assigns.items, & &1.pinned), else: assigns.items
+    assigns = assign(assigns, shown_items: shown, pinned_count: pinned_count)
 
     ~H"""
-    <div style="max-width:760px;margin:0 auto;padding:2rem 1rem">
-      <.link
-        navigate={~p"/w/#{@workspace.slug}/views"}
-        style="color:rgba(232,232,232,0.55);font-size:0.85rem;text-decoration:none"
-      >
-        ← Views
-      </.link>
-      <h1 style="font-size:1.75rem;font-weight:600;margin:0.5rem 0 0.25rem">{@view.name}</h1>
-      <p
-        :if={@view.description && @view.description != ""}
-        style="color:rgba(232,232,232,0.65);margin-bottom:0.75rem"
-      >
+    <div class="container">
+      <div class="page-eyebrow">
+        <.link navigate={~p"/w/#{@workspace.slug}/views"} style="color:inherit">Views</.link>
+      </div>
+      <h1 class="page-title">{@view.name}</h1>
+      <p :if={@view.description && @view.description != ""} class="page-subtitle">
         {@view.description}
       </p>
-      <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:1rem">
-        <span :if={@view.tag_filter == []} style="font-size:0.85rem;color:rgba(232,232,232,0.55)">
-          no filter (all items)
-        </span>
-        <span
-          :for={tag <- @view.tag_filter}
-          style="padding:0.15rem 0.55rem;border-radius:999px;border:1px solid rgba(232,232,232,0.15);font-size:0.75rem"
-        >
-          {tag}
-        </span>
+
+      <div class="chip-row" style="margin-bottom:24px">
+        <%= if @view.tag_filter == [] do %>
+          <span class="chip">all notes</span>
+        <% else %>
+          <span :for={tag <- @view.tag_filter} class="chip chip-accent">{tag}</span>
+        <% end %>
       </div>
 
-      <label style="display:inline-flex;align-items:center;gap:0.4rem;margin-bottom:1rem;font-size:0.85rem;cursor:pointer">
-        <input type="checkbox" checked={@pinned_only} phx-click="toggle_pinned" /> pinned only
-      </label>
+      <div class="tabs">
+        <button
+          phx-click="toggle_pinned"
+          class={"tab " <> if @pinned_only, do: "", else: "tab-active"}
+        >
+          Matching <span class="count">{length(@items)}</span>
+        </button>
+        <button
+          phx-click="toggle_pinned"
+          class={"tab " <> if @pinned_only, do: "tab-active", else: ""}
+        >
+          Pinned <span class="count">{@pinned_count}</span>
+        </button>
+      </div>
 
-      <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.4rem">
-        <li :for={i <- @shown_items}>
-          <.link
-            navigate={~p"/w/#{@workspace.slug}/i/#{i.slug}"}
-            style="display:block;padding:0.6rem 0.85rem;border:1px solid rgba(232,232,232,0.1);border-radius:6px;color:inherit;text-decoration:none"
-          >
-            <div style="font-weight:500">
-              <span :if={i.pinned}>📌</span> {i.title}
-            </div>
-            <div :if={i.tags != []} style="font-size:0.75rem;color:rgba(232,232,232,0.55);margin-top:0.15rem">
-              {Enum.join(i.tags, " · ")}
-            </div>
-          </.link>
-        </li>
-      </ul>
-      <p :if={@shown_items == []} style="color:rgba(232,232,232,0.55);margin-top:1rem">
-        No matching items.
-      </p>
+      <%= if @shown_items == [] do %>
+        <div class="empty">No notes match this view.</div>
+      <% else %>
+        <ul class="card-list">
+          <li :for={i <- @shown_items}>
+            <.link navigate={~p"/w/#{@workspace.slug}/i/#{i.slug}"} class="card">
+              <div class="card-title">
+                <%= if i.pinned do %>
+                  <span class="pin" title="Pinned">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2l2.39 7.36H22l-6.18 4.49L18.21 22 12 17.27 5.79 22l2.39-8.15L2 9.36h7.61z" />
+                    </svg>
+                  </span>
+                <% end %>
+                {i.title}
+              </div>
+              <%= if i.summary do %>
+                <div class="card-summary">{i.summary}</div>
+              <% end %>
+              <div class="card-meta">
+                <span class="card-slug">{i.slug}</span>
+                <%= if i.tags != [] do %>
+                  <span style="display:flex;gap:4px;flex-wrap:wrap">
+                    <span :for={t <- i.tags} class="chip">{t}</span>
+                  </span>
+                <% end %>
+              </div>
+            </.link>
+          </li>
+        </ul>
+      <% end %>
     </div>
     """
   end

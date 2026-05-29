@@ -2,6 +2,7 @@ defmodule AvelineWeb.ViewListLive do
   @moduledoc false
   use AvelineWeb, :live_view
 
+  alias Aveline.Items
   alias Aveline.Views
   alias AvelineWeb.LiveSession
 
@@ -16,7 +17,8 @@ defmodule AvelineWeb.ViewListLive do
            page_title: "Aveline · Views · #{ws.name}",
            current_user: user,
            workspace: ws,
-           views: Views.list_views(ws.id)
+           views: Views.list_views(ws.id),
+           item_count: length(Items.list_items(ws.id))
          )}
 
       :not_found ->
@@ -30,27 +32,45 @@ defmodule AvelineWeb.ViewListLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div style="max-width:760px;margin:0 auto;padding:2rem 1rem">
-      <.link
-        navigate={~p"/w/#{@workspace.slug}"}
-        style="color:rgba(232,232,232,0.55);font-size:0.85rem;text-decoration:none"
-      >
-        ← {@workspace.name}
-      </.link>
-      <h1 style="font-size:1.75rem;font-weight:600;margin:0.5rem 0 1rem">Views</h1>
+    <div class="container">
+      <div class="page-eyebrow">Workspace</div>
+      <h1 class="page-title">{@workspace.name}</h1>
+      <p class="page-subtitle">
+        <span class="mono">{@workspace.slug}</span>
+        · {@item_count} notes
+      </p>
+
+      <div class="tabs">
+        <.link navigate={~p"/w/#{@workspace.slug}"} class="tab">
+          All <span class="count">{@item_count}</span>
+        </.link>
+        <.link navigate={~p"/w/#{@workspace.slug}"} class="tab">
+          Pinned
+        </.link>
+        <span class="tab tab-active">
+          Views <span class="count">{length(@views)}</span>
+        </span>
+      </div>
 
       <%= if @views == [] do %>
-        <p style="color:rgba(232,232,232,0.55)">No saved views yet.</p>
+        <div class="empty">No saved views yet.</div>
       <% else %>
-        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.5rem">
+        <ul class="card-list">
           <li :for={v <- @views}>
-            <.link
-              navigate={~p"/w/#{@workspace.slug}/v/#{v.slug}"}
-              style="display:block;padding:0.85rem 1rem;border:1px solid rgba(232,232,232,0.15);border-radius:8px;color:inherit;text-decoration:none"
-            >
-              <div style="font-weight:500">{v.name}</div>
-              <div style="font-size:0.8rem;color:rgba(232,232,232,0.55);margin-top:0.2rem">
-                {if v.tag_filter == [], do: "all items", else: Enum.join(v.tag_filter, " ∩ ")}
+            <.link navigate={~p"/w/#{@workspace.slug}/v/#{v.slug}"} class="card">
+              <div class="card-title">{v.name}</div>
+              <%= if v.description do %>
+                <div class="card-summary">{v.description}</div>
+              <% end %>
+              <div class="card-meta">
+                <span class="card-slug">{v.slug}</span>
+                <%= if v.tag_filter != [] do %>
+                  <span style="display:flex;gap:4px;flex-wrap:wrap">
+                    <span :for={t <- v.tag_filter} class="chip chip-accent">{t}</span>
+                  </span>
+                <% else %>
+                  <span class="card-slug">all notes</span>
+                <% end %>
               </div>
             </.link>
           </li>
