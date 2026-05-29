@@ -23,15 +23,9 @@ defmodule AvelineWeb.Router do
     plug AvelineWeb.Plugs.WorkspaceScope
   end
 
-  # ===== Public browser routes =====
+  # ===== Browser routes =====
 
   scope "/", AvelineWeb do
-    pipe_through :browser
-
-    live "/", HelloLive, :index
-  end
-
-  scope "/app", AvelineWeb do
     pipe_through :browser
 
     live "/", WorkspaceListLive, :index

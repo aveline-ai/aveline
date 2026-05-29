@@ -38,8 +38,8 @@ defmodule AvelineWeb.WorkspaceListLive do
 
       <%= if is_nil(@current_user) do %>
         <div style="padding:1rem;border:1px solid rgba(232,232,232,0.15);border-radius:8px;background:rgba(232,232,232,0.04)">
-          No session user. In dev, set <code>SEED_USER_EMAIL</code> in the environment
-          and run <code>mix aveline.seed</code> to bootstrap a user.
+          No user. Run <code>mix ecto.setup</code> to seed alice / bob / carol,
+          or set <code>SEED_USER_EMAIL</code> in the env to pick a specific one.
         </div>
       <% else %>
         <%= if @workspaces == [] do %>
@@ -48,7 +48,7 @@ defmodule AvelineWeb.WorkspaceListLive do
           <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.5rem">
             <li :for={w <- @workspaces}>
               <.link
-                navigate={~p"/app/w/#{w.slug}"}
+                navigate={~p"/w/#{w.slug}"}
                 style="display:block;padding:0.85rem 1rem;border:1px solid rgba(232,232,232,0.15);border-radius:8px;color:inherit;text-decoration:none"
               >
                 <div style="font-weight:500">{w.name}</div>

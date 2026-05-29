@@ -4,7 +4,7 @@ defmodule AvelineWeb.Api.ItemJSON do
   alias AvelineWeb.Api.UserJSON
 
   def index(%{items: items}), do: %{items: Enum.map(items, &one/1)}
-  def show(%{item: item}), do: %{item: one(item)}
+  def show(%{item: item}), do: one(item)
 
   def one(i) do
     %{

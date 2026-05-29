@@ -5,7 +5,7 @@ defmodule AvelineWeb.Api.WorkspaceJSON do
     %{workspaces: Enum.map(workspaces, &one/1)}
   end
 
-  def show(%{workspace: workspace}), do: %{workspace: one(workspace)}
+  def show(%{workspace: workspace}), do: one(workspace)
 
   def one(w) do
     %{

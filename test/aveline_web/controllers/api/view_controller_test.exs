@@ -17,7 +17,7 @@ defmodule AvelineWeb.Api.ViewControllerTest do
 
     payload = %{slug: "oncall", name: "Oncall", tag_filter: ["oncall"]}
     body = conn |> post(~p"/api/workspaces/#{ws.slug}/views", payload) |> json_response(201)
-    assert body["view"]["slug"] == "oncall"
+    assert body["slug"] == "oncall"
 
     show = conn |> get(~p"/api/workspaces/#{ws.slug}/views/oncall") |> json_response(200)
     assert show["view"]["slug"] == "oncall"

@@ -36,13 +36,13 @@ defmodule AvelineWeb.WorkspaceShowLive do
         {:ok,
          socket
          |> put_flash(:error, "Workspace not found.")
-         |> push_navigate(to: ~p"/app")}
+         |> push_navigate(to: ~p"/")}
 
       :forbidden ->
         {:ok,
          socket
          |> put_flash(:error, "You are not a member of this workspace.")
-         |> push_navigate(to: ~p"/app")}
+         |> push_navigate(to: ~p"/")}
     end
   end
 
@@ -75,7 +75,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
     ~H"""
     <div style="max-width:760px;margin:0 auto;padding:2rem 1rem">
       <.link
-        navigate={~p"/app"}
+        navigate={~p"/"}
         style="color:rgba(232,232,232,0.55);font-size:0.85rem;text-decoration:none"
       >
         ← All workspaces
@@ -83,7 +83,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
       <h1 style="font-size:1.75rem;font-weight:600;margin:0.5rem 0 0.25rem">{@workspace.name}</h1>
       <div style="display:flex;gap:1rem;color:rgba(232,232,232,0.55);font-size:0.85rem;margin-bottom:1.5rem">
         <span>{@workspace.slug}</span>
-        <.link navigate={~p"/app/w/#{@workspace.slug}/views"} style="color:inherit">
+        <.link navigate={~p"/w/#{@workspace.slug}/views"} style="color:inherit">
           views
         </.link>
       </div>
@@ -95,7 +95,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
         <ul style="list-style:none;padding:0;margin:0 0 1.5rem;display:flex;flex-direction:column;gap:0.4rem">
           <li :for={i <- @pinned}>
             <.link
-              navigate={~p"/app/w/#{@workspace.slug}/i/#{i.slug}"}
+              navigate={~p"/w/#{@workspace.slug}/i/#{i.slug}"}
               style="display:block;padding:0.6rem 0.85rem;border:1px solid rgba(232,232,232,0.15);border-radius:6px;color:inherit;text-decoration:none"
             >
               {i.title}
@@ -130,7 +130,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
       <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.4rem">
         <li :for={i <- @filtered_items}>
           <.link
-            navigate={~p"/app/w/#{@workspace.slug}/i/#{i.slug}"}
+            navigate={~p"/w/#{@workspace.slug}/i/#{i.slug}"}
             style="display:block;padding:0.6rem 0.85rem;border:1px solid rgba(232,232,232,0.1);border-radius:6px;color:inherit;text-decoration:none"
           >
             <div style="font-weight:500">{i.title}</div>

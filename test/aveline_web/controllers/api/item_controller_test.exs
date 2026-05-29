@@ -14,14 +14,14 @@ defmodule AvelineWeb.Api.ItemControllerTest do
   test "create + show + index", %{conn: conn, ws: ws} do
     payload = %{title: "Oncall Rotation", tags: ["oncall"], pinned: true}
     body = conn |> post(~p"/api/workspaces/#{ws.slug}/items", payload) |> json_response(201)
-    assert body["item"]["slug"] == "oncall-rotation"
-    assert body["item"]["pinned"] == true
-    assert body["item"]["tags"] == ["oncall"]
-    assert body["item"]["owner"]["username"]
-    assert body["item"]["created_via"] == "cli"
+    assert body["slug"] == "oncall-rotation"
+    assert body["pinned"] == true
+    assert body["tags"] == ["oncall"]
+    assert body["owner"]["username"]
+    assert body["created_via"] == "cli"
 
     show = conn |> get(~p"/api/workspaces/#{ws.slug}/items/oncall-rotation") |> json_response(200)
-    assert show["item"]["title"] == "Oncall Rotation"
+    assert show["title"] == "Oncall Rotation"
 
     idx = conn |> get(~p"/api/workspaces/#{ws.slug}/items?pinned=true&tag=oncall") |> json_response(200)
     assert length(idx["items"]) == 1
@@ -62,7 +62,7 @@ defmodule AvelineWeb.Api.ItemControllerTest do
   test "update via PATCH", %{conn: conn, ws: ws} do
     _ = conn |> post(~p"/api/workspaces/#{ws.slug}/items", %{title: "u", slug: "u"})
     body = conn |> patch(~p"/api/workspaces/#{ws.slug}/items/u", %{title: "renamed"}) |> json_response(200)
-    assert body["item"]["title"] == "renamed"
+    assert body["title"] == "renamed"
   end
 
   test "404 on missing item", %{conn: conn, ws: ws} do

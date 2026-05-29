@@ -20,10 +20,10 @@ defmodule AvelineWeb.ViewListLive do
          )}
 
       :not_found ->
-        {:ok, socket |> put_flash(:error, "Workspace not found.") |> push_navigate(to: ~p"/app")}
+        {:ok, socket |> put_flash(:error, "Workspace not found.") |> push_navigate(to: ~p"/")}
 
       :forbidden ->
-        {:ok, socket |> put_flash(:error, "Forbidden.") |> push_navigate(to: ~p"/app")}
+        {:ok, socket |> put_flash(:error, "Forbidden.") |> push_navigate(to: ~p"/")}
     end
   end
 
@@ -32,7 +32,7 @@ defmodule AvelineWeb.ViewListLive do
     ~H"""
     <div style="max-width:760px;margin:0 auto;padding:2rem 1rem">
       <.link
-        navigate={~p"/app/w/#{@workspace.slug}"}
+        navigate={~p"/w/#{@workspace.slug}"}
         style="color:rgba(232,232,232,0.55);font-size:0.85rem;text-decoration:none"
       >
         ← {@workspace.name}
@@ -45,7 +45,7 @@ defmodule AvelineWeb.ViewListLive do
         <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.5rem">
           <li :for={v <- @views}>
             <.link
-              navigate={~p"/app/w/#{@workspace.slug}/v/#{v.slug}"}
+              navigate={~p"/w/#{@workspace.slug}/v/#{v.slug}"}
               style="display:block;padding:0.85rem 1rem;border:1px solid rgba(232,232,232,0.15);border-radius:8px;color:inherit;text-decoration:none"
             >
               <div style="font-weight:500">{v.name}</div>

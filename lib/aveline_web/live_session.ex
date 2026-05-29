@@ -1,18 +1,24 @@
 defmodule AvelineWeb.LiveSession do
   @moduledoc """
   Lightweight session helper for v0 LiveViews. Real session auth is v0.1; for
-  now the "current user" is the user whose email is in `SEED_USER_EMAIL`.
+  now the "current user" comes from `SEED_USER_EMAIL` if set, otherwise
+  falls back to alice@local.test (the first seeded user in dev).
   """
 
   alias Aveline.Accounts
   alias Aveline.Workspaces
 
+  @dev_default_email "alice@local.test"
+
   def current_user do
-    case System.get_env("SEED_USER_EMAIL") do
-      nil -> nil
-      "" -> nil
-      email -> Accounts.get_user_by_email(email)
-    end
+    email =
+      case System.get_env("SEED_USER_EMAIL") do
+        nil -> @dev_default_email
+        "" -> @dev_default_email
+        e -> e
+      end
+
+    Accounts.get_user_by_email(email)
   end
 
   @doc """

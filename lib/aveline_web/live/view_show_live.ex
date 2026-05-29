@@ -16,7 +16,7 @@ defmodule AvelineWeb.ViewShowLive do
             {:ok,
              socket
              |> put_flash(:error, "View not found.")
-             |> push_navigate(to: ~p"/app/w/#{ws.slug}/views")}
+             |> push_navigate(to: ~p"/w/#{ws.slug}/views")}
 
           view ->
             items = Views.matching_items(view)
@@ -33,10 +33,10 @@ defmodule AvelineWeb.ViewShowLive do
         end
 
       :not_found ->
-        {:ok, socket |> put_flash(:error, "Workspace not found.") |> push_navigate(to: ~p"/app")}
+        {:ok, socket |> put_flash(:error, "Workspace not found.") |> push_navigate(to: ~p"/")}
 
       :forbidden ->
-        {:ok, socket |> put_flash(:error, "Forbidden.") |> push_navigate(to: ~p"/app")}
+        {:ok, socket |> put_flash(:error, "Forbidden.") |> push_navigate(to: ~p"/")}
     end
   end
 
@@ -57,7 +57,7 @@ defmodule AvelineWeb.ViewShowLive do
     ~H"""
     <div style="max-width:760px;margin:0 auto;padding:2rem 1rem">
       <.link
-        navigate={~p"/app/w/#{@workspace.slug}/views"}
+        navigate={~p"/w/#{@workspace.slug}/views"}
         style="color:rgba(232,232,232,0.55);font-size:0.85rem;text-decoration:none"
       >
         ← Views
@@ -88,7 +88,7 @@ defmodule AvelineWeb.ViewShowLive do
       <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.4rem">
         <li :for={i <- @shown_items}>
           <.link
-            navigate={~p"/app/w/#{@workspace.slug}/i/#{i.slug}"}
+            navigate={~p"/w/#{@workspace.slug}/i/#{i.slug}"}
             style="display:block;padding:0.6rem 0.85rem;border:1px solid rgba(232,232,232,0.1);border-radius:6px;color:inherit;text-decoration:none"
           >
             <div style="font-weight:500">

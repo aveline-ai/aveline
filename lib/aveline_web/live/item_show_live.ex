@@ -16,7 +16,7 @@ defmodule AvelineWeb.ItemShowLive do
             {:ok,
              socket
              |> put_flash(:error, "Item not found.")
-             |> push_navigate(to: ~p"/app/w/#{ws.slug}")}
+             |> push_navigate(to: ~p"/w/#{ws.slug}")}
 
           item ->
             body_html = render_markdown(item.body || "")
@@ -32,10 +32,10 @@ defmodule AvelineWeb.ItemShowLive do
         end
 
       :not_found ->
-        {:ok, socket |> put_flash(:error, "Workspace not found.") |> push_navigate(to: ~p"/app")}
+        {:ok, socket |> put_flash(:error, "Workspace not found.") |> push_navigate(to: ~p"/")}
 
       :forbidden ->
-        {:ok, socket |> put_flash(:error, "Forbidden.") |> push_navigate(to: ~p"/app")}
+        {:ok, socket |> put_flash(:error, "Forbidden.") |> push_navigate(to: ~p"/")}
     end
   end
 
@@ -53,7 +53,7 @@ defmodule AvelineWeb.ItemShowLive do
     ~H"""
     <div style="max-width:760px;margin:0 auto;padding:2rem 1rem">
       <.link
-        navigate={~p"/app/w/#{@workspace.slug}"}
+        navigate={~p"/w/#{@workspace.slug}"}
         style="color:rgba(232,232,232,0.55);font-size:0.85rem;text-decoration:none"
       >
         ← {@workspace.name}
