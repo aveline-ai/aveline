@@ -28,13 +28,6 @@ defmodule AvelineWeb.WorkspaceListLive do
     ~H"""
     <div class="container-narrow">
       <h1 class="page-title">Workspaces</h1>
-      <p class="page-subtitle">
-        <%= if @current_user do %>
-          A wiki you can easily understand.
-        <% else %>
-          Not signed in.
-        <% end %>
-      </p>
 
       <%= if is_nil(@current_user) do %>
         <div class="banner">
@@ -42,6 +35,7 @@ defmodule AvelineWeb.WorkspaceListLive do
           Local tokens are printed by <code>mix ecto.setup</code>.
         </div>
       <% else %>
+        <p class="page-subtitle">Pick one to get started.</p>
         <%= if @workspaces == [] do %>
           <div class="empty">No workspaces yet.</div>
         <% else %>

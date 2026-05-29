@@ -20,6 +20,8 @@ defmodule AvelineWeb.Api.ViewJSON do
       name: v.name,
       tag_filter: v.tag_filter || [],
       description: v.description,
+      scope: v.scope,
+      created_by_id: v.created_by_id,
       inserted_at: v.inserted_at,
       updated_at: v.updated_at,
       deleted_at: v.deleted_at

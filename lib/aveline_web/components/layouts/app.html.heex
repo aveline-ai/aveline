@@ -1,42 +1,135 @@
-<div class="shell">
-  <nav class="nav">
-    <.link navigate={~p"/"} class="nav-brand">
-      <span class="nav-brand-mark">A</span>
-      <span>aveline</span>
-    </.link>
-    <%= if assigns[:workspace] do %>
-      <span class="nav-sep">/</span>
-      <.link navigate={~p"/w/#{@workspace.slug}"} class="nav-crumb">{@workspace.name}</.link>
-    <% end %>
-    <%= for crumb <- (assigns[:crumbs] || []) do %>
-      <span class="nav-sep">/</span>
-      <%= case crumb do %>
-        <% {:link, label, path} -> %>
-          <.link navigate={path} class="nav-crumb">{label}</.link>
-        <% {:text, label} -> %>
-          <span class="nav-crumb-current">{label}</span>
-      <% end %>
-    <% end %>
-    <div class="nav-spacer"></div>
-    <%= if assigns[:current_user] do %>
-      <div class="nav-user">
-        <span class="avatar" style={"background:hsl(#{avatar_hue(@current_user.username)},65%,18%);color:hsl(#{avatar_hue(@current_user.username)},75%,75%)"}>
-          {initial(@current_user.username)}
-        </span>
-        <span>{@current_user.username}</span>
-        <span class="nav-sep">·</span>
-        <a href={~p"/logout"}>log out</a>
+<%= for {kind, msg} <- @flash do %>
+  <div class={"flash-fixed " <> if kind == "error", do: "flash-error", else: ""}>
+    {msg}
+  </div>
+<% end %>
+
+<%= if assigns[:workspace] do %>
+  <div class="shell-sidebar">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <.link navigate={~p"/"} class="nav-brand-mark" title="Aveline">A</.link>
+        <div class="sidebar-workspace" title={@workspace.name}>{@workspace.name}</div>
       </div>
-    <% end %>
-  </nav>
 
-  <%= for {kind, msg} <- @flash do %>
-    <div class={"flash-fixed " <> if kind == "error", do: "flash-error", else: ""}>
-      {msg}
+      <div class="sidebar-section">
+        <.link
+          navigate={~p"/w/#{@workspace.slug}"}
+          class={"sidebar-item " <> if assigns[:nav_active] == :all, do: "active", else: ""}
+        >
+          <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="2.5" y="2.5" width="11" height="11" rx="1.5" />
+            <path d="M5 6h6M5 8h6M5 10h4" stroke-linecap="round" />
+          </svg>
+          <span class="label">All notes</span>
+          <%= if assigns[:total_count] do %>
+            <span class="count">{@total_count}</span>
+          <% end %>
+        </.link>
+        <.link
+          navigate={~p"/w/#{@workspace.slug}?pinned=true"}
+          class={"sidebar-item " <> if assigns[:nav_active] == :pinned, do: "active", else: ""}
+        >
+          <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 1.33L9.6 6.24h5.13L10.6 9.24l1.55 4.91L8 11.11l-4.15 3.04 1.55-4.91L1.27 6.24H6.4z" />
+          </svg>
+          <span class="label">Pinned</span>
+          <%= if assigns[:pinned_count] do %>
+            <span class="count">{@pinned_count}</span>
+          <% end %>
+        </.link>
+      </div>
+
+      <%= if (assigns[:personal_views] || []) != [] do %>
+        <div class="sidebar-section">
+          <div class="sidebar-label">
+            <span>Your views</span>
+          </div>
+          <%= for v <- @personal_views do %>
+            <.link
+              navigate={~p"/w/#{@workspace.slug}/v/#{v.slug}"}
+              class={"sidebar-item " <> if assigns[:nav_active] == {:view, v.slug}, do: "active", else: ""}
+            >
+              <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M2.5 4.5h11M4 8h8M6 11.5h4" stroke-linecap="round" />
+              </svg>
+              <span class="label">{v.name}</span>
+            </.link>
+          <% end %>
+        </div>
+      <% end %>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">
+          <span>Team views</span>
+          <.link navigate={~p"/w/#{@workspace.slug}/views"} style="color:var(--text-muted);font-size:10.5px" title="All views">···</.link>
+        </div>
+        <%= for v <- (assigns[:team_views] || []) do %>
+          <.link
+            navigate={~p"/w/#{@workspace.slug}/v/#{v.slug}"}
+            class={"sidebar-item " <> if assigns[:nav_active] == {:view, v.slug}, do: "active", else: ""}
+          >
+            <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2.5 4.5h11M4 8h8M6 11.5h4" stroke-linecap="round" />
+            </svg>
+            <span class="label">{v.name}</span>
+          </.link>
+        <% end %>
+        <%= if (assigns[:team_views] || []) == [] do %>
+          <div style="padding:5px 8px;font-size:12px;color:var(--text-muted)">no team views yet</div>
+        <% end %>
+      </div>
+
+      <div class="sidebar-spacer"></div>
+
+      <%= if assigns[:current_user] do %>
+        <div class="sidebar-footer">
+          <div class="sidebar-user">
+            <span
+              class="avatar-sm"
+              style={"background:hsl(#{avatar_hue(@current_user.username)},65%,18%);color:hsl(#{avatar_hue(@current_user.username)},75%,75%)"}
+            >
+              {initial(@current_user.username)}
+            </span>
+            <span class="name">{@current_user.username}</span>
+            <a href={~p"/logout"}>log out</a>
+          </div>
+        </div>
+      <% end %>
+    </aside>
+
+    <div class="main-wrap">
+      <header class="topbar">
+        <span class="topbar-title">
+          {assigns[:topbar_title] || @workspace.name}
+        </span>
+        <div class="topbar-spacer"></div>
+        <%= if assigns[:topbar_meta] do %>
+          <div class="topbar-meta">{@topbar_meta}</div>
+        <% end %>
+      </header>
+      {@inner_content}
     </div>
-  <% end %>
-
-  <main>
-    {@inner_content}
-  </main>
-</div>
+  </div>
+<% else %>
+  <div class="shell">
+    <nav class="nav">
+      <.link navigate={~p"/"} class="nav-brand">
+        <span class="nav-brand-mark">A</span>
+        <span>aveline</span>
+      </.link>
+      <div class="nav-spacer"></div>
+      <%= if assigns[:current_user] do %>
+        <div class="nav-user">
+          <span class="avatar" style={"background:hsl(#{avatar_hue(@current_user.username)},65%,18%);color:hsl(#{avatar_hue(@current_user.username)},75%,75%)"}>
+            {initial(@current_user.username)}
+          </span>
+          <span>{@current_user.username}</span>
+          <span class="nav-sep">·</span>
+          <a href={~p"/logout"}>log out</a>
+        </div>
+      <% end %>
+    </nav>
+    <main>{@inner_content}</main>
+  </div>
+<% end %>

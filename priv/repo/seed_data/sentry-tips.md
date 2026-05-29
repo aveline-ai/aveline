@@ -1,7 +1,7 @@
 ---
 title: Sentry tips
 slug: sentry-tips
-owner: carol
+owner: alice
 pinned: false
 tags: [stack, observability, runbook]
 summary: Things that bit us while wiring Sentry 12.

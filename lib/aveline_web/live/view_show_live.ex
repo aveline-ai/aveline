@@ -2,6 +2,7 @@ defmodule AvelineWeb.ViewShowLive do
   @moduledoc false
   use AvelineWeb, :live_view
 
+  alias Aveline.Items
   alias Aveline.Views
   alias AvelineWeb.LiveSession
 
@@ -20,16 +21,19 @@ defmodule AvelineWeb.ViewShowLive do
 
           view ->
             items = Views.matching_items(view)
+            all_items = Items.list_items(ws.id)
 
             {:ok,
              assign(socket,
                page_title: "Aveline · View · #{view.name}",
                current_user: user,
                workspace: ws,
-               crumbs: [
-                 {:link, "Views", ~p"/w/#{ws.slug}/views"},
-                 {:text, view.name}
-               ],
+               personal_views: Views.list_personal_views(ws.id, user.id),
+               team_views: Views.list_team_views(ws.id),
+               total_count: length(all_items),
+               pinned_count: Enum.count(all_items, & &1.pinned),
+               nav_active: {:view, view.slug},
+               topbar_title: view.name,
                view: view,
                items: items,
                pinned_only: false
@@ -53,16 +57,20 @@ defmodule AvelineWeb.ViewShowLive do
   def render(assigns) do
     pinned_count = Enum.count(assigns.items, & &1.pinned)
     shown = if assigns.pinned_only, do: Enum.filter(assigns.items, & &1.pinned), else: assigns.items
-    assigns = assign(assigns, shown_items: shown, pinned_count: pinned_count)
+
+    assigns =
+      assign(assigns, shown_items: shown, pinned_in_view: pinned_count)
 
     ~H"""
-    <div class="container">
-      <h1 class="page-title">{@view.name}</h1>
-      <p :if={@view.description && @view.description != ""} class="page-subtitle">
-        {@view.description}
-      </p>
+    <div class="content">
+      <%= if @view.description && @view.description != "" do %>
+        <p style="color:var(--text-secondary);font-size:14px;margin-bottom:14px">
+          {@view.description}
+        </p>
+      <% end %>
 
-      <div class="chip-row" style="margin-bottom:24px">
+      <div class="chip-row" style="margin-bottom:14px;align-items:center">
+        <span style="font-size:12px;color:var(--text-muted);margin-right:2px">Filter:</span>
         <%= if @view.tag_filter == [] do %>
           <span class="chip">all notes</span>
         <% else %>
@@ -70,18 +78,11 @@ defmodule AvelineWeb.ViewShowLive do
         <% end %>
       </div>
 
-      <div class="tabs">
-        <button
-          phx-click="toggle_pinned"
-          class={"tab " <> if @pinned_only, do: "", else: "tab-active"}
-        >
-          Matching <span class="count">{length(@items)}</span>
-        </button>
-        <button
-          phx-click="toggle_pinned"
-          class={"tab " <> if @pinned_only, do: "tab-active", else: ""}
-        >
-          Pinned <span class="count">{@pinned_count}</span>
+      <div class="filter-status" style="margin-bottom:14px">
+        <span>{length(@items)} matching · {@pinned_in_view} pinned</span>
+        <span class="card-meta-dot">·</span>
+        <button class="clear" phx-click="toggle_pinned">
+          {if @pinned_only, do: "show all", else: "show pinned only"}
         </button>
       </div>
 

@@ -201,26 +201,50 @@ end)
 
 # ===== Views =====
 
+# Views are owned by different users so logging in as bob/alice shows
+# attribution variety. carol is left empty on purpose — she's our "new
+# account" for testing the freshly-joined-member experience.
+# Team views are canonical — visible to every workspace member.
+# Personal views belong only to their creator — invisible to others.
+# carol is deliberately empty so we can see the freshly-joined-member UI.
 view_specs = [
   %{slug: "onboarding", name: "Onboarding", tag_filter: ["onboarding"],
-    description: "Everything a new teammate should read first."},
+    description: "Everything a new teammate should read first.",
+    created_by: "alice", scope: "team"},
   %{slug: "runbook", name: "Runbooks", tag_filter: ["runbook"],
-    description: "Operational playbooks — read when something is on fire."},
+    description: "Operational playbooks — read when something is on fire.",
+    created_by: "bob", scope: "team"},
   %{slug: "architecture", name: "Architecture", tag_filter: ["architecture"],
-    description: "How the system is shaped and why."}
+    description: "How the system is shaped and why.",
+    created_by: "alice", scope: "team"},
+
+  # alice's personal scratch
+  %{slug: "alice-stack-deep-dive", name: "Stack deep dive",
+    tag_filter: ["stack"],
+    description: "What I'm rereading while planning the v0.1 schema.",
+    created_by: "alice", scope: "personal"},
+
+  # bob's personal scratch
+  %{slug: "bob-ops-followups", name: "Ops follow-ups",
+    tag_filter: ["runbook", "deploys"],
+    description: "Bob's runbook bookmarks — not yet team-canonical.",
+    created_by: "bob", scope: "personal"}
 ]
 
 Enum.each(view_specs, fn spec ->
   case Views.get_active_by_slug(workspace.id, spec.slug) do
     nil ->
+      creator = Map.fetch!(users_by_username, spec.created_by)
+
       {:ok, _} =
         Views.create_view(%{
           "workspace_id" => workspace.id,
-          "created_by_id" => first_user.id,
+          "created_by_id" => creator.id,
           "slug" => spec.slug,
           "name" => spec.name,
           "tag_filter" => spec.tag_filter,
-          "description" => spec.description
+          "description" => spec.description,
+          "scope" => spec.scope
         })
 
     _ ->

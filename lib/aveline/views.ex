@@ -13,6 +13,10 @@ defmodule Aveline.Views do
     from v in View, where: is_nil(v.deleted_at)
   end
 
+  @doc """
+  All non-deleted views in a workspace, no visibility filter. Reserved for
+  admin / migration / test paths.
+  """
   def list_views(workspace_id) do
     from(v in base_query(),
       where: v.workspace_id == ^workspace_id,
@@ -20,6 +24,49 @@ defmodule Aveline.Views do
     )
     |> Repo.all()
   end
+
+  @doc """
+  Views visible to `user_id`: all team-scope views plus their own personal
+  views. This is what every web/CLI list call should use.
+  """
+  def list_visible_views(workspace_id, user_id) do
+    from(v in base_query(),
+      where: v.workspace_id == ^workspace_id,
+      where: v.scope == "team" or v.created_by_id == ^user_id,
+      order_by: [asc: v.name]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Only the user's own personal views.
+  """
+  def list_personal_views(workspace_id, user_id) do
+    from(v in base_query(),
+      where: v.workspace_id == ^workspace_id,
+      where: v.scope == "personal" and v.created_by_id == ^user_id,
+      order_by: [asc: v.name]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  All team-scope views in the workspace.
+  """
+  def list_team_views(workspace_id) do
+    from(v in base_query(),
+      where: v.workspace_id == ^workspace_id and v.scope == "team",
+      order_by: [asc: v.name]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  True when `user_id` is allowed to see this view (team scope or creator).
+  """
+  def visible_to?(%View{scope: "team"}, _user_id), do: true
+  def visible_to?(%View{scope: "personal", created_by_id: uid}, uid), do: true
+  def visible_to?(_, _), do: false
 
   def get_by_slug(workspace_id, slug) when is_binary(slug) do
     from(v in View,

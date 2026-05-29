@@ -3,6 +3,7 @@ defmodule AvelineWeb.ItemShowLive do
   use AvelineWeb, :live_view
 
   alias Aveline.Items
+  alias Aveline.Views
   alias AvelineWeb.LiveSession
 
   @impl true
@@ -21,13 +22,18 @@ defmodule AvelineWeb.ItemShowLive do
           item ->
             body_html = render_markdown(item.body || "")
             related = Items.related_items(item, 5)
+            all_items = Items.list_items(ws.id)
 
             {:ok,
              assign(socket,
                page_title: "Aveline · #{item.title}",
                current_user: user,
                workspace: ws,
-               crumbs: [{:text, item.title}],
+               personal_views: Views.list_personal_views(ws.id, user.id),
+               team_views: Views.list_team_views(ws.id),
+               total_count: length(all_items),
+               pinned_count: Enum.count(all_items, & &1.pinned),
+               topbar_title: item.title,
                item: item,
                body_html: body_html,
                related: related
@@ -58,7 +64,7 @@ defmodule AvelineWeb.ItemShowLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="container-narrow">
+    <div class="content-narrow">
       <%= if @item.deleted_at do %>
         <div class="banner banner-warning">
           This note is deleted. URL preserved for archive.

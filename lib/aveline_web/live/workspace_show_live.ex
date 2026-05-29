@@ -13,6 +13,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
         items = Items.list_items(ws.id)
+        pinned_count = Enum.count(items, & &1.pinned)
 
         tag_counts =
           items
@@ -25,8 +26,11 @@ defmodule AvelineWeb.WorkspaceShowLive do
            page_title: "Aveline · #{ws.name}",
            current_user: user,
            workspace: ws,
+           personal_views: Views.list_personal_views(ws.id, user.id),
+           team_views: Views.list_team_views(ws.id),
+           total_count: length(items),
+           pinned_count: pinned_count,
            items: items,
-           view_count: length(Views.list_views(ws.id)),
            tag_counts: tag_counts,
            selected_tag: nil,
            pinned_only: false,
@@ -49,11 +53,15 @@ defmodule AvelineWeb.WorkspaceShowLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
+    pinned_only = params["pinned"] == "true"
+
     {:noreply,
      assign(socket,
        selected_tag: params["tag"],
-       pinned_only: params["pinned"] == "true",
-       search: params["q"] || ""
+       pinned_only: pinned_only,
+       search: params["q"] || "",
+       nav_active: if(pinned_only, do: :pinned, else: :all),
+       topbar_title: if(pinned_only, do: "Pinned", else: "All notes")
      )}
   end
 
@@ -63,17 +71,18 @@ defmodule AvelineWeb.WorkspaceShowLive do
     {:noreply, push_patch(socket, to: build_path(socket, %{tag: new_tag}))}
   end
 
-  def handle_event("toggle_pinned", _, socket) do
-    {:noreply,
-     push_patch(socket, to: build_path(socket, %{pinned: not socket.assigns.pinned_only}))}
-  end
-
   def handle_event("search", %{"value" => v}, socket) do
     {:noreply, push_patch(socket, to: build_path(socket, %{q: v}))}
   end
 
   def handle_event("clear_filters", _, socket) do
-    {:noreply, push_patch(socket, to: ~p"/w/#{socket.assigns.workspace.slug}")}
+    base = if socket.assigns.pinned_only, do: %{pinned: "true"}, else: %{}
+    target =
+      if base == %{},
+        do: ~p"/w/#{socket.assigns.workspace.slug}",
+        else: ~p"/w/#{socket.assigns.workspace.slug}?#{base}"
+
+    {:noreply, push_patch(socket, to: target)}
   end
 
   defp build_path(socket, overrides) when is_map(overrides) do
@@ -114,43 +123,12 @@ defmodule AvelineWeb.WorkspaceShowLive do
   @impl true
   def render(assigns) do
     shown = filtered(assigns.items, assigns.selected_tag, assigns.pinned_only, assigns.search)
-    pinned_count = Enum.count(assigns.items, & &1.pinned)
-    any_filter = assigns.selected_tag != nil or assigns.pinned_only or assigns.search != ""
-
-    assigns =
-      assign(assigns,
-        shown_items: shown,
-        pinned_count: pinned_count,
-        any_filter: any_filter
-      )
+    any_filter = assigns.selected_tag != nil or assigns.search != ""
+    total = if assigns.pinned_only, do: assigns.pinned_count, else: length(assigns.items)
+    assigns = assign(assigns, shown_items: shown, any_filter: any_filter, total: total)
 
     ~H"""
-    <div class="container">
-      <h1 class="page-title">{@workspace.name}</h1>
-      <p class="page-subtitle">
-        <span class="mono">{@workspace.slug}</span>
-        <span class="card-meta-dot">·</span>
-        {length(@items)} notes
-      </p>
-
-      <div class="tabs">
-        <button
-          phx-click="toggle_pinned"
-          class={"tab " <> if @pinned_only, do: "", else: "tab-active"}
-        >
-          All <span class="count">{length(@items)}</span>
-        </button>
-        <button
-          phx-click="toggle_pinned"
-          class={"tab " <> if @pinned_only, do: "tab-active", else: ""}
-        >
-          Pinned <span class="count">{@pinned_count}</span>
-        </button>
-        <.link navigate={~p"/w/#{@workspace.slug}/views"} class="tab">
-          Views <span class="count">{@view_count}</span>
-        </.link>
-      </div>
-
+    <div class="content">
       <div class="filter-bar">
         <form phx-change="search">
           <input
@@ -178,14 +156,21 @@ defmodule AvelineWeb.WorkspaceShowLive do
 
       <%= if @any_filter do %>
         <div class="filter-status">
-          <span>Showing {length(@shown_items)} of {length(@items)}</span>
+          <span>Showing {length(@shown_items)} of {@total}</span>
           <span class="card-meta-dot">·</span>
           <button class="clear" phx-click="clear_filters">clear filters</button>
         </div>
       <% end %>
 
       <%= if @shown_items == [] do %>
-        <div class="empty">No notes match the current filter.</div>
+        <div class="empty">
+          <%= if @pinned_only do %>
+            Nothing pinned yet. Pin a note from the CLI:
+            <code style="margin-left:4px">aveline edit &lt;slug&gt; --pin</code>.
+          <% else %>
+            No notes match the current filter.
+          <% end %>
+        </div>
       <% else %>
         <ul class="card-list">
           <li :for={i <- @shown_items}>
@@ -216,9 +201,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
                   </span>
                   <span class="card-meta-dot">·</span>
                 <% end %>
-                <span title={absolute_time(i.updated_at)}>
-                  {relative_time(i.updated_at)}
-                </span>
+                <span title={absolute_time(i.updated_at)}>{relative_time(i.updated_at)}</span>
                 <%= if i.tags != [] do %>
                   <span class="card-meta-dot">·</span>
                   <span style="display:flex;gap:4px;flex-wrap:wrap">

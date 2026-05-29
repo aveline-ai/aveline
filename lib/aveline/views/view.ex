@@ -7,6 +7,8 @@ defmodule Aveline.Views.View do
   alias Aveline.Slug
   alias Aveline.Workspaces.Workspace
 
+  @scopes ~w(personal team)
+
   @derive {Jason.Encoder,
            only: [
              :id,
@@ -14,6 +16,7 @@ defmodule Aveline.Views.View do
              :name,
              :tag_filter,
              :description,
+             :scope,
              :inserted_at,
              :updated_at,
              :deleted_at
@@ -23,6 +26,7 @@ defmodule Aveline.Views.View do
     field :name, :string
     field :tag_filter, {:array, :string}, default: []
     field :description, :string
+    field :scope, :string, default: "personal"
     field :deleted_at, :utc_datetime_usec
 
     belongs_to :workspace, Workspace, type: :binary_id
@@ -40,6 +44,7 @@ defmodule Aveline.Views.View do
       :name,
       :tag_filter,
       :description,
+      :scope,
       :created_by_id
     ])
     |> validate_required([:workspace_id, :slug, :name])
@@ -52,7 +57,7 @@ defmodule Aveline.Views.View do
 
   def update_changeset(view, attrs) do
     view
-    |> cast(attrs, [:name, :tag_filter, :description])
+    |> cast(attrs, [:name, :tag_filter, :description, :scope])
     |> validate_required([:name])
     |> common_validations()
   end
@@ -60,6 +65,7 @@ defmodule Aveline.Views.View do
   defp common_validations(changeset) do
     changeset
     |> validate_length(:name, min: 1, max: 200)
+    |> validate_inclusion(:scope, @scopes)
     |> update_change(:slug, fn s -> if is_binary(s), do: String.downcase(s), else: s end)
     |> validate_slug()
     |> validate_tag_filter()

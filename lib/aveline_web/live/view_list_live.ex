@@ -12,11 +12,11 @@ defmodule AvelineWeb.ViewListLive do
 
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
-        views = Views.list_views(ws.id)
+        visible = Views.list_visible_views(ws.id, user.id)
         items = Items.list_items(ws.id)
 
         match_counts =
-          Map.new(views, fn v ->
+          Map.new(visible, fn v ->
             {v.id, Enum.count(items, &tags_match?(&1.tags, v.tag_filter))}
           end)
 
@@ -25,8 +25,12 @@ defmodule AvelineWeb.ViewListLive do
            page_title: "Aveline · Views · #{ws.name}",
            current_user: user,
            workspace: ws,
-           crumbs: [{:text, "Views"}],
-           views: views,
+           personal_views: Views.list_personal_views(ws.id, user.id),
+           team_views: Views.list_team_views(ws.id),
+           total_count: length(items),
+           pinned_count: Enum.count(items, & &1.pinned),
+           topbar_title: "Views",
+           views: visible,
            match_counts: match_counts,
            item_count: length(items)
          )}
@@ -47,26 +51,7 @@ defmodule AvelineWeb.ViewListLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="container">
-      <h1 class="page-title">{@workspace.name}</h1>
-      <p class="page-subtitle">
-        <span class="mono">{@workspace.slug}</span>
-        <span class="card-meta-dot">·</span>
-        {@item_count} notes
-      </p>
-
-      <div class="tabs">
-        <.link navigate={~p"/w/#{@workspace.slug}"} class="tab">
-          All <span class="count">{@item_count}</span>
-        </.link>
-        <.link navigate={~p"/w/#{@workspace.slug}?pinned=true"} class="tab">
-          Pinned
-        </.link>
-        <span class="tab tab-active">
-          Views <span class="count">{length(@views)}</span>
-        </span>
-      </div>
-
+    <div class="content">
       <%= if @views == [] do %>
         <div class="empty">
           No saved views yet. Create one with
@@ -76,7 +61,15 @@ defmodule AvelineWeb.ViewListLive do
         <ul class="card-list">
           <li :for={v <- @views}>
             <.link navigate={~p"/w/#{@workspace.slug}/v/#{v.slug}"} class="card">
-              <div class="card-title">{v.name}</div>
+              <div class="card-title">
+                {v.name}
+                <span
+                  class={"chip " <> if v.scope == "team", do: "chip-accent", else: ""}
+                  style="font-size:10px;height:18px;padding:0 6px;margin-left:4px"
+                >
+                  {v.scope}
+                </span>
+              </div>
               <%= if v.description do %>
                 <div class="card-summary">{v.description}</div>
               <% end %>

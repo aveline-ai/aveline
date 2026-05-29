@@ -1,7 +1,7 @@
 ---
 title: Database notes
 slug: database-notes
-owner: carol
+owner: bob
 pinned: false
 tags: [stack, database]
 summary: Conventions and gotchas for the Postgres schema.
