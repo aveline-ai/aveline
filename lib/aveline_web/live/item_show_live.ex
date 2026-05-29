@@ -174,180 +174,188 @@ defmodule AvelineWeb.ItemShowLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="content-narrow">
-      <%= if @item.deleted_at do %>
-        <div class="banner banner-warning">
-          This note is deleted. URL preserved for archive.
-        </div>
-      <% end %>
-
-      <header class="article-header">
-        <h1 class="article-title">
-          <%= if @item.pinned do %>
-            <span class="pin" title="Pinned" style="margin-right:10px;display:inline-flex;vertical-align:middle">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2l2.39 7.36H22l-6.18 4.49L18.21 22 12 17.27 5.79 22l2.39-8.15L2 9.36h7.61z" />
-              </svg>
-            </span>
-          <% end %>
-          {@item.title}
-        </h1>
-
-        <%= if @item.summary && @item.summary != "" do %>
-          <p class="article-summary">{@item.summary}</p>
+    <div class="item-layout">
+      <div class="item-article">
+        <%= if @item.deleted_at do %>
+          <div class="banner banner-warning">
+            This note is deleted. URL preserved for archive.
+          </div>
         <% end %>
 
-        <div class="article-meta">
-          <%= if owner(@item) do %>
-            <span class="article-meta-item">
-              <span
-                class="avatar-sm"
-                style={"background:hsl(#{avatar_hue(owner(@item).username)},65%,18%);color:hsl(#{avatar_hue(owner(@item).username)},75%,75%)"}
-              >
-                {initial(owner(@item).username)}
+        <header class="article-header">
+          <h1 class="article-title">
+            <%= if @item.pinned do %>
+              <span class="pin" title="Pinned" style="margin-right:10px;display:inline-flex;vertical-align:middle">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2l2.39 7.36H22l-6.18 4.49L18.21 22 12 17.27 5.79 22l2.39-8.15L2 9.36h7.61z" />
+                </svg>
               </span>
-              <span class="article-meta-val">{owner(@item).username}</span>
-            </span>
-            <span class="card-meta-dot">·</span>
+            <% end %>
+            {@item.title}
+          </h1>
+
+          <%= if @item.summary && @item.summary != "" do %>
+            <p class="article-summary">{@item.summary}</p>
           <% end %>
-          <span class="article-meta-item" title={absolute_time(@item.updated_at)}>
-            <span class="article-meta-val">{relative_time(@item.updated_at)}</span>
-          </span>
-          <%= if @item.tags != [] do %>
-            <span class="card-meta-dot">·</span>
-            <span class="chip-row" style="gap:6px">
-              <.link
-                :for={tag <- @item.tags}
-                navigate={~p"/w/#{@workspace.slug}?tag=#{tag}"}
-                class="chip chip-accent"
-              >
-                {tag}
-              </.link>
+
+          <div class="article-meta">
+            <%= if owner(@item) do %>
+              <span class="article-meta-item">
+                <span
+                  class="avatar-sm"
+                  style={"background:hsl(#{avatar_hue(owner(@item).username)},65%,18%);color:hsl(#{avatar_hue(owner(@item).username)},75%,75%)"}
+                >
+                  {initial(owner(@item).username)}
+                </span>
+                <span class="article-meta-val">{owner(@item).username}</span>
+              </span>
+              <span class="card-meta-dot">·</span>
+            <% end %>
+            <span class="article-meta-item" title={absolute_time(@item.updated_at)}>
+              <span class="article-meta-val">{relative_time(@item.updated_at)}</span>
             </span>
-          <% end %>
-        </div>
-      </header>
+            <%= if @item.tags != [] do %>
+              <span class="card-meta-dot">·</span>
+              <span class="chip-row" style="gap:6px">
+                <.link
+                  :for={tag <- @item.tags}
+                  navigate={~p"/w/#{@workspace.slug}?tag=#{tag}"}
+                  class="chip chip-accent"
+                >
+                  {tag}
+                </.link>
+              </span>
+            <% end %>
+          </div>
+        </header>
 
-      <article class="prose">
-        {Phoenix.HTML.raw(@body_html)}
-      </article>
+        <article class="prose">
+          {Phoenix.HTML.raw(@body_html)}
+        </article>
 
-      <section class="thread" id="thread">
-        <div class="section-label" style="margin-top:48px">
-          Thread <span class="count">{length(@messages)}</span>
-          <span class="live-dot" title="Live updates via PubSub"></span>
-        </div>
-
-        <%= if @messages == [] do %>
-          <div class="empty" style="padding:24px">No replies yet. Be the first to post.</div>
-        <% else %>
-          <ol class="thread-list">
-            <li :for={m <- @messages} class="thread-message" id={"m-#{m.id}"}>
-              <div class="thread-avatar">
-                <%= if author_of(m) do %>
-                  <span
-                    class="avatar-sm"
-                    style={"background:hsl(#{avatar_hue(author_of(m).username)},65%,18%);color:hsl(#{avatar_hue(author_of(m).username)},75%,75%)"}
-                  >
-                    {initial(author_of(m).username)}
-                  </span>
-                <% else %>
-                  <span class="avatar-sm">?</span>
+        <%= if @related != [] do %>
+          <div class="section-label" style="margin-top:48px">
+            Related <span class="count">{length(@related)}</span>
+          </div>
+          <ul class="card-list">
+            <li :for={r <- @related}>
+              <.link navigate={~p"/w/#{@workspace.slug}/i/#{r.slug}"} class="card">
+                <div class="card-title">
+                  <%= if r.pinned do %>
+                    <span class="pin">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2l2.39 7.36H22l-6.18 4.49L18.21 22 12 17.27 5.79 22l2.39-8.15L2 9.36h7.61z" />
+                      </svg>
+                    </span>
+                  <% end %>
+                  {r.title}
+                </div>
+                <%= if r.summary do %>
+                  <div class="card-summary">{r.summary}</div>
                 <% end %>
-              </div>
-              <div class="thread-body">
-                <div class="thread-meta">
-                  <span class="thread-author">
-                    {if author_of(m), do: author_of(m).username, else: "?"}
-                  </span>
-                  <span class="card-meta-dot">·</span>
-                  <span title={absolute_time(m.inserted_at)}>{relative_time(m.inserted_at)}</span>
-                  <%= if m.edited_at do %>
+                <div class="card-meta">
+                  <span title={absolute_time(r.updated_at)}>{relative_time(r.updated_at)}</span>
+                  <%= if r.tags != [] do %>
                     <span class="card-meta-dot">·</span>
-                    <span class="thread-edited" title={absolute_time(m.edited_at)}>edited</span>
-                  <% end %>
-                  <%= if m.created_via && m.created_via != "web" do %>
-                    <span class="card-meta-dot">·</span>
-                    <span class="thread-via">via {m.created_via}</span>
-                  <% end %>
-                  <%= if @current_user && author_of(m) && author_of(m).id == @current_user.id do %>
-                    <span class="thread-actions">
-                      <button
-                        phx-click="delete_message"
-                        phx-value-id={m.id}
-                        data-confirm="Delete this reply?"
-                        class="thread-action-btn"
-                      >
-                        delete
-                      </button>
+                    <span style="display:flex;gap:4px;flex-wrap:wrap">
+                      <span :for={t <- r.tags} class="chip">{t}</span>
                     </span>
                   <% end %>
                 </div>
-                <div class="thread-content">{Phoenix.HTML.raw(message_body_html(m.body))}</div>
-              </div>
+              </.link>
             </li>
-          </ol>
+          </ul>
         <% end %>
+
+        <div class="banner" style="margin-top:48px">
+          Edit via the CLI: <code>aveline edit {@item.slug}</code>
+        </div>
+      </div>
+
+      <aside class="thread-panel" id="thread">
+        <div class="thread-panel-header">
+          <span>Thread</span>
+          <span class="count">{length(@messages)}</span>
+          <span style="flex:1"></span>
+          <span class="live-dot" title="Live updates via PubSub"></span>
+        </div>
+
+        <div class="thread-scroll" id="thread-scroll" phx-hook="ScrollOnAppend" data-count={length(@messages)}>
+          <%= if @messages == [] do %>
+            <div class="thread-empty">No replies yet.<br />Be the first to post.</div>
+          <% else %>
+            <ol class="thread-list">
+              <li :for={m <- @messages} class="thread-message" id={"m-#{m.id}"}>
+                <div class="thread-avatar">
+                  <%= if author_of(m) do %>
+                    <span
+                      class="avatar-sm"
+                      style={"background:hsl(#{avatar_hue(author_of(m).username)},65%,18%);color:hsl(#{avatar_hue(author_of(m).username)},75%,75%)"}
+                    >
+                      {initial(author_of(m).username)}
+                    </span>
+                  <% else %>
+                    <span class="avatar-sm">?</span>
+                  <% end %>
+                </div>
+                <div class="thread-body">
+                  <div class="thread-meta">
+                    <span class="thread-author">
+                      {if author_of(m), do: author_of(m).username, else: "?"}
+                    </span>
+                    <span class="card-meta-dot">·</span>
+                    <span title={absolute_time(m.inserted_at)}>{relative_time(m.inserted_at)}</span>
+                    <%= if m.edited_at do %>
+                      <span class="card-meta-dot">·</span>
+                      <span class="thread-edited" title={absolute_time(m.edited_at)}>edited</span>
+                    <% end %>
+                    <%= if m.created_via && m.created_via != "web" do %>
+                      <span class="card-meta-dot">·</span>
+                      <span class="thread-via">via {m.created_via}</span>
+                    <% end %>
+                    <%= if @current_user && author_of(m) && author_of(m).id == @current_user.id do %>
+                      <span class="thread-actions">
+                        <button
+                          phx-click="delete_message"
+                          phx-value-id={m.id}
+                          data-confirm="Delete this reply?"
+                          class="thread-action-btn"
+                        >
+                          delete
+                        </button>
+                      </span>
+                    <% end %>
+                  </div>
+                  <div class="thread-content">{Phoenix.HTML.raw(message_body_html(m.body))}</div>
+                </div>
+              </li>
+            </ol>
+          <% end %>
+        </div>
 
         <%= if @current_user do %>
-          <form
-            phx-submit="post_reply"
-            id="reply-form"
-            phx-hook="ResetOnEvent"
-            data-reset-event="reset-form"
-            class="reply-composer"
-          >
-            <textarea
-              name="body"
-              class="reply-input"
-              placeholder="Reply to this note… (markdown ok)"
-              rows="2"
-            ></textarea>
-            <div class="reply-footer">
-              <span class="reply-hint">Cmd+Enter to post</span>
-              <button type="submit" class="reply-submit">Post</button>
-            </div>
-          </form>
+          <div class="thread-composer-wrap">
+            <form
+              phx-submit="post_reply"
+              id="reply-form"
+              phx-hook="ResetOnEvent"
+              data-reset-event="reset-form"
+              class="reply-composer"
+            >
+              <textarea
+                name="body"
+                class="reply-input"
+                placeholder="Reply to this note… (markdown ok)"
+                rows="2"
+              ></textarea>
+              <div class="reply-footer">
+                <span class="reply-hint">Cmd+Enter to post</span>
+                <button type="submit" class="reply-submit">Post</button>
+              </div>
+            </form>
+          </div>
         <% end %>
-      </section>
-
-      <%= if @related != [] do %>
-        <div class="section-label" style="margin-top:48px">
-          Related <span class="count">{length(@related)}</span>
-        </div>
-        <ul class="card-list">
-          <li :for={r <- @related}>
-            <.link navigate={~p"/w/#{@workspace.slug}/i/#{r.slug}"} class="card">
-              <div class="card-title">
-                <%= if r.pinned do %>
-                  <span class="pin">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 2l2.39 7.36H22l-6.18 4.49L18.21 22 12 17.27 5.79 22l2.39-8.15L2 9.36h7.61z" />
-                    </svg>
-                  </span>
-                <% end %>
-                {r.title}
-              </div>
-              <%= if r.summary do %>
-                <div class="card-summary">{r.summary}</div>
-              <% end %>
-              <div class="card-meta">
-                <span title={absolute_time(r.updated_at)}>{relative_time(r.updated_at)}</span>
-                <%= if r.tags != [] do %>
-                  <span class="card-meta-dot">·</span>
-                  <span style="display:flex;gap:4px;flex-wrap:wrap">
-                    <span :for={t <- r.tags} class="chip">{t}</span>
-                  </span>
-                <% end %>
-              </div>
-            </.link>
-          </li>
-        </ul>
-      <% end %>
-
-      <div class="banner" style="margin-top:48px">
-        Edit via the CLI: <code>aveline edit {@item.slug}</code>
-      </div>
+      </aside>
     </div>
     """
   end

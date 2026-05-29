@@ -40,6 +40,31 @@ const Hooks = {
       }
     },
   },
+
+  // Auto-scroll a scrollable element to the bottom when its `data-count`
+  // attribute grows (i.e. a new child was appended) AND the user is
+  // already near the bottom. If they've scrolled up to read history,
+  // don't yank them back.
+  //
+  //   <div phx-hook="ScrollOnAppend" data-count={length(@messages)}>
+  ScrollOnAppend: {
+    mounted() {
+      this.lastCount = parseInt(this.el.dataset.count || "0", 10)
+      this.scrollToBottom()
+    },
+    updated() {
+      const count = parseInt(this.el.dataset.count || "0", 10)
+      if (count > this.lastCount) {
+        const distanceFromBottom =
+          this.el.scrollHeight - this.el.scrollTop - this.el.clientHeight
+        if (distanceFromBottom < 120) this.scrollToBottom()
+      }
+      this.lastCount = count
+    },
+    scrollToBottom() {
+      this.el.scrollTop = this.el.scrollHeight
+    },
+  },
 }
 
 const liveSocket = new LiveSocket("/live", Socket, {
