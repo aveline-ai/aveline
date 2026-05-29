@@ -45,8 +45,7 @@ defmodule AvelineWeb.ItemShowLive do
                item: item,
                body_html: body_html,
                related: related,
-               messages: messages,
-               reply_text: ""
+               messages: messages
              )}
         end
 
@@ -59,13 +58,9 @@ defmodule AvelineWeb.ItemShowLive do
   end
 
   @impl true
-  def handle_event("update_reply", %{"value" => v}, socket) do
-    {:noreply, assign(socket, :reply_text, v)}
-  end
-
-  def handle_event("post_reply", _params, socket) do
-    %{current_user: user, item: item, reply_text: body} = socket.assigns
-    body = String.trim(body || "")
+  def handle_event("post_reply", %{"body" => raw_body}, socket) do
+    %{current_user: user, item: item} = socket.assigns
+    body = String.trim(raw_body || "")
 
     cond do
       user == nil ->
@@ -82,7 +77,15 @@ defmodule AvelineWeb.ItemShowLive do
                "created_via" => "web"
              }) do
           {:ok, _msg} ->
-            {:noreply, assign(socket, :reply_text, "")}
+            {:noreply, push_event(socket, "reset-form", %{id: "reply-form"})}
+
+          {:error, %Ecto.Changeset{} = cs} ->
+            errs =
+              cs
+              |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
+              |> inspect()
+
+            {:noreply, put_flash(socket, :error, "Could not post reply: " <> errs)}
 
           {:error, _} ->
             {:noreply, put_flash(socket, :error, "Could not post reply.")}
@@ -287,18 +290,22 @@ defmodule AvelineWeb.ItemShowLive do
         <% end %>
 
         <%= if @current_user do %>
-          <form phx-submit="post_reply" phx-change="update_reply" class="reply-composer">
+          <form
+            phx-submit="post_reply"
+            id="reply-form"
+            phx-hook="ResetOnEvent"
+            data-reset-event="reset-form"
+            class="reply-composer"
+          >
             <textarea
-              name="value"
+              name="body"
               class="reply-input"
               placeholder="Reply to this note… (markdown ok)"
               rows="2"
-            >{@reply_text}</textarea>
+            ></textarea>
             <div class="reply-footer">
               <span class="reply-hint">Cmd+Enter to post</span>
-              <button type="submit" class="reply-submit" disabled={String.trim(@reply_text) == ""}>
-                Post
-              </button>
+              <button type="submit" class="reply-submit">Post</button>
             </div>
           </form>
         <% end %>
