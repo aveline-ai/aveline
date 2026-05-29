@@ -75,6 +75,7 @@ defmodule AvelineWeb do
 
       import Phoenix.HTML
       import Phoenix.LiveView.Helpers
+      import AvelineWeb.UIHelpers
 
       alias Phoenix.LiveView.JS
 

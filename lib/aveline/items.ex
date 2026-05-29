@@ -125,4 +125,36 @@ defmodule Aveline.Items do
 
   defp preload_if_ok({:ok, item}), do: {:ok, Repo.preload(item, [:owner, :created_by])}
   defp preload_if_ok(other), do: other
+
+  @doc """
+  Items in the same workspace that share at least one tag with the given
+  item. Ordered by tag overlap (most shared first), then most-recently
+  updated. Excludes the source item itself and any soft-deleted rows.
+  """
+  def related_items(%Item{id: id, workspace_id: ws_id, tags: tags}, limit \\ 5)
+      when is_list(tags) do
+    if tags == [] do
+      []
+    else
+      tag_array = tags
+
+      from(i in base_query(),
+        where: i.workspace_id == ^ws_id and i.id != ^id,
+        where: fragment("? && ?::varchar[]", i.tags, ^tag_array),
+        order_by: [
+          desc:
+            fragment(
+              "cardinality(ARRAY(SELECT unnest(?) INTERSECT SELECT unnest(?::varchar[])))",
+              i.tags,
+              ^tag_array
+            ),
+          desc: i.pinned,
+          desc: i.updated_at
+        ],
+        limit: ^limit,
+        preload: [:owner]
+      )
+      |> Repo.all()
+    end
+  end
 end

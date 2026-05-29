@@ -26,6 +26,10 @@ defmodule AvelineWeb.ViewShowLive do
                page_title: "Aveline · View · #{view.name}",
                current_user: user,
                workspace: ws,
+               crumbs: [
+                 {:link, "Views", ~p"/w/#{ws.slug}/views"},
+                 {:text, view.name}
+               ],
                view: view,
                items: items,
                pinned_only: false
@@ -53,9 +57,6 @@ defmodule AvelineWeb.ViewShowLive do
 
     ~H"""
     <div class="container">
-      <div class="page-eyebrow">
-        <.link navigate={~p"/w/#{@workspace.slug}/views"} style="color:inherit">Views</.link>
-      </div>
       <h1 class="page-title">{@view.name}</h1>
       <p :if={@view.description && @view.description != ""} class="page-subtitle">
         {@view.description}
@@ -104,8 +105,21 @@ defmodule AvelineWeb.ViewShowLive do
                 <div class="card-summary">{i.summary}</div>
               <% end %>
               <div class="card-meta">
-                <span class="card-slug">{i.slug}</span>
+                <%= if i.owner do %>
+                  <span class="owner-chip">
+                    <span
+                      class="avatar-sm"
+                      style={"background:hsl(#{avatar_hue(i.owner.username)},65%,18%);color:hsl(#{avatar_hue(i.owner.username)},75%,75%)"}
+                    >
+                      {initial(i.owner.username)}
+                    </span>
+                    {i.owner.username}
+                  </span>
+                  <span class="card-meta-dot">·</span>
+                <% end %>
+                <span title={absolute_time(i.updated_at)}>{relative_time(i.updated_at)}</span>
                 <%= if i.tags != [] do %>
+                  <span class="card-meta-dot">·</span>
                   <span style="display:flex;gap:4px;flex-wrap:wrap">
                     <span :for={t <- i.tags} class="chip">{t}</span>
                   </span>

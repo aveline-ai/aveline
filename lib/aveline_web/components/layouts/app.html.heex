@@ -8,10 +8,21 @@
       <span class="nav-sep">/</span>
       <.link navigate={~p"/w/#{@workspace.slug}"} class="nav-crumb">{@workspace.name}</.link>
     <% end %>
+    <%= for crumb <- (assigns[:crumbs] || []) do %>
+      <span class="nav-sep">/</span>
+      <%= case crumb do %>
+        <% {:link, label, path} -> %>
+          <.link navigate={path} class="nav-crumb">{label}</.link>
+        <% {:text, label} -> %>
+          <span class="nav-crumb-current">{label}</span>
+      <% end %>
+    <% end %>
     <div class="nav-spacer"></div>
     <%= if assigns[:current_user] do %>
       <div class="nav-user">
-        <span class="avatar">{String.first(@current_user.username) |> String.upcase()}</span>
+        <span class="avatar" style={"background:hsl(#{avatar_hue(@current_user.username)},65%,18%);color:hsl(#{avatar_hue(@current_user.username)},75%,75%)"}>
+          {initial(@current_user.username)}
+        </span>
         <span>{@current_user.username}</span>
         <span class="nav-sep">·</span>
         <a href={~p"/logout"}>log out</a>

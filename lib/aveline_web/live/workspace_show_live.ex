@@ -3,6 +3,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
   use AvelineWeb, :live_view
 
   alias Aveline.Items
+  alias Aveline.Views
   alias AvelineWeb.LiveSession
 
   @impl true
@@ -17,7 +18,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
           items
           |> Enum.flat_map(& &1.tags)
           |> Enum.frequencies()
-          |> Enum.sort_by(fn {_t, c} -> -c end)
+          |> Enum.sort_by(fn {t, c} -> {-c, t} end)
 
         {:ok,
          assign(socket,
@@ -25,6 +26,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
            current_user: user,
            workspace: ws,
            items: items,
+           view_count: length(Views.list_views(ws.id)),
            tag_counts: tag_counts,
            selected_tag: nil,
            pinned_only: false,
@@ -46,18 +48,56 @@ defmodule AvelineWeb.WorkspaceShowLive do
   end
 
   @impl true
+  def handle_params(params, _uri, socket) do
+    {:noreply,
+     assign(socket,
+       selected_tag: params["tag"],
+       pinned_only: params["pinned"] == "true",
+       search: params["q"] || ""
+     )}
+  end
+
+  @impl true
   def handle_event("toggle_tag", %{"tag" => tag}, socket) do
     new_tag = if socket.assigns.selected_tag == tag, do: nil, else: tag
-    {:noreply, assign(socket, :selected_tag, new_tag)}
+    {:noreply, push_patch(socket, to: build_path(socket, %{tag: new_tag}))}
   end
 
   def handle_event("toggle_pinned", _, socket) do
-    {:noreply, assign(socket, :pinned_only, not socket.assigns.pinned_only)}
+    {:noreply,
+     push_patch(socket, to: build_path(socket, %{pinned: not socket.assigns.pinned_only}))}
   end
 
   def handle_event("search", %{"value" => v}, socket) do
-    {:noreply, assign(socket, :search, v)}
+    {:noreply, push_patch(socket, to: build_path(socket, %{q: v}))}
   end
+
+  def handle_event("clear_filters", _, socket) do
+    {:noreply, push_patch(socket, to: ~p"/w/#{socket.assigns.workspace.slug}")}
+  end
+
+  defp build_path(socket, overrides) when is_map(overrides) do
+    base = %{
+      tag: socket.assigns.selected_tag,
+      pinned: if(socket.assigns.pinned_only, do: "true"),
+      q: nz(socket.assigns.search)
+    }
+
+    query =
+      base
+      |> Map.merge(overrides)
+      |> Enum.reject(fn {_k, v} -> v in [nil, "", false] end)
+      |> Map.new()
+
+    if query == %{} do
+      ~p"/w/#{socket.assigns.workspace.slug}"
+    else
+      ~p"/w/#{socket.assigns.workspace.slug}?#{query}"
+    end
+  end
+
+  defp nz(""), do: nil
+  defp nz(s), do: s
 
   defp filtered(items, tag, pinned_only, search) do
     items
@@ -73,20 +113,24 @@ defmodule AvelineWeb.WorkspaceShowLive do
 
   @impl true
   def render(assigns) do
+    shown = filtered(assigns.items, assigns.selected_tag, assigns.pinned_only, assigns.search)
+    pinned_count = Enum.count(assigns.items, & &1.pinned)
+    any_filter = assigns.selected_tag != nil or assigns.pinned_only or assigns.search != ""
+
     assigns =
       assign(assigns,
-        filtered_items:
-          filtered(assigns.items, assigns.selected_tag, assigns.pinned_only, assigns.search),
-        pinned_count: Enum.count(assigns.items, & &1.pinned)
+        shown_items: shown,
+        pinned_count: pinned_count,
+        any_filter: any_filter
       )
 
     ~H"""
     <div class="container">
-      <div class="page-eyebrow">Workspace</div>
       <h1 class="page-title">{@workspace.name}</h1>
       <p class="page-subtitle">
         <span class="mono">{@workspace.slug}</span>
-        · {length(@items)} notes
+        <span class="card-meta-dot">·</span>
+        {length(@items)} notes
       </p>
 
       <div class="tabs">
@@ -103,7 +147,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
           Pinned <span class="count">{@pinned_count}</span>
         </button>
         <.link navigate={~p"/w/#{@workspace.slug}/views"} class="tab">
-          Views <span class="count">{length(Aveline.Views.list_views(@workspace.id))}</span>
+          Views <span class="count">{@view_count}</span>
         </.link>
       </div>
 
@@ -113,8 +157,9 @@ defmodule AvelineWeb.WorkspaceShowLive do
             type="text"
             name="value"
             value={@search}
-            placeholder="Search notes…"
+            placeholder="Search titles…"
             class="search-input"
+            autocomplete="off"
           />
         </form>
         <%= if @tag_counts != [] do %>
@@ -131,11 +176,19 @@ defmodule AvelineWeb.WorkspaceShowLive do
         <% end %>
       </div>
 
-      <%= if @filtered_items == [] do %>
+      <%= if @any_filter do %>
+        <div class="filter-status">
+          <span>Showing {length(@shown_items)} of {length(@items)}</span>
+          <span class="card-meta-dot">·</span>
+          <button class="clear" phx-click="clear_filters">clear filters</button>
+        </div>
+      <% end %>
+
+      <%= if @shown_items == [] do %>
         <div class="empty">No notes match the current filter.</div>
       <% else %>
         <ul class="card-list">
-          <li :for={i <- @filtered_items}>
+          <li :for={i <- @shown_items}>
             <.link navigate={~p"/w/#{@workspace.slug}/i/#{i.slug}"} class="card">
               <div class="card-title">
                 <%= if i.pinned do %>
@@ -151,8 +204,23 @@ defmodule AvelineWeb.WorkspaceShowLive do
                 <div class="card-summary">{i.summary}</div>
               <% end %>
               <div class="card-meta">
-                <span class="card-slug">{i.slug}</span>
+                <%= if i.owner do %>
+                  <span class="owner-chip">
+                    <span
+                      class="avatar-sm"
+                      style={"background:hsl(#{avatar_hue(i.owner.username)},65%,18%);color:hsl(#{avatar_hue(i.owner.username)},75%,75%)"}
+                    >
+                      {initial(i.owner.username)}
+                    </span>
+                    {i.owner.username}
+                  </span>
+                  <span class="card-meta-dot">·</span>
+                <% end %>
+                <span title={absolute_time(i.updated_at)}>
+                  {relative_time(i.updated_at)}
+                </span>
                 <%= if i.tags != [] do %>
+                  <span class="card-meta-dot">·</span>
                   <span style="display:flex;gap:4px;flex-wrap:wrap">
                     <span :for={t <- i.tags} class="chip">{t}</span>
                   </span>

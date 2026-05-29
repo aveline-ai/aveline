@@ -78,8 +78,17 @@
         font-size: 11px; font-weight: 700; color: white;
       }
       .nav-sep { color: var(--text-muted); font-size: 12px; }
-      .nav-crumb { color: var(--text-secondary); font-weight: 500; }
+      .nav-crumb {
+        color: var(--text-secondary); font-weight: 500;
+        max-width: 240px;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
       .nav-crumb:hover { color: var(--text); }
+      .nav-crumb-current {
+        color: var(--text); font-weight: 500;
+        max-width: 320px;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
       .nav-spacer { flex: 1; }
       .nav-user { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-secondary); }
       .nav-user .avatar {
@@ -149,6 +158,34 @@
         margin-top: 10px; font-size: 12px; color: var(--text-muted);
       }
       .card-slug { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); }
+      .card-meta-dot { color: var(--text-muted); opacity: 0.5; }
+
+      /* ===== Avatar ===== */
+      .avatar-sm {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 18px; height: 18px; border-radius: 50%;
+        font-size: 10px; font-weight: 600;
+        color: var(--text); flex-shrink: 0;
+      }
+      .owner-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        color: var(--text-secondary); font-size: 12px;
+      }
+
+      /* ===== Filter status ===== */
+      .filter-status {
+        display: flex; align-items: center; gap: 12px;
+        font-size: 12px; color: var(--text-muted);
+        margin-bottom: 12px;
+      }
+      .filter-status .clear {
+        color: var(--accent); cursor: pointer;
+        text-decoration: underline; text-decoration-thickness: 1px;
+        text-underline-offset: 2px;
+      }
+      .filter-status .clear:hover { color: var(--text); }
+
+      /* ===== Tooltip (browser-native via title attr) — no extra CSS ===== */
 
       .pin {
         display: inline-flex; align-items: center; justify-content: center;
