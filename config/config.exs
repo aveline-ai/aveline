@@ -5,11 +5,11 @@ import Config
 
 config :aveline,
   ecto_repos: [Aveline.Repo],
-  generators: [timestamp_type: :utc_datetime, binary_id: true],
+  generators: [timestamp_type: :utc_datetime_usec, binary_id: true],
   landing_page_url: "https://aveline.ai"
 
 config :aveline, Aveline.Repo,
-  migration_timestamps: [type: :utc_datetime],
+  migration_timestamps: [type: :timestamptz],
   migration_primary_key: [type: :binary_id],
   migration_foreign_key: [type: :binary_id]
 

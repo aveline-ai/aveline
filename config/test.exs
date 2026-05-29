@@ -42,3 +42,6 @@ config :logger, level: :warning
 
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
+
+# Disable Oban in test — avoids leader-election warnings during compile.
+config :aveline, Oban, testing: :inline, queues: false, plugins: false
