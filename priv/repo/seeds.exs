@@ -290,6 +290,79 @@ item_specs = [
         t.(" disambiguates.")
       ])
     ]
+  },
+  %{
+    slug: "code-examples",
+    title: "Code blocks — every language at a glance",
+    summary: "A grab-bag of snippets to sanity-check syntax highlighting + monospace rendering.",
+    owner: alice,
+    pinned: true,
+    tags: ["stack", "examples"],
+    blocks: [
+      para.([
+        t.("One snippet per common language. Useful as a visual regression check when the block renderer changes.")
+      ]),
+      heading.(2, "Elixir"),
+      code.("elixir", """
+      defmodule Aveline.Blocks.Document do
+        def apply_ops(blocks, ops) do
+          Enum.reduce_while(ops, {:ok, blocks}, fn op, {:ok, acc} ->
+            case apply_op(acc, op) do
+              {:ok, next} -> {:cont, {:ok, next}}
+              err -> {:halt, err}
+            end
+          end)
+        end
+      end
+      """ |> String.trim()),
+      heading.(2, "JavaScript"),
+      code.("javascript", """
+      const Hooks = {
+        ResetOnEvent: {
+          mounted() {
+            const evt = this.el.dataset.resetEvent || "reset-form"
+            window.addEventListener(`phx:${evt}`, () => this.el.reset())
+          }
+        }
+      }
+      """ |> String.trim()),
+      heading.(2, "SQL"),
+      code.("sql", """
+      SELECT i.title, i.version_number, i.intent
+      FROM items i
+      WHERE i.base_item_id = $1
+      ORDER BY i.version_number DESC
+      LIMIT 10;
+      """ |> String.trim()),
+      heading.(2, "Python"),
+      code.("python", """
+      from anthropic import Anthropic
+
+      client = Anthropic()
+
+      response = client.messages.create(
+          model="claude-opus-4-7",
+          max_tokens=1024,
+          messages=[{"role": "user", "content": "summarize this note"}],
+      )
+      print(response.content[0].text)
+      """ |> String.trim()),
+      heading.(2, "Shell"),
+      code.("sh", """
+      curl -s http://localhost:4000/api/heartbeat \\
+        -H "Authorization: Bearer avl_..." \\
+        | jq .
+      """ |> String.trim()),
+      heading.(2, "Plain (no language)"),
+      code.(nil, """
+      Just some plain text without a language label.
+      Useful for ASCII diagrams or arbitrary fixed-width content.
+
+        +------+    +------+
+        | item | -> | item |
+        +------+    +------+
+      """ |> String.trim())
+    ]
   }
 ]
 
