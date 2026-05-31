@@ -3,16 +3,15 @@
 #   mix run priv/repo/seeds.exs
 #   (also runs via `mix ecto.setup` and `mix ecto.reset`)
 #
-# Deterministic: three users, one workspace, three hardcoded API tokens,
-# and a fixed set of markdown notes loaded from priv/repo/seed_data/.
-# Idempotent: safe to re-run; existing rows are left in place.
+# Deterministic. Three users, one workspace, hardcoded tokens, agent-authored
+# items (each with multiple versions to demonstrate the changelog), mixed
+# human + agent comments. Re-running is idempotent.
 
 import Ecto.Query
 
 alias Aveline.Accounts
 alias Aveline.Items
 alias Aveline.Messages
-alias Aveline.Messages.ItemMessage
 alias Aveline.Repo
 alias Aveline.Tokens.ApiToken
 alias Aveline.Views
@@ -65,7 +64,6 @@ users_by_username = Map.new(users, fn {spec, u} -> {spec.username, u} end)
 # ===== Workspace + memberships =====
 
 workspace_slug = "local-pod"
-workspace_name = "Local Pod"
 
 workspace =
   case Workspaces.get_active_by_slug(workspace_slug) do
@@ -73,7 +71,7 @@ workspace =
       {:ok, w} =
         Workspaces.create_workspace(%{
           "slug" => workspace_slug,
-          "name" => workspace_name,
+          "name" => "Local Pod",
           "created_by_id" => first_user.id
         })
 
@@ -83,9 +81,7 @@ workspace =
       w
   end
 
-Enum.each(users, fn {_, user} ->
-  {:ok, _} = Workspaces.ensure_member(workspace.id, user.id)
-end)
+Enum.each(users, fn {_, u} -> {:ok, _} = Workspaces.ensure_member(workspace.id, u.id) end)
 
 # ===== Tokens =====
 
@@ -93,122 +89,323 @@ hash = fn plaintext ->
   :crypto.hash(:sha256, plaintext) |> Base.encode16(case: :lower)
 end
 
-upsert_token = fn user, plaintext ->
-  h = hash.(plaintext)
+Enum.each(users, fn {spec, u} ->
+  h = hash.(spec.token)
 
   case Repo.one(from t in ApiToken, where: t.token_hash == ^h) do
     nil ->
       %ApiToken{}
       |> ApiToken.changeset(%{
-        user_id: user.id,
+        user_id: u.id,
         name: "local seed",
         token_hash: h,
-        token_prefix: String.slice(plaintext, 0, 8)
+        token_prefix: String.slice(spec.token, 0, 8)
       })
       |> Repo.insert!()
 
-    existing ->
-      existing
-  end
-end
-
-Enum.each(users, fn {spec, user} -> upsert_token.(user, spec.token) end)
-
-# ===== Markdown notes (from priv/repo/seed_data/*.md) =====
-
-# Tiny frontmatter parser. Supports:
-#   key: scalar       -> "scalar"
-#   key: true/false   -> true / false
-#   key: [a, b, c]    -> ["a", "b", "c"]
-parse_frontmatter = fn raw ->
-  case String.split(raw, ~r/^---\s*$/m, parts: 3) do
-    ["", front, body] ->
-      meta =
-        front
-        |> String.split("\n", trim: true)
-        |> Enum.reduce(%{}, fn line, acc ->
-          case String.split(line, ":", parts: 2) do
-            [k, v] ->
-              key = k |> String.trim() |> String.to_atom()
-              val = String.trim(v)
-
-              parsed =
-                cond do
-                  val == "true" -> true
-                  val == "false" -> false
-                  String.starts_with?(val, "[") and String.ends_with?(val, "]") ->
-                    val
-                    |> String.slice(1..-2//1)
-                    |> String.split(",")
-                    |> Enum.map(&String.trim/1)
-                    |> Enum.reject(&(&1 == ""))
-
-                  true ->
-                    val
-                end
-
-              Map.put(acc, key, parsed)
-
-            _ ->
-              acc
-          end
-        end)
-
-      {meta, String.trim_leading(body, "\n")}
-
     _ ->
-      raise "Bad frontmatter in seed file"
+      :ok
   end
-end
-
-seed_dir = Path.join([:code.priv_dir(:aveline), "repo", "seed_data"])
-
-note_files =
-  seed_dir
-  |> File.ls!()
-  |> Enum.filter(&String.ends_with?(&1, ".md"))
-  |> Enum.sort()
-
-upsert_item = fn meta, body ->
-  owner = Map.fetch!(users_by_username, meta.owner)
-
-  case Items.get_by_slug(workspace.id, meta.slug) do
-    nil ->
-      attrs = %{
-        "workspace_id" => workspace.id,
-        "owner_id" => owner.id,
-        "created_by_id" => owner.id,
-        "created_via" => "seed",
-        "slug" => meta.slug,
-        "title" => meta.title,
-        "body" => body,
-        "summary" => Map.get(meta, :summary),
-        "tags" => Map.get(meta, :tags, []),
-        "pinned" => Map.get(meta, :pinned, false)
-      }
-
-      {:ok, item} = Items.create_item(attrs)
-      item
-
-    existing ->
-      existing
-  end
-end
-
-Enum.each(note_files, fn name ->
-  path = Path.join(seed_dir, name)
-  {meta, body} = path |> File.read!() |> parse_frontmatter.()
-  upsert_item.(meta, body)
 end)
 
-# ===== Views =====
+# ===== Items =====
+# Each is created as agent-authored (per product wedge: agents own content).
+# After creation we optionally edit a few via apply_ops to demonstrate the
+# version history feature.
 
-# Views are owned by different users so logging in as bob/alice shows
-# attribution variety. carol is left empty on purpose — she's our "new
-# account" for testing the freshly-joined-member experience.
-# Team views are canonical — visible to every workspace member.
-# Personal views belong only to their creator — invisible to others.
-# carol is deliberately empty so we can see the freshly-joined-member UI.
+alice = users_by_username["alice"]
+bob = users_by_username["bob"]
+_carol = users_by_username["carol"]
+
+t = fn text -> %{"text" => text} end
+b = fn text, marks -> %{"text" => text, "marks" => marks} end
+
+para = fn spans -> %{"type" => "paragraph", "content" => spans} end
+heading = fn level, text -> %{"type" => "heading", "level" => level, "text" => text} end
+code = fn lang, content -> %{"type" => "code", "language" => lang, "content" => content} end
+ul = fn items ->
+  %{
+    "type" => "list",
+    "ordered" => false,
+    "items" => Enum.map(items, fn spans -> %{"content" => spans} end)
+  }
+end
+ol = fn items ->
+  %{
+    "type" => "list",
+    "ordered" => true,
+    "items" => Enum.map(items, fn spans -> %{"content" => spans} end)
+  }
+end
+
+item_specs = [
+  %{
+    slug: "stack-overview",
+    title: "Stack overview",
+    summary: "One-page tour of the Aveline stack — what runs where.",
+    owner: alice,
+    pinned: true,
+    tags: ["onboarding", "architecture", "stack"],
+    blocks: [
+      para.([
+        t.("Aveline runs as a Phoenix 1.8 app on "),
+        b.("Fly.io", ["bold"]),
+        t.(", with Postgres on "),
+        b.("Supabase", ["bold"]),
+        t.(" reached through the Session pooler.")
+      ]),
+      heading.(2, "Where things live"),
+      ul.([
+        [t.("Backend + API: "), b.("aveline-ai/aveline", ["code"])],
+        [t.("CLI: "), b.("aveline-ai/cli", ["code"])],
+        [t.("Landing: "), b.("aveline-ai/landing", ["code"])]
+      ]),
+      heading.(2, "Background work"),
+      para.([
+        t.("Oban is configured but has no queues yet. We add them when something actually needs to run async.")
+      ])
+    ]
+  },
+  %{
+    slug: "architecture-decisions",
+    title: "Architecture decisions",
+    summary: "Running log of \"why we picked X\" so we don't re-litigate it.",
+    owner: alice,
+    pinned: true,
+    tags: ["onboarding", "architecture", "decisions"],
+    blocks: [
+      heading.(2, "Phoenix LiveView over a separate SPA"),
+      para.([
+        t.("The web UI is the secondary surface — agents are primary. Real-time threading + form-heavy is LiveView's bullseye, and same-origin removes the cookie/CSRF/CORS pain a React client would add.")
+      ]),
+      heading.(2, "Block format over markdown"),
+      para.([
+        t.("Notes are stored as structured blocks, not markdown. Lets us diff at the block level, link to specific paragraphs, attach metadata per block, and represent agent intent. Markdown is a substrate for human authoring; we serve a different need.")
+      ])
+    ]
+  },
+  %{
+    slug: "oncall-runbook",
+    title: "Oncall runbook",
+    summary: "First things to do when an alert pages you.",
+    owner: bob,
+    pinned: true,
+    tags: ["oncall", "runbook"],
+    blocks: [
+      heading.(2, "1. Acknowledge"),
+      para.([
+        t.("Open the alert in Sentry. Click Acknowledge. Drop a note in #aveline-oncall so the other oncall knows you're on it.")
+      ]),
+      heading.(2, "2. Triage"),
+      ol.([
+        [b.("API", ["bold"]), t.(" ("), b.("app.aveline.ai", ["code"]), t.("): check Fly logs.")],
+        [b.("Landing", ["bold"]), t.(": Cloudflare Pages — almost certainly a deploy regression, roll back.")],
+        [b.("Database", ["bold"]), t.(": Supabase pool utilization graph.")]
+      ]),
+      heading.(2, "3. Mitigate, then root-cause"),
+      para.([
+        t.("Rolling back is always the first move. Investigate after the page is closed.")
+      ])
+    ]
+  },
+  %{
+    slug: "deploy-guide",
+    title: "Deploy guide",
+    summary: "How to ship the backend without breaking prod.",
+    owner: bob,
+    pinned: false,
+    tags: ["runbook", "deploys", "stack"],
+    blocks: [
+      heading.(2, "Local pre-flight"),
+      code.("sh", "mix format --check-formatted\nmix credo --strict\nmix test\nmix assets.build"),
+      heading.(2, "Deploy"),
+      code.("sh", "fly deploy"),
+      para.([
+        t.("Cold-start is ~2s. Sentry pages within 60s if anything explodes.")
+      ])
+    ]
+  },
+  %{
+    slug: "local-dev-setup",
+    title: "Local dev setup",
+    summary: "Get the backend, API, and CLI talking on your laptop.",
+    owner: alice,
+    pinned: true,
+    tags: ["onboarding", "dev"],
+    blocks: [
+      heading.(2, "Prereqs"),
+      ul.([
+        [t.("Erlang/OTP 27+")],
+        [t.("Elixir 1.18+")],
+        [t.("Postgres 15+")]
+      ]),
+      heading.(2, "Backend"),
+      code.("sh", "git clone git@github.com:aveline-ai/aveline.git\ncd aveline\nmix deps.get\nmix ecto.setup\nmix phx.server"),
+      para.([t.("The seed task prints three local tokens (alice / bob / carol).")])
+    ]
+  },
+  %{
+    slug: "sentry-tips",
+    title: "Sentry tips",
+    summary: "Things that bit us while wiring Sentry 12.",
+    owner: alice,
+    pinned: false,
+    tags: ["stack", "observability", "runbook"],
+    blocks: [
+      heading.(2, "DSN gates everything"),
+      para.([
+        t.("We only set "),
+        b.("enable_logs: true", ["code"]),
+        t.(" when "),
+        b.("SENTRY_DSN", ["code"]),
+        t.(" is in the env. Without that guard, Sentry 12 crashes on startup.")
+      ]),
+      heading.(2, "Logs vs Issues"),
+      ul.([
+        [b.("Logger.info", ["code"]), t.(" / "), b.("Logger.error", ["code"]), t.(" → Logs")],
+        [b.("Sentry.capture_exception/1", ["code"]), t.(" → Issues")]
+      ])
+    ]
+  },
+  %{
+    slug: "database-notes",
+    title: "Database notes",
+    summary: "Conventions and gotchas for the Postgres schema.",
+    owner: bob,
+    pinned: false,
+    tags: ["stack", "database"],
+    blocks: [
+      heading.(2, "UUIDs everywhere"),
+      para.([
+        t.("Every table uses UUID primary keys via "),
+        b.("gen_random_uuid()", ["code"]),
+        t.(". Don't introduce serial IDs.")
+      ]),
+      heading.(2, "Soft delete"),
+      para.([
+        t.("Versioned tables use "),
+        b.("deleted_at", ["code"]),
+        t.(" as both supersession marker and user-delete marker. "),
+        b.("deleted_by_id", ["code"]),
+        t.(" disambiguates.")
+      ])
+    ]
+  }
+]
+
+# Create items if they don't already exist (idempotent).
+created_items =
+  Enum.map(item_specs, fn spec ->
+    case Items.get_current_by_slug(workspace.id, spec.slug) do
+      nil ->
+        {:ok, item} =
+          Items.create_item(%{
+            workspace_id: workspace.id,
+            owner_id: spec.owner.id,
+            actor_user_id: spec.owner.id,
+            actor_type: "agent",
+            slug: spec.slug,
+            title: spec.title,
+            summary: spec.summary,
+            tags: spec.tags,
+            pinned: spec.pinned,
+            blocks: spec.blocks,
+            intent: "initial seed: write the #{spec.slug} note"
+          })
+
+        item
+
+      existing ->
+        existing
+    end
+  end)
+
+# ===== Versions: demonstrate the changelog on a couple of items =====
+
+# For stack-overview, append a new paragraph (v2)
+stack = Enum.find(created_items, &(&1.slug == "stack-overview"))
+
+if stack && stack.version_number == 1 do
+  new_block = %{
+    "type" => "paragraph",
+    "content" => [
+      %{"text" => "Updated: we now also broadcast every item mutation on PubSub topics like "},
+      %{"text" => "item:<base_item_id>", "marks" => ["code"]},
+      %{"text" => " so LiveViews update in real time."}
+    ],
+    "metadata" => %{"content_intent" => "document the pubsub addition"}
+  }
+
+  ops = [
+    %{
+      "op" => "append_block",
+      "block" => new_block,
+      "metadata" => %{"diff_intent" => "mention pubsub broadcasts now that they're wired"}
+    }
+  ]
+
+  {:ok, _v2} =
+    Items.apply_ops(stack, ops, %{actor_user_id: alice.id, actor_type: "agent"},
+      intent: "Mention the new PubSub broadcasts",
+      resolves_comment_ids: []
+    )
+end
+
+# For oncall-runbook, two follow-up edits to show v3 history
+oncall = Enum.find(created_items, &(&1.slug == "oncall-runbook"))
+
+if oncall && oncall.version_number == 1 do
+  ops_v2 = [
+    %{
+      "op" => "append_block",
+      "block" => %{
+        "type" => "heading",
+        "level" => 2,
+        "text" => "Escalation"
+      },
+      "metadata" => %{"diff_intent" => "add the escalation header"}
+    },
+    %{
+      "op" => "append_block",
+      "block" => %{
+        "type" => "paragraph",
+        "content" => [
+          %{"text" => "If stuck > 20 minutes, page the other oncall. We do not have a third tier."}
+        ]
+      },
+      "metadata" => %{"diff_intent" => "spell out the escalation policy"}
+    }
+  ]
+
+  {:ok, v2} =
+    Items.apply_ops(oncall, ops_v2, %{actor_user_id: bob.id, actor_type: "agent"},
+      intent: "Add escalation section after we forgot it last week"
+    )
+
+  # v3: tweak the existing heading text via modify_block
+  first_block = List.first(v2.blocks)
+
+  if first_block && first_block["type"] == "heading" do
+    {:ok, _v3} =
+      Items.apply_ops(
+        v2,
+        [
+          %{
+            "op" => "modify_block",
+            "id" => first_block["id"],
+            "patch" => %{"text" => "1. Acknowledge (within 5 minutes)"},
+            "metadata" => %{"diff_intent" => "be explicit about the SLA"}
+          }
+        ],
+        %{actor_user_id: bob.id, actor_type: "agent"},
+        intent: "Bake the 5-minute SLA into the runbook itself"
+      )
+  end
+end
+
+# ===== Views =====
+# Team views (visible to everyone) + personal views (only to creator).
+
 view_specs = [
   %{slug: "onboarding", name: "Onboarding", tag_filter: ["onboarding"],
     description: "Everything a new teammate should read first.",
@@ -219,14 +416,10 @@ view_specs = [
   %{slug: "architecture", name: "Architecture", tag_filter: ["architecture"],
     description: "How the system is shaped and why.",
     created_by: "alice", scope: "team"},
-
-  # alice's personal scratch
   %{slug: "alice-stack-deep-dive", name: "Stack deep dive",
     tag_filter: ["stack"],
     description: "What I'm rereading while planning the v0.1 schema.",
     created_by: "alice", scope: "personal"},
-
-  # bob's personal scratch
   %{slug: "bob-ops-followups", name: "Ops follow-ups",
     tag_filter: ["runbook", "deploys"],
     description: "Bob's runbook bookmarks — not yet team-canonical.",
@@ -255,29 +448,38 @@ Enum.each(view_specs, fn spec ->
 end)
 
 # ===== Thread messages =====
+# Mix of human + agent commenters so the actor icons render meaningfully.
+# Anchored to a specific item version (the CURRENT version at seed time).
 
-# A few canned replies so the thread UI feels real out of the box.
-# Idempotent: skipped if any reply with the same body already exists on the item.
+current = fn slug ->
+  Items.get_current_by_slug(workspace.id, slug)
+end
 
 thread_specs = [
-  %{item_slug: "stack-overview", author: "bob",
+  %{item: "stack-overview", author: "bob", actor: "human",
     body: "Worth noting: the Session pooler limit on Supabase free tier is 200 connections — we'll hit it before we hit Fly's process limit."},
-  %{item_slug: "stack-overview", author: "alice",
-    body: "Good call. Should probably add a note to [[architecture-decisions]] when we make the call to upgrade."},
-  %{item_slug: "oncall-runbook", author: "alice",
-    body: "Reminder: the page button in Sentry now defaults to **all responders**, so be specific about who you're paging in the slack note."}
+  %{item: "stack-overview", author: "alice", actor: "agent",
+    body: "Good call. Worth adding to architecture-decisions when we make the call to upgrade."},
+  %{item: "stack-overview", author: "carol", actor: "human",
+    body: "Reading this on my first day — super helpful, thanks."},
+  %{item: "oncall-runbook", author: "alice", actor: "human",
+    body: "Reminder: the page button in Sentry now defaults to ALL responders. Be specific about who you're paging."},
+  %{item: "oncall-runbook", author: "bob", actor: "agent",
+    body: "Added an escalation section in v2 and tightened the SLA in v3 — see history."},
+  %{item: "deploy-guide", author: "carol", actor: "human",
+    body: "Does the pre-flight need to include mix dialyzer? Or is that overkill for v0?"}
 ]
 
 Enum.each(thread_specs, fn spec ->
-  item = Items.get_active_by_slug(workspace.id, spec.item_slug)
-  author = Map.fetch!(users_by_username, spec.author)
+  item = current.(spec.item)
+  author = users_by_username[spec.author]
 
   exists? =
     Repo.exists?(
-      from m in ItemMessage,
+      from m in Aveline.Messages.ItemMessage,
         where:
           m.item_id == ^item.id and
-            m.author_id == ^author.id and
+            m.actor_user_id == ^author.id and
             m.body == ^spec.body and
             is_nil(m.deleted_at)
     )
@@ -286,9 +488,9 @@ Enum.each(thread_specs, fn spec ->
     {:ok, _} =
       Messages.create_message(%{
         "item_id" => item.id,
-        "author_id" => author.id,
         "body" => spec.body,
-        "created_via" => "seed"
+        "actor_user_id" => author.id,
+        "actor_type" => spec.actor
       })
   end
 end)
@@ -297,7 +499,7 @@ end)
 
 IO.puts("")
 IO.puts("=== Local seed complete ===")
-IO.puts("Workspace: #{workspace.slug} (#{workspace.name})")
+IO.puts("Workspace: #{workspace.slug} (Local Pod)")
 IO.puts("")
 IO.puts("Users + tokens:")
 
@@ -306,5 +508,7 @@ Enum.each(users, fn {spec, _} ->
 end)
 
 IO.puts("")
-IO.puts("Seeded #{length(note_files)} notes, #{length(view_specs)} views, and #{length(thread_specs)} thread messages.")
+IO.puts("Items: #{length(item_specs)} (stack-overview at v2, oncall-runbook at v3)")
+IO.puts("Views: #{length(view_specs)} (3 team, 2 personal)")
+IO.puts("Comments: #{length(thread_specs)} (mixed human + agent)")
 IO.puts("")

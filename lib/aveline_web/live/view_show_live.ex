@@ -21,7 +21,7 @@ defmodule AvelineWeb.ViewShowLive do
 
           view ->
             items = Views.matching_items(view)
-            all_items = Items.list_items(ws.id)
+            all_items = Items.list_current(ws.id)
 
             {:ok,
              assign(socket,

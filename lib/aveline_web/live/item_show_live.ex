@@ -14,7 +14,7 @@ defmodule AvelineWeb.ItemShowLive do
 
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
-        case Items.get_by_slug(ws.id, item_slug) do
+        case Items.get_current_by_slug(ws.id, item_slug) do
           nil ->
             {:ok,
              socket
@@ -23,14 +23,14 @@ defmodule AvelineWeb.ItemShowLive do
 
           item ->
             if connected?(socket) do
-              Broadcasts.subscribe(Broadcasts.item_messages_topic(item.id))
-              Broadcasts.subscribe(Broadcasts.item_topic(item.id))
+              Broadcasts.subscribe(Broadcasts.item_messages_topic(item.base_item_id))
+              Broadcasts.subscribe(Broadcasts.item_topic(item.base_item_id))
             end
 
-            body_html = render_markdown(item.body || "")
             related = Items.related_items(item, 5)
-            all_items = Items.list_items(ws.id)
-            messages = Messages.list_for_item(item.id)
+            all_items = Items.list_current(ws.id)
+            messages = Messages.list_for_base_item(item.base_item_id)
+            versions = Items.list_versions(item.base_item_id)
 
             {:ok,
              assign(socket,
@@ -43,9 +43,10 @@ defmodule AvelineWeb.ItemShowLive do
                pinned_count: Enum.count(all_items, & &1.pinned),
                topbar_title: item.title,
                item: item,
-               body_html: body_html,
                related: related,
-               messages: messages
+               messages: messages,
+               versions: versions,
+               show_history: false
              )}
         end
 
@@ -72,20 +73,12 @@ defmodule AvelineWeb.ItemShowLive do
       true ->
         case Messages.create_message(%{
                "item_id" => item.id,
-               "author_id" => user.id,
                "body" => body,
-               "created_via" => "web"
+               "actor_user_id" => user.id,
+               "actor_type" => "human"
              }) do
           {:ok, _msg} ->
             {:noreply, push_event(socket, "reset-form", %{id: "reply-form"})}
-
-          {:error, %Ecto.Changeset{} = cs} ->
-            errs =
-              cs
-              |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
-              |> inspect()
-
-            {:noreply, put_flash(socket, :error, "Could not post reply: " <> errs)}
 
           {:error, _} ->
             {:noreply, put_flash(socket, :error, "Could not post reply.")}
@@ -104,40 +97,27 @@ defmodule AvelineWeb.ItemShowLive do
     end
   end
 
+  def handle_event("toggle_history", _, socket) do
+    {:noreply, assign(socket, :show_history, not socket.assigns.show_history)}
+  end
+
   @impl true
   def handle_info({event, msg}, socket)
       when event in [:message_created, :message_updated, :message_deleted] do
     msgs =
       case event do
-        :message_created ->
-          socket.assigns.messages ++ [msg]
-
-        :message_updated ->
-          Enum.map(socket.assigns.messages, fn m -> if m.id == msg.id, do: msg, else: m end)
-
-        :message_deleted ->
-          Enum.reject(socket.assigns.messages, fn m -> m.id == msg.id end)
+        :message_created -> socket.assigns.messages ++ [msg]
+        :message_updated -> Enum.map(socket.assigns.messages, fn m -> if m.id == msg.id, do: msg, else: m end)
+        :message_deleted -> Enum.reject(socket.assigns.messages, fn m -> m.id == msg.id end)
       end
 
     {:noreply, assign(socket, :messages, msgs)}
   end
 
   def handle_info({:item_updated, item}, socket) do
-    if item.id == socket.assigns.item.id do
-      {:noreply,
-       assign(socket,
-         item: item,
-         body_html: render_markdown(item.body || ""),
-         topbar_title: item.title
-       )}
-    else
-      {:noreply, socket}
-    end
-  end
-
-  def handle_info({:item_deleted, item}, socket) do
-    if item.id == socket.assigns.item.id do
-      {:noreply, assign(socket, :item, item)}
+    if item.base_item_id == socket.assigns.item.base_item_id do
+      versions = Items.list_versions(item.base_item_id)
+      {:noreply, assign(socket, item: item, topbar_title: item.title, versions: versions)}
     else
       {:noreply, socket}
     end
@@ -145,31 +125,17 @@ defmodule AvelineWeb.ItemShowLive do
 
   def handle_info(_other, socket), do: {:noreply, socket}
 
-  defp render_markdown(""), do: ""
+  defp actor_icon("human"), do: "👤"
+  defp actor_icon("agent"), do: "🤖"
+  defp actor_icon(_), do: ""
 
-  defp render_markdown(body) when is_binary(body) do
-    case Earmark.as_html(body, escape: true) do
-      {:ok, html, _} -> html
-      {:error, html, _} -> html
-    end
-  end
+  defp message_actor(%{actor_user: %Ecto.Association.NotLoaded{}}), do: nil
+  defp message_actor(%{actor_user: a}), do: a
+  defp message_actor(_), do: nil
 
   defp owner(%{owner: %Ecto.Association.NotLoaded{}}), do: nil
   defp owner(%{owner: o}), do: o
   defp owner(_), do: nil
-
-  defp author_of(%{author: %Ecto.Association.NotLoaded{}}), do: nil
-  defp author_of(%{author: a}), do: a
-  defp author_of(_), do: nil
-
-  defp message_body_html(body) when is_binary(body) do
-    case Earmark.as_html(body, escape: true) do
-      {:ok, html, _} -> html
-      {:error, html, _} -> html
-    end
-  end
-
-  defp message_body_html(_), do: ""
 
   @impl true
   def render(assigns) do
@@ -212,8 +178,14 @@ defmodule AvelineWeb.ItemShowLive do
               <span class="card-meta-dot">·</span>
             <% end %>
             <span class="article-meta-item" title={absolute_time(@item.updated_at)}>
-              <span class="article-meta-val">{relative_time(@item.updated_at)}</span>
+              <span class="article-meta-val">v{@item.version_number} · {relative_time(@item.updated_at)}</span>
             </span>
+            <%= if length(@versions) > 1 do %>
+              <span class="card-meta-dot">·</span>
+              <button class="clear" phx-click="toggle_history" style="background:none;border:none;padding:0;cursor:pointer">
+                {if @show_history, do: "hide history", else: "history (#{length(@versions)})"}
+              </button>
+            <% end %>
             <%= if @item.tags != [] do %>
               <span class="card-meta-dot">·</span>
               <span class="chip-row" style="gap:6px">
@@ -229,8 +201,37 @@ defmodule AvelineWeb.ItemShowLive do
           </div>
         </header>
 
+        <%= if @show_history do %>
+          <div class="version-history">
+            <div class="section-label">Version history</div>
+            <ol class="version-list">
+              <li :for={v <- @versions} class={"version-item " <> if v.id == @item.id, do: "version-current", else: ""}>
+                <div class="version-meta">
+                  <span class="version-num">v{v.version_number}</span>
+                  <%= if v.actor_user do %>
+                    <span class="version-actor">
+                      {actor_icon(v.actor_type)} {v.actor_user.username}
+                    </span>
+                  <% end %>
+                  <span title={absolute_time(v.inserted_at)}>{relative_time(v.inserted_at)}</span>
+                </div>
+                <%= if v.intent && v.intent != "" do %>
+                  <div class="version-intent">{v.intent}</div>
+                <% end %>
+                <%= if v.operations && v.operations != [] do %>
+                  <div class="version-ops">
+                    <span :for={op <- v.operations} class="version-op">
+                      {op["op"]}
+                    </span>
+                  </div>
+                <% end %>
+              </li>
+            </ol>
+          </div>
+        <% end %>
+
         <article class="prose">
-          {Phoenix.HTML.raw(@body_html)}
+          <AvelineWeb.BlockRenderer.render blocks={@item.blocks || []} />
         </article>
 
         <%= if @related != [] do %>
@@ -266,10 +267,6 @@ defmodule AvelineWeb.ItemShowLive do
             </li>
           </ul>
         <% end %>
-
-        <div class="banner" style="margin-top:48px">
-          Edit via the CLI: <code>aveline edit {@item.slug}</code>
-        </div>
       </div>
 
       <aside class="thread-panel" id="thread">
@@ -287,12 +284,12 @@ defmodule AvelineWeb.ItemShowLive do
             <ol class="thread-list">
               <li :for={m <- @messages} class="thread-message" id={"m-#{m.id}"}>
                 <div class="thread-avatar">
-                  <%= if author_of(m) do %>
+                  <%= if message_actor(m) do %>
                     <span
                       class="avatar-sm"
-                      style={"background:hsl(#{avatar_hue(author_of(m).username)},65%,18%);color:hsl(#{avatar_hue(author_of(m).username)},75%,75%)"}
+                      style={"background:hsl(#{avatar_hue(message_actor(m).username)},65%,18%);color:hsl(#{avatar_hue(message_actor(m).username)},75%,75%)"}
                     >
-                      {initial(author_of(m).username)}
+                      {initial(message_actor(m).username)}
                     </span>
                   <% else %>
                     <span class="avatar-sm">?</span>
@@ -301,19 +298,20 @@ defmodule AvelineWeb.ItemShowLive do
                 <div class="thread-body">
                   <div class="thread-meta">
                     <span class="thread-author">
-                      {if author_of(m), do: author_of(m).username, else: "?"}
+                      {if message_actor(m), do: message_actor(m).username, else: "?"}
                     </span>
+                    <span class="actor-badge" title={m.actor_type}>{actor_icon(m.actor_type)}</span>
                     <span class="card-meta-dot">·</span>
                     <span title={absolute_time(m.inserted_at)}>{relative_time(m.inserted_at)}</span>
                     <%= if m.edited_at do %>
                       <span class="card-meta-dot">·</span>
                       <span class="thread-edited" title={absolute_time(m.edited_at)}>edited</span>
                     <% end %>
-                    <%= if m.created_via && m.created_via != "web" do %>
+                    <%= if m.resolved_at do %>
                       <span class="card-meta-dot">·</span>
-                      <span class="thread-via">via {m.created_via}</span>
+                      <span class="thread-resolved" title={absolute_time(m.resolved_at)}>resolved</span>
                     <% end %>
-                    <%= if @current_user && author_of(m) && author_of(m).id == @current_user.id do %>
+                    <%= if @current_user && message_actor(m) && message_actor(m).id == @current_user.id do %>
                       <span class="thread-actions">
                         <button
                           phx-click="delete_message"
@@ -326,7 +324,9 @@ defmodule AvelineWeb.ItemShowLive do
                       </span>
                     <% end %>
                   </div>
-                  <div class="thread-content">{Phoenix.HTML.raw(message_body_html(m.body))}</div>
+                  <div class={"thread-content " <> if m.resolved_at, do: "thread-content-resolved", else: ""}>
+                    {plain_text_to_html(m.body)}
+                  </div>
                 </div>
               </li>
             </ol>
@@ -345,7 +345,7 @@ defmodule AvelineWeb.ItemShowLive do
               <textarea
                 name="body"
                 class="reply-input"
-                placeholder="Reply to this note… (markdown ok)"
+                placeholder="Reply to this note…"
                 rows="2"
               ></textarea>
               <div class="reply-footer">
@@ -358,5 +358,16 @@ defmodule AvelineWeb.ItemShowLive do
       </aside>
     </div>
     """
+  end
+
+  # Plain-text thread bodies (no markdown): escape HTML, newlines → <br>.
+  defp plain_text_to_html(nil), do: ""
+
+  defp plain_text_to_html(body) when is_binary(body) do
+    body
+    |> Phoenix.HTML.html_escape()
+    |> Phoenix.HTML.safe_to_string()
+    |> String.replace("\n", "<br />")
+    |> Phoenix.HTML.raw()
   end
 end

@@ -50,8 +50,7 @@ defmodule Aveline.MixProject do
       {:sentry, "~> 12.0"},
       {:hackney, "~> 1.20"},
       {:oban, "~> 2.19"},
-      {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
-      {:earmark, "~> 1.4"}
+      {:esbuild, "~> 0.10", runtime: Mix.env() == :dev}
     ]
   end
 

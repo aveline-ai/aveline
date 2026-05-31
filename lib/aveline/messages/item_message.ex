@@ -6,12 +6,16 @@ defmodule Aveline.Messages.ItemMessage do
   alias Aveline.Accounts.User
   alias Aveline.Items.Item
 
+  @actor_types ~w(human agent)
+
   @derive {Jason.Encoder,
            only: [
              :id,
              :item_id,
+             :block_id,
              :body,
-             :created_via,
+             :actor_type,
+             :resolved_at,
              :edited_at,
              :inserted_at,
              :updated_at,
@@ -19,23 +23,28 @@ defmodule Aveline.Messages.ItemMessage do
            ]}
   schema "item_messages" do
     field :body, :string
-    field :created_via, :string
+    field :block_id, :string
+    field :actor_type, :string
+    field :resolved_at, :utc_datetime_usec
     field :edited_at, :utc_datetime_usec
     field :deleted_at, :utc_datetime_usec
 
     belongs_to :item, Item, type: :binary_id
-    belongs_to :author, User, type: :binary_id
+    belongs_to :actor_user, User, type: :binary_id
+    belongs_to :resolved_by, User, type: :binary_id
     belongs_to :deleted_by, User, type: :binary_id
 
     timestamps(type: :utc_datetime_usec)
   end
 
+  def actor_types, do: @actor_types
+
   def create_changeset(message, attrs) do
     message
-    |> cast(attrs, [:item_id, :author_id, :body, :created_via])
-    |> validate_required([:item_id, :author_id, :body, :created_via])
+    |> cast(attrs, [:item_id, :block_id, :body, :actor_user_id, :actor_type])
+    |> validate_required([:item_id, :body, :actor_user_id, :actor_type])
+    |> validate_inclusion(:actor_type, @actor_types)
     |> validate_length(:body, min: 1, max: 10_000)
-    |> validate_inclusion(:created_via, ~w(cli web agent seed))
   end
 
   def update_changeset(message, attrs) do

@@ -443,6 +443,96 @@
       .prose tr:last-child td { border-bottom: none; }
       .prose hr { border: none; height: 1px; background: var(--border); margin: 24px 0; }
 
+      /* ===== Blocks renderer ===== */
+      .blocks > * + * { margin-top: 16px; }
+      .blocks .blk-h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.015em; margin-top: 32px; }
+      .blocks .blk-h2 {
+        font-size: 18px; font-weight: 600; letter-spacing: -0.01em;
+        margin-top: 32px; padding-bottom: 6px;
+        border-bottom: 1px solid var(--border);
+      }
+      .blocks .blk-h3 { font-size: 15px; font-weight: 600; margin-top: 24px; }
+      .blocks .blk-p { font-size: 15px; line-height: 1.7; color: var(--text); }
+      .blocks .blk-list { padding-left: 22px; font-size: 15px; line-height: 1.7; }
+      .blocks .blk-list li + li { margin-top: 4px; }
+      .blocks .blk-code {
+        background: var(--bg-card); border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 14px 16px; overflow-x: auto;
+        font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.55;
+      }
+      .blocks .blk-code::before {
+        content: attr(data-lang);
+        display: inline-block;
+        font-size: 10.5px; text-transform: uppercase;
+        letter-spacing: 0.08em; color: var(--text-muted);
+        margin-bottom: 8px;
+      }
+      .blocks .blk-code[data-lang=""]::before { content: none; }
+      .blocks .blk-table-wrap { overflow-x: auto; }
+      .blocks .blk-table {
+        width: 100%; border-collapse: collapse;
+        font-size: 13px;
+        border: 1px solid var(--border); border-radius: var(--radius);
+        overflow: hidden;
+      }
+      .blocks .blk-table th, .blocks .blk-table td {
+        text-align: left; padding: 8px 12px;
+        border-bottom: 1px solid var(--border);
+      }
+      .blocks .blk-table th {
+        background: var(--bg-card);
+        font-weight: 600; color: var(--text-secondary);
+        font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em;
+      }
+      .blocks .blk-table tr:last-child td { border-bottom: none; }
+      .blocks .blk-link {
+        color: var(--accent); text-decoration: underline;
+        text-decoration-thickness: 1px; text-underline-offset: 2px;
+      }
+      .blocks .blk-link:hover { text-decoration-thickness: 2px; }
+      .blocks .blk-inline-code {
+        font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
+        background: var(--bg-card);
+        padding: 1.5px 5px; border-radius: 3px;
+        border: 1px solid var(--border);
+      }
+      .blocks .blk-unknown {
+        padding: 10px 14px; border: 1px dashed var(--danger);
+        border-radius: var(--radius); font-size: 13px; color: var(--danger);
+      }
+
+      /* ===== Version history ===== */
+      .version-history {
+        margin: 20px 0 32px;
+        padding: 16px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+      .version-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+      .version-item {
+        padding: 10px 12px;
+        border-left: 2px solid var(--border);
+        font-size: 13px;
+      }
+      .version-current { border-left-color: var(--accent); }
+      .version-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); }
+      .version-num { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+      .version-actor { color: var(--text-secondary); }
+      .version-intent { margin-top: 4px; color: var(--text); }
+      .version-ops { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+      .version-op {
+        font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+        background: var(--bg); padding: 1px 6px; border-radius: 3px;
+        border: 1px solid var(--border-strong); color: var(--text-secondary);
+      }
+
+      /* ===== Actor badge in threads ===== */
+      .actor-badge { font-size: 11px; }
+      .thread-resolved { color: #4ADE80; }
+      .thread-content-resolved { opacity: 0.55; text-decoration: line-through; }
+
       /* ===== Item detail layout (article + sticky thread) ===== */
       .item-layout {
         display: grid;

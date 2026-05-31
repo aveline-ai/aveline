@@ -12,7 +12,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
 
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
-        items = Items.list_items(ws.id)
+        items = Items.list_current(ws.id)
         pinned_count = Enum.count(items, & &1.pinned)
 
         tag_counts =

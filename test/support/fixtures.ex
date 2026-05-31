@@ -50,20 +50,25 @@ defmodule Aveline.Fixtures do
 
   def item_fixture(workspace, user, attrs \\ %{}) do
     i = unique_int()
+    attrs = Enum.into(attrs, %{})
 
     {:ok, item} =
       Items.create_item(
-        Map.merge(
-          %{
-            "workspace_id" => workspace.id,
-            "owner_id" => user.id,
-            "created_by_id" => user.id,
-            "created_via" => "seed",
-            "title" => "Item #{i}",
-            "body" => "Body #{i}"
-          },
-          stringify(attrs)
-        )
+        %{
+          workspace_id: workspace.id,
+          owner_id: user.id,
+          actor_user_id: user.id,
+          actor_type: Map.get(attrs, :actor_type, "agent"),
+          title: Map.get(attrs, :title, "Item #{i}"),
+          slug: Map.get(attrs, :slug),
+          summary: Map.get(attrs, :summary),
+          tags: Map.get(attrs, :tags, []),
+          pinned: Map.get(attrs, :pinned, false),
+          blocks: Map.get(attrs, :blocks, [
+            %{"type" => "paragraph", "content" => [%{"text" => "Body #{i}"}]}
+          ]),
+          intent: Map.get(attrs, :intent, "seed item-fixture")
+        }
       )
 
     item

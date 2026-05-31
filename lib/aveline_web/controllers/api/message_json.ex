@@ -10,9 +10,13 @@ defmodule AvelineWeb.Api.MessageJSON do
     %{
       id: m.id,
       item_id: m.item_id,
+      block_id: m.block_id,
       body: m.body,
-      author: UserJSON.summary(loaded(m.author)),
-      created_via: m.created_via,
+      actor: %{
+        user: UserJSON.summary(loaded(m.actor_user)),
+        type: m.actor_type
+      },
+      resolved_at: m.resolved_at,
       edited_at: m.edited_at,
       inserted_at: m.inserted_at,
       updated_at: m.updated_at,

@@ -13,7 +13,7 @@ defmodule AvelineWeb.ViewListLive do
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
         visible = Views.list_visible_views(ws.id, user.id)
-        items = Items.list_items(ws.id)
+        items = Items.list_current(ws.id)
 
         match_counts =
           Map.new(visible, fn v ->

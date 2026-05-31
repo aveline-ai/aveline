@@ -12,8 +12,25 @@ defmodule AvelineWeb.Api.ViewControllerTest do
   end
 
   test "create + show + index + items", %{conn: conn, ws: ws} do
-    _ = conn |> post(~p"/api/workspaces/#{ws.slug}/items", %{title: "a", tags: ["oncall"]})
-    _ = conn |> post(~p"/api/workspaces/#{ws.slug}/items", %{title: "b", tags: ["other"]})
+    _ =
+      conn
+      |> post(~p"/api/workspaces/#{ws.slug}/items", %{
+        title: "a",
+        slug: "a",
+        tags: ["oncall"],
+        actor: "agent",
+        blocks: [%{type: "paragraph", content: [%{text: "a"}]}]
+      })
+
+    _ =
+      conn
+      |> post(~p"/api/workspaces/#{ws.slug}/items", %{
+        title: "b",
+        slug: "b",
+        tags: ["other"],
+        actor: "agent",
+        blocks: [%{type: "paragraph", content: [%{text: "b"}]}]
+      })
 
     payload = %{slug: "oncall", name: "Oncall", tag_filter: ["oncall"]}
     body = conn |> post(~p"/api/workspaces/#{ws.slug}/views", payload) |> json_response(201)

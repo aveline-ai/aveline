@@ -132,6 +132,12 @@ defmodule Aveline.Views do
   Items matching a view's tag_filter.
   """
   def matching_items(%View{} = view, opts \\ []) do
-    Items.list_items(view.workspace_id, Keyword.put(opts, :view, view))
+    extra =
+      case view.tag_filter do
+        list when is_list(list) -> list
+        _ -> []
+      end
+
+    Items.list_current(view.workspace_id, Keyword.put(opts, :tags, extra))
   end
 end
