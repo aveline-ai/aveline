@@ -1,11 +1,11 @@
-defmodule Aveline.Repo.Migrations.CreateItemMessages do
+defmodule Aveline.Repo.Migrations.CreateDocComments do
   use Ecto.Migration
 
   def change do
-    create table(:item_messages, primary_key: false) do
+    create table(:doc_comments, primary_key: false) do
       add :id, :binary_id, primary_key: true
 
-      add :item_id, references(:items, type: :binary_id, on_delete: :delete_all), null: false
+      add :doc_id, references(:docs, type: :binary_id, on_delete: :delete_all), null: false
       add :block_id, :string
 
       add :body, :text, null: false
@@ -22,12 +22,12 @@ defmodule Aveline.Repo.Migrations.CreateItemMessages do
       timestamps(type: :timestamptz)
     end
 
-    create index(:item_messages, [:item_id, :resolved_at],
+    create index(:doc_comments, [:doc_id, :resolved_at],
              where: "deleted_at IS NULL",
-             name: :item_messages_item_resolved_active_idx
+             name: :doc_comments_doc_resolved_active_idx
            )
 
-    create constraint(:item_messages, :msg_actor_type_valid,
+    create constraint(:doc_comments, :comment_actor_type_valid,
              check: "actor_type IN ('human', 'agent')"
            )
   end

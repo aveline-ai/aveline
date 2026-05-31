@@ -1,11 +1,11 @@
-defmodule Aveline.Repo.Migrations.CreateItems do
+defmodule Aveline.Repo.Migrations.CreateDocs do
   use Ecto.Migration
 
   def change do
-    create table(:items, primary_key: false) do
+    create table(:docs, primary_key: false) do
       add :id, :binary_id, primary_key: true
 
-      add :base_item_id, :binary_id, null: false
+      add :base_doc_id, :binary_id, null: false
       add :version_number, :integer, null: false
 
       add :workspace_id,
@@ -33,28 +33,23 @@ defmodule Aveline.Repo.Migrations.CreateItems do
       timestamps(type: :timestamptz)
     end
 
-    # Only one CURRENT row per logical item.
-    create unique_index(:items, [:base_item_id],
+    create unique_index(:docs, [:base_doc_id],
              where: "deleted_at IS NULL",
-             name: :items_one_current_per_base_idx
+             name: :docs_one_current_per_base_idx
            )
 
-    # version_number unique within a base item.
-    create unique_index(:items, [:base_item_id, :version_number])
+    create unique_index(:docs, [:base_doc_id, :version_number])
+    create index(:docs, [:workspace_id], where: "deleted_at IS NULL")
 
-    # Browse current items in a workspace.
-    create index(:items, [:workspace_id], where: "deleted_at IS NULL")
-
-    # Slug uniqueness — workspace-scoped, current-row only.
-    create unique_index(:items, [:workspace_id, :slug],
+    create unique_index(:docs, [:workspace_id, :slug],
              where: "deleted_at IS NULL",
-             name: :items_workspace_id_slug_active_index
+             name: :docs_workspace_id_slug_active_index
            )
 
-    execute "CREATE INDEX items_tags_gin_index ON items USING GIN (tags)",
-            "DROP INDEX items_tags_gin_index"
+    execute "CREATE INDEX docs_tags_gin_index ON docs USING GIN (tags)",
+            "DROP INDEX docs_tags_gin_index"
 
-    create constraint(:items, :actor_type_valid,
+    create constraint(:docs, :actor_type_valid,
              check: "actor_type IN ('human', 'agent')"
            )
   end

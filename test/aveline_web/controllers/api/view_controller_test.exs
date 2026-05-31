@@ -14,7 +14,7 @@ defmodule AvelineWeb.Api.ViewControllerTest do
   test "create + show + index + items", %{conn: conn, ws: ws} do
     _ =
       conn
-      |> post(~p"/api/workspaces/#{ws.slug}/items", %{
+      |> post(~p"/api/workspaces/#{ws.slug}/docs", %{
         title: "a",
         slug: "a",
         tags: ["oncall"],
@@ -24,7 +24,7 @@ defmodule AvelineWeb.Api.ViewControllerTest do
 
     _ =
       conn
-      |> post(~p"/api/workspaces/#{ws.slug}/items", %{
+      |> post(~p"/api/workspaces/#{ws.slug}/docs", %{
         title: "b",
         slug: "b",
         tags: ["other"],

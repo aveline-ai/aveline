@@ -2,7 +2,7 @@ defmodule AvelineWeb.ViewShowLive do
   @moduledoc false
   use AvelineWeb, :live_view
 
-  alias Aveline.Items
+  alias Aveline.Docs
   alias Aveline.Views
   alias AvelineWeb.LiveSession
 
@@ -21,7 +21,7 @@ defmodule AvelineWeb.ViewShowLive do
 
           view ->
             items = Views.matching_items(view)
-            all_items = Items.list_current(ws.id)
+            all_items = Docs.list_current(ws.id)
 
             {:ok,
              assign(socket,
@@ -91,7 +91,7 @@ defmodule AvelineWeb.ViewShowLive do
       <% else %>
         <ul class="card-list">
           <li :for={i <- @shown_items}>
-            <.link navigate={~p"/w/#{@workspace.slug}/i/#{i.slug}"} class="card">
+            <.link navigate={~p"/w/#{@workspace.slug}/d/#{i.slug}"} class="card">
               <div class="card-title">
                 <%= if i.pinned do %>
                   <span class="pin" title="Pinned">

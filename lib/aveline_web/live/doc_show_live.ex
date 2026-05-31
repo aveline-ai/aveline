@@ -1,20 +1,20 @@
-defmodule AvelineWeb.ItemShowLive do
+defmodule AvelineWeb.DocShowLive do
   @moduledoc false
   use AvelineWeb, :live_view
 
   alias Aveline.Broadcasts
-  alias Aveline.Items
-  alias Aveline.Messages
+  alias Aveline.Docs
+  alias Aveline.Comments
   alias Aveline.Views
   alias AvelineWeb.LiveSession
 
   @impl true
-  def mount(%{"slug" => slug, "item_slug" => item_slug}, session, socket) do
+  def mount(%{"slug" => slug, "doc_slug" => doc_slug}, session, socket) do
     user = LiveSession.current_user(session)
 
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
-        case Items.get_current_by_slug(ws.id, item_slug) do
+        case Docs.get_current_by_slug(ws.id, doc_slug) do
           nil ->
             {:ok,
              socket
@@ -23,14 +23,14 @@ defmodule AvelineWeb.ItemShowLive do
 
           item ->
             if connected?(socket) do
-              Broadcasts.subscribe(Broadcasts.item_messages_topic(item.base_item_id))
-              Broadcasts.subscribe(Broadcasts.item_topic(item.base_item_id))
+              Broadcasts.subscribe(Broadcasts.doc_comments_topic(item.base_doc_id))
+              Broadcasts.subscribe(Broadcasts.doc_topic(item.base_doc_id))
             end
 
-            related = Items.related_items(item, 5)
-            all_items = Items.list_current(ws.id)
-            messages = Messages.list_for_base_item(item.base_item_id)
-            versions = Items.list_versions(item.base_item_id)
+            related = Docs.related_docs(item, 5)
+            all_items = Docs.list_current(ws.id)
+            messages = Comments.list_for_base_doc(item.base_doc_id)
+            versions = Docs.list_versions(item.base_doc_id)
 
             {:ok,
              assign(socket,
@@ -71,8 +71,8 @@ defmodule AvelineWeb.ItemShowLive do
         {:noreply, socket}
 
       true ->
-        case Messages.create_message(%{
-               "item_id" => item.id,
+        case Comments.create_comment(%{
+               "doc_id" => item.id,
                "body" => body,
                "actor_user_id" => user.id,
                "actor_type" => "human"
@@ -89,8 +89,8 @@ defmodule AvelineWeb.ItemShowLive do
   def handle_event("delete_message", %{"id" => id}, socket) do
     %{current_user: user} = socket.assigns
 
-    with %_{} = msg <- Messages.get_message(id),
-         {:ok, _} <- Messages.soft_delete_message(msg, user && user.id) do
+    with %_{} = msg <- Comments.get_comment(id),
+         {:ok, _} <- Comments.soft_delete_comment(msg, user && user.id) do
       {:noreply, socket}
     else
       _ -> {:noreply, put_flash(socket, :error, "Could not delete.")}
@@ -103,20 +103,20 @@ defmodule AvelineWeb.ItemShowLive do
 
   @impl true
   def handle_info({event, msg}, socket)
-      when event in [:message_created, :message_updated, :message_deleted] do
+      when event in [:comment_created, :comment_updated, :comment_deleted] do
     msgs =
       case event do
-        :message_created -> socket.assigns.messages ++ [msg]
-        :message_updated -> Enum.map(socket.assigns.messages, fn m -> if m.id == msg.id, do: msg, else: m end)
-        :message_deleted -> Enum.reject(socket.assigns.messages, fn m -> m.id == msg.id end)
+        :comment_created -> socket.assigns.messages ++ [msg]
+        :comment_updated -> Enum.map(socket.assigns.messages, fn m -> if m.id == msg.id, do: msg, else: m end)
+        :comment_deleted -> Enum.reject(socket.assigns.messages, fn m -> m.id == msg.id end)
       end
 
     {:noreply, assign(socket, :messages, msgs)}
   end
 
-  def handle_info({:item_updated, item}, socket) do
-    if item.base_item_id == socket.assigns.item.base_item_id do
-      versions = Items.list_versions(item.base_item_id)
+  def handle_info({:doc_updated, item}, socket) do
+    if item.base_doc_id == socket.assigns.item.base_doc_id do
+      versions = Docs.list_versions(item.base_doc_id)
       {:noreply, assign(socket, item: item, topbar_title: item.title, versions: versions)}
     else
       {:noreply, socket}
@@ -240,7 +240,7 @@ defmodule AvelineWeb.ItemShowLive do
           </div>
           <ul class="card-list">
             <li :for={r <- @related}>
-              <.link navigate={~p"/w/#{@workspace.slug}/i/#{r.slug}"} class="card">
+              <.link navigate={~p"/w/#{@workspace.slug}/d/#{r.slug}"} class="card">
                 <div class="card-title">
                   <%= if r.pinned do %>
                     <span class="pin">

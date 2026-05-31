@@ -1,7 +1,7 @@
 defmodule AvelineWeb.Api.ViewJSON do
   @moduledoc false
 
-  alias AvelineWeb.Api.ItemJSON
+  alias AvelineWeb.Api.DocJSON
 
   def index(%{views: views}), do: %{views: Enum.map(views, &one/1)}
   def show(%{view: view}), do: one(view)
@@ -9,7 +9,7 @@ defmodule AvelineWeb.Api.ViewJSON do
   def show_with_items(%{view: view, items: items}) do
     %{
       view: one(view),
-      items: Enum.map(items, &ItemJSON.one/1)
+      items: Enum.map(items, &DocJSON.one/1)
     }
   end
 

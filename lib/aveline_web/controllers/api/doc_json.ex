@@ -1,4 +1,4 @@
-defmodule AvelineWeb.Api.ItemJSON do
+defmodule AvelineWeb.Api.DocJSON do
   @moduledoc false
 
   alias AvelineWeb.Api.UserJSON
@@ -9,7 +9,7 @@ defmodule AvelineWeb.Api.ItemJSON do
   def one(i) do
     %{
       id: i.id,
-      base_item_id: i.base_item_id,
+      base_doc_id: i.base_doc_id,
       version_number: i.version_number,
       slug: i.slug,
       title: i.title,

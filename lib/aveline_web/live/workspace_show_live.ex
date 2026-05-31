@@ -2,7 +2,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
   @moduledoc false
   use AvelineWeb, :live_view
 
-  alias Aveline.Items
+  alias Aveline.Docs
   alias Aveline.Views
   alias AvelineWeb.LiveSession
 
@@ -12,7 +12,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
 
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
-        items = Items.list_current(ws.id)
+        items = Docs.list_current(ws.id)
         pinned_count = Enum.count(items, & &1.pinned)
 
         tag_counts =
@@ -174,7 +174,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
       <% else %>
         <ul class="card-list">
           <li :for={i <- @shown_items}>
-            <.link navigate={~p"/w/#{@workspace.slug}/i/#{i.slug}"} class="card">
+            <.link navigate={~p"/w/#{@workspace.slug}/d/#{i.slug}"} class="card">
               <div class="card-title">
                 <%= if i.pinned do %>
                   <span class="pin" title="Pinned">

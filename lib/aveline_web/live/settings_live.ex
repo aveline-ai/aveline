@@ -7,7 +7,7 @@ defmodule AvelineWeb.SettingsLive do
   use AvelineWeb, :live_view
 
   alias Aveline.Accounts.User
-  alias Aveline.Items
+  alias Aveline.Docs
   alias Aveline.Repo
   alias Aveline.Views
   alias AvelineWeb.LiveSession
@@ -18,7 +18,7 @@ defmodule AvelineWeb.SettingsLive do
 
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
-        items = Items.list_current(ws.id)
+        items = Docs.list_current(ws.id)
 
         {:ok,
          assign(socket,

@@ -37,7 +37,7 @@ defmodule AvelineWeb.Router do
 
     live "/", WorkspaceListLive, :index
     live "/w/:slug", WorkspaceShowLive, :index
-    live "/w/:slug/i/:item_slug", ItemShowLive, :show
+    live "/w/:slug/d/:doc_slug", DocShowLive, :show
     live "/w/:slug/views", ViewListLive, :index
     live "/w/:slug/v/:view_slug", ViewShowLive, :show
     live "/w/:slug/team", TeamLive, :index
@@ -65,19 +65,19 @@ defmodule AvelineWeb.Router do
   scope "/api/workspaces/:workspace_slug", AvelineWeb.Api do
     pipe_through [:api_auth, :workspace_scoped]
 
-    get "/items", ItemController, :index
-    post "/items", ItemController, :create
-    get "/items/:item_slug", ItemController, :show
-    patch "/items/:item_slug", ItemController, :update
-    put "/items/:item_slug", ItemController, :update
-    delete "/items/:item_slug", ItemController, :delete
-    post "/items/:item_slug/restore", ItemController, :restore
+    get "/docs", DocController, :index
+    post "/docs", DocController, :create
+    get "/docs/:doc_slug", DocController, :show
+    patch "/docs/:doc_slug", DocController, :update
+    put "/docs/:doc_slug", DocController, :update
+    delete "/docs/:doc_slug", DocController, :delete
+    post "/docs/:doc_slug/restore", DocController, :restore
 
-    get "/items/:item_slug/messages", MessageController, :index
-    post "/items/:item_slug/messages", MessageController, :create
-    patch "/items/:item_slug/messages/:id", MessageController, :update
-    put "/items/:item_slug/messages/:id", MessageController, :update
-    delete "/items/:item_slug/messages/:id", MessageController, :delete
+    get "/docs/:doc_slug/comments", CommentController, :index
+    post "/docs/:doc_slug/comments", CommentController, :create
+    patch "/docs/:doc_slug/comments/:id", CommentController, :update
+    put "/docs/:doc_slug/comments/:id", CommentController, :update
+    delete "/docs/:doc_slug/comments/:id", CommentController, :delete
 
     get "/views", ViewController, :index
     post "/views", ViewController, :create

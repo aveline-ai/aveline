@@ -8,8 +8,8 @@ defmodule Aveline.ViewsTest do
   test "create and matching_items intersects tags" do
     u = user_fixture()
     ws = workspace_fixture(u)
-    _ = item_fixture(ws, u, %{title: "a", tags: ["oncall", "infra"]})
-    _ = item_fixture(ws, u, %{title: "b", tags: ["oncall"]})
+    _ = doc_fixture(ws, u, %{title: "a", tags: ["oncall", "infra"]})
+    _ = doc_fixture(ws, u, %{title: "b", tags: ["oncall"]})
 
     {:ok, view} =
       Views.create_view(%{

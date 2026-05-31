@@ -1,7 +1,7 @@
-defmodule AvelineWeb.Api.ItemController do
+defmodule AvelineWeb.Api.DocController do
   use AvelineWeb, :controller
 
-  alias Aveline.Items
+  alias Aveline.Docs
   alias Aveline.Views
 
   action_fallback AvelineWeb.Api.FallbackController
@@ -15,22 +15,22 @@ defmodule AvelineWeb.Api.ItemController do
         tags: combined_tags(params, view)
       ]
 
-      items = Items.list_current(ws.id, opts)
+      items = Docs.list_current(ws.id, opts)
 
       conn
-      |> put_view(json: AvelineWeb.Api.ItemJSON)
+      |> put_view(json: AvelineWeb.Api.DocJSON)
       |> render(:index, %{items: items})
     end
   end
 
-  def show(conn, %{"item_slug" => slug}) do
+  def show(conn, %{"doc_slug" => slug}) do
     ws = conn.assigns.current_workspace
 
-    case Items.get_current_by_slug(ws.id, slug) do
+    case Docs.get_current_by_slug(ws.id, slug) do
       nil -> {:error, :not_found}
       item ->
         conn
-        |> put_view(json: AvelineWeb.Api.ItemJSON)
+        |> put_view(json: AvelineWeb.Api.DocJSON)
         |> render(:show, %{item: item})
     end
   end
@@ -66,10 +66,10 @@ defmodule AvelineWeb.Api.ItemController do
       intent: params["intent"]
     }
 
-    with {:ok, item} <- Items.create_item(attrs) do
+    with {:ok, item} <- Docs.create_doc(attrs) do
       conn
       |> put_status(:created)
-      |> put_view(json: AvelineWeb.Api.ItemJSON)
+      |> put_view(json: AvelineWeb.Api.DocJSON)
       |> render(:show, %{item: item})
     end
   end
@@ -87,11 +87,11 @@ defmodule AvelineWeb.Api.ItemController do
       "pinned": false
     }
   """
-  def update(conn, %{"item_slug" => slug} = params) do
+  def update(conn, %{"doc_slug" => slug} = params) do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
 
-    with %_{} = current <- Items.get_current_by_slug(ws.id, slug) || {:error, :not_found} do
+    with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found} do
       ops = params["operations"] || []
       intent = params["intent"]
       resolves = params["resolves_comment_ids"] || []
@@ -107,42 +107,42 @@ defmodule AvelineWeb.Api.ItemController do
         |> maybe_put(:pinned, params["pinned"])
 
       with {:ok, item} <-
-             Items.apply_ops(current, ops, update_attrs,
+             Docs.apply_ops(current, ops, update_attrs,
                intent: intent,
                resolves_comment_ids: resolves
              ) do
         conn
-        |> put_view(json: AvelineWeb.Api.ItemJSON)
+        |> put_view(json: AvelineWeb.Api.DocJSON)
         |> render(:show, %{item: item})
       end
     end
   end
 
-  def delete(conn, %{"item_slug" => slug}) do
+  def delete(conn, %{"doc_slug" => slug}) do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
 
-    with %_{} = current <- Items.get_current_by_slug(ws.id, slug) || {:error, :not_found},
-         {:ok, deleted} <- Items.soft_delete(current, user.id) do
+    with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
+         {:ok, deleted} <- Docs.soft_delete(current, user.id) do
       conn
-      |> put_view(json: AvelineWeb.Api.ItemJSON)
+      |> put_view(json: AvelineWeb.Api.DocJSON)
       |> render(:show, %{item: deleted})
     end
   end
 
-  def restore(conn, %{"item_slug" => slug}) do
+  def restore(conn, %{"doc_slug" => slug}) do
     ws = conn.assigns.current_workspace
 
-    # Find the base_item_id from any version with this slug
+    # Find the base_doc_id from any version with this slug
     case latest_for_slug(ws.id, slug) do
       nil ->
         {:error, :not_found}
 
-      %{base_item_id: base} ->
-        case Items.restore(base) do
+      %{base_doc_id: base} ->
+        case Docs.restore(base) do
           {:ok, item} ->
             conn
-            |> put_view(json: AvelineWeb.Api.ItemJSON)
+            |> put_view(json: AvelineWeb.Api.DocJSON)
             |> render(:show, %{item: item})
 
           {:error, :not_user_deleted} ->
@@ -158,7 +158,7 @@ defmodule AvelineWeb.Api.ItemController do
     import Ecto.Query
 
     Aveline.Repo.one(
-      from i in Aveline.Items.Item,
+      from i in Aveline.Docs.Doc,
         where: i.workspace_id == ^ws_id and i.slug == ^slug,
         order_by: [desc: i.version_number],
         limit: 1

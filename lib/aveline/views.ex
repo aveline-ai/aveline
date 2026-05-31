@@ -6,7 +6,7 @@ defmodule Aveline.Views do
   import Ecto.Query
 
   alias Aveline.Broadcasts
-  alias Aveline.Items
+  alias Aveline.Docs
   alias Aveline.Repo
   alias Aveline.Views.View
 
@@ -138,6 +138,6 @@ defmodule Aveline.Views do
         _ -> []
       end
 
-    Items.list_current(view.workspace_id, Keyword.put(opts, :tags, extra))
+    Docs.list_current(view.workspace_id, Keyword.put(opts, :tags, extra))
   end
 end

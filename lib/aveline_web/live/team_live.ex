@@ -2,7 +2,7 @@ defmodule AvelineWeb.TeamLive do
   @moduledoc false
   use AvelineWeb, :live_view
 
-  alias Aveline.Items
+  alias Aveline.Docs
   alias Aveline.Views
   alias Aveline.Workspaces
   alias AvelineWeb.LiveSession
@@ -18,7 +18,7 @@ defmodule AvelineWeb.TeamLive do
         end
 
         members = Workspaces.list_members(ws.id)
-        items = Items.list_current(ws.id)
+        items = Docs.list_current(ws.id)
         invite = Workspaces.get_active_invite_for_workspace(ws.id)
 
         {:ok,

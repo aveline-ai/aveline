@@ -1,4 +1,4 @@
-defmodule AvelineWeb.Api.MessageJSON do
+defmodule AvelineWeb.Api.CommentJSON do
   @moduledoc false
 
   alias AvelineWeb.Api.UserJSON
@@ -9,7 +9,7 @@ defmodule AvelineWeb.Api.MessageJSON do
   def one(m) do
     %{
       id: m.id,
-      item_id: m.item_id,
+      doc_id: m.doc_id,
       block_id: m.block_id,
       body: m.body,
       actor: %{

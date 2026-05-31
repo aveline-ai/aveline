@@ -4,7 +4,7 @@ defmodule Aveline.Fixtures do
   """
 
   alias Aveline.Accounts
-  alias Aveline.Items
+  alias Aveline.Docs
   alias Aveline.Tokens
   alias Aveline.Views
   alias Aveline.Workspaces
@@ -48,12 +48,12 @@ defmodule Aveline.Fixtures do
     w
   end
 
-  def item_fixture(workspace, user, attrs \\ %{}) do
+  def doc_fixture(workspace, user, attrs \\ %{}) do
     i = unique_int()
     attrs = Enum.into(attrs, %{})
 
     {:ok, item} =
-      Items.create_item(
+      Docs.create_doc(
         %{
           workspace_id: workspace.id,
           owner_id: user.id,

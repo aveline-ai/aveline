@@ -1,10 +1,10 @@
-defmodule Aveline.Items.Item do
+defmodule Aveline.Docs.Doc do
   @moduledoc """
-  A single VERSION of a block-structured note.
+  A single VERSION of a block-structured doc.
 
-  `base_item_id` is the stable logical identifier shared across all versions.
+  `base_doc_id` is the stable logical identifier shared across all versions;
   `id` is per-version. `deleted_at IS NULL` means this row is the current
-  version of its base item.
+  version of its base doc.
   """
   use Aveline.Schema
   import Ecto.Changeset
@@ -20,7 +20,7 @@ defmodule Aveline.Items.Item do
   @derive {Jason.Encoder,
            only: [
              :id,
-             :base_item_id,
+             :base_doc_id,
              :version_number,
              :slug,
              :title,
@@ -36,8 +36,8 @@ defmodule Aveline.Items.Item do
              :updated_at,
              :deleted_at
            ]}
-  schema "items" do
-    field :base_item_id, :binary_id
+  schema "docs" do
+    field :base_doc_id, :binary_id
     field :version_number, :integer
     field :slug, :string
     field :title, :string
@@ -62,10 +62,10 @@ defmodule Aveline.Items.Item do
   def max_tags, do: @max_tags
   def actor_types, do: @actor_types
 
-  def changeset(item, attrs) do
-    item
+  def changeset(doc, attrs) do
+    doc
     |> cast(attrs, [
-      :base_item_id,
+      :base_doc_id,
       :version_number,
       :workspace_id,
       :slug,
@@ -82,7 +82,7 @@ defmodule Aveline.Items.Item do
       :resolves_comment_ids
     ])
     |> validate_required([
-      :base_item_id,
+      :base_doc_id,
       :version_number,
       :workspace_id,
       :slug,
@@ -96,10 +96,10 @@ defmodule Aveline.Items.Item do
     |> validate_slug()
     |> validate_tags()
     |> unique_constraint(:slug,
-      name: :items_workspace_id_slug_active_index,
+      name: :docs_workspace_id_slug_active_index,
       message: "has already been taken"
     )
-    |> unique_constraint([:base_item_id, :version_number])
+    |> unique_constraint([:base_doc_id, :version_number])
   end
 
   defp validate_slug(changeset) do

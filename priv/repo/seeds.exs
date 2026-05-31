@@ -10,8 +10,8 @@
 import Ecto.Query
 
 alias Aveline.Accounts
-alias Aveline.Items
-alias Aveline.Messages
+alias Aveline.Docs
+alias Aveline.Comments
 alias Aveline.Repo
 alias Aveline.Tokens.ApiToken
 alias Aveline.Views
@@ -330,7 +330,7 @@ item_specs = [
       code.("sql", """
       SELECT i.title, i.version_number, i.intent
       FROM items i
-      WHERE i.base_item_id = $1
+      WHERE i.base_doc_id = $1
       ORDER BY i.version_number DESC
       LIMIT 10;
       """ |> String.trim()),
@@ -369,10 +369,10 @@ item_specs = [
 # Create items if they don't already exist (idempotent).
 created_items =
   Enum.map(item_specs, fn spec ->
-    case Items.get_current_by_slug(workspace.id, spec.slug) do
+    case Docs.get_current_by_slug(workspace.id, spec.slug) do
       nil ->
         {:ok, item} =
-          Items.create_item(%{
+          Docs.create_doc(%{
             workspace_id: workspace.id,
             owner_id: spec.owner.id,
             actor_user_id: spec.owner.id,
@@ -403,7 +403,7 @@ if stack && stack.version_number == 1 do
     "type" => "paragraph",
     "content" => [
       %{"text" => "Updated: we now also broadcast every item mutation on PubSub topics like "},
-      %{"text" => "item:<base_item_id>", "marks" => ["code"]},
+      %{"text" => "item:<base_doc_id>", "marks" => ["code"]},
       %{"text" => " so LiveViews update in real time."}
     ],
     "metadata" => %{"content_intent" => "document the pubsub addition"}
@@ -418,7 +418,7 @@ if stack && stack.version_number == 1 do
   ]
 
   {:ok, _v2} =
-    Items.apply_ops(stack, ops, %{actor_user_id: alice.id, actor_type: "agent"},
+    Docs.apply_ops(stack, ops, %{actor_user_id: alice.id, actor_type: "agent"},
       intent: "Mention the new PubSub broadcasts",
       resolves_comment_ids: []
     )
@@ -451,7 +451,7 @@ if oncall && oncall.version_number == 1 do
   ]
 
   {:ok, v2} =
-    Items.apply_ops(oncall, ops_v2, %{actor_user_id: bob.id, actor_type: "agent"},
+    Docs.apply_ops(oncall, ops_v2, %{actor_user_id: bob.id, actor_type: "agent"},
       intent: "Add escalation section after we forgot it last week"
     )
 
@@ -460,7 +460,7 @@ if oncall && oncall.version_number == 1 do
 
   if first_block && first_block["type"] == "heading" do
     {:ok, _v3} =
-      Items.apply_ops(
+      Docs.apply_ops(
         v2,
         [
           %{
@@ -525,7 +525,7 @@ end)
 # Anchored to a specific item version (the CURRENT version at seed time).
 
 current = fn slug ->
-  Items.get_current_by_slug(workspace.id, slug)
+  Docs.get_current_by_slug(workspace.id, slug)
 end
 
 thread_specs = [
@@ -549,9 +549,9 @@ Enum.each(thread_specs, fn spec ->
 
   exists? =
     Repo.exists?(
-      from m in Aveline.Messages.ItemMessage,
+      from m in Aveline.Comments.Comment,
         where:
-          m.item_id == ^item.id and
+          m.doc_id == ^item.id and
             m.actor_user_id == ^author.id and
             m.body == ^spec.body and
             is_nil(m.deleted_at)
@@ -559,8 +559,8 @@ Enum.each(thread_specs, fn spec ->
 
   unless exists? do
     {:ok, _} =
-      Messages.create_message(%{
-        "item_id" => item.id,
+      Comments.create_comment(%{
+        "doc_id" => item.id,
         "body" => spec.body,
         "actor_user_id" => author.id,
         "actor_type" => spec.actor
