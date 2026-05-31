@@ -43,10 +43,17 @@ defmodule AvelineWeb.BlockRenderer do
 
   def block(%{block: %{"type" => "code"}} = assigns) do
     lang = assigns.block["language"] || ""
-    assigns = assign(assigns, lang: lang)
+    code_class = if lang == "", do: "", else: "language-" <> lang
+    assigns = assign(assigns, lang: lang, code_class: code_class)
 
     ~H"""
-    <pre id={@block["id"]} class="blk-code" data-lang={@lang}><code>{@block["content"]}</code></pre>
+    <pre
+      id={@block["id"]}
+      class="blk-code"
+      data-lang={@lang}
+      phx-hook="HighlightCode"
+      phx-update="ignore"
+    ><code class={@code_class}>{@block["content"]}</code></pre>
     """
   end
 

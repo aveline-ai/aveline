@@ -7,6 +7,18 @@ const csrfToken = document
   .getAttribute("content")
 
 const Hooks = {
+  // Syntax-highlight a <pre><code> via Prism (loaded globally in root.html.heex).
+  // `phx-update="ignore"` on the <pre> keeps LV from clobbering Prism's
+  // injected DOM after the initial render.
+  HighlightCode: {
+    mounted() {
+      const code = this.el.querySelector("code")
+      if (code && window.Prism) {
+        window.Prism.highlightElement(code)
+      }
+    },
+  },
+
   // Reset a form when the server pushes the configured event.
   //
   //   <form phx-hook="ResetOnEvent" data-reset-event="reset-form">

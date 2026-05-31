@@ -13,6 +13,16 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
     />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+      window.Prism = window.Prism || {};
+      window.Prism.manual = true;
+    </script>
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}></script>
     <style>
       :root {
@@ -462,6 +472,27 @@
         font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.55;
       }
       .blocks .blk-code { position: relative; padding-top: 28px; }
+      /* Override Prism Tomorrow so our card background + padding wins. */
+      .blocks pre.blk-code[class*="language-"],
+      .blocks pre.blk-code {
+        background: var(--bg-card) !important;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 28px 16px 14px !important;
+        margin: 0;
+        text-shadow: none;
+      }
+      .blocks .blk-code code,
+      .blocks .blk-code code[class*="language-"] {
+        background: none !important;
+        padding: 0 !important;
+        border: none !important;
+        text-shadow: none;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 12.5px;
+        line-height: 1.55;
+        color: var(--text);
+      }
       .blocks .blk-code::before {
         content: attr(data-lang);
         position: absolute;
