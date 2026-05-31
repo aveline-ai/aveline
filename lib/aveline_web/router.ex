@@ -30,6 +30,7 @@ defmodule AvelineWeb.Router do
 
     live "/signup", SignupLive, :index
     live "/login", LoginLive, :index
+    live "/invite/:code", InviteLive, :index
     get "/login/:token", SessionController, :create
     post "/login", SessionController, :create
     get "/logout", SessionController, :delete
@@ -40,6 +41,7 @@ defmodule AvelineWeb.Router do
     live "/w/:slug/views", ViewListLive, :index
     live "/w/:slug/v/:view_slug", ViewShowLive, :show
     live "/w/:slug/team", TeamLive, :index
+    live "/settings", SettingsLive, :index
   end
 
   # ===== Open API =====

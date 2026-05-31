@@ -19,6 +19,7 @@ defmodule AvelineWeb.TeamLive do
 
         members = Workspaces.list_members(ws.id)
         items = Items.list_current(ws.id)
+        invite = Workspaces.get_active_invite_for_workspace(ws.id)
 
         {:ok,
          assign(socket,
@@ -33,9 +34,7 @@ defmodule AvelineWeb.TeamLive do
            nav_active: :team,
            members: members,
            member_count: length(members),
-           invite_username: "",
-           invite_error: nil,
-           invite_flash: nil
+           invite: invite
          )}
 
       :not_found ->
@@ -47,42 +46,42 @@ defmodule AvelineWeb.TeamLive do
   end
 
   @impl true
-  def handle_event("update_invite", %{"username" => v}, socket) do
-    {:noreply, assign(socket, invite_username: v, invite_error: nil)}
+  def handle_event("create_invite", _, socket) do
+    %{workspace: ws, current_user: user} = socket.assigns
+
+    case Workspaces.ensure_invite(ws.id, user.id) do
+      {:ok, invite} -> {:noreply, assign(socket, :invite, invite)}
+      _ -> {:noreply, put_flash(socket, :error, "Could not create invite link.")}
+    end
   end
 
-  def handle_event("invite", %{"username" => raw}, socket) do
-    username = raw |> to_string() |> String.trim() |> String.downcase()
-    ws = socket.assigns.workspace
+  def handle_event("rotate_invite", _, socket) do
+    %{workspace: ws, current_user: user} = socket.assigns
 
-    cond do
-      username == "" ->
-        {:noreply, assign(socket, invite_error: "Enter a username.")}
+    case Workspaces.rotate_invite(ws.id, user.id) do
+      {:ok, invite} ->
+        {:noreply,
+         socket
+         |> assign(:invite, invite)
+         |> put_flash(:info, "Rotated. Old link no longer works.")}
 
-      true ->
-        case Workspaces.add_member_by_username(ws.id, username) do
-          {:ok, _, user} ->
-            members = Workspaces.list_members(ws.id)
+      _ ->
+        {:noreply, put_flash(socket, :error, "Could not rotate.")}
+    end
+  end
 
-            {:noreply,
-             assign(socket,
-               members: members,
-               member_count: length(members),
-               invite_username: "",
-               invite_error: nil,
-               invite_flash: "Added #{user.username}."
-             )}
+  def handle_event("revoke_invite", _, socket) do
+    %{invite: invite, current_user: user} = socket.assigns
 
-          {:error, :user_not_found} ->
-            {:noreply,
-             assign(socket,
-               invite_error:
-                 "No user with that username. They need to sign up first at /signup."
-             )}
+    case invite && Workspaces.revoke_invite(invite, user.id) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(:invite, nil)
+         |> put_flash(:info, "Invite link revoked.")}
 
-          {:error, _} ->
-            {:noreply, assign(socket, invite_error: "Could not add member.")}
-        end
+      _ ->
+        {:noreply, socket}
     end
   end
 
@@ -90,7 +89,7 @@ defmodule AvelineWeb.TeamLive do
     ws = socket.assigns.workspace
 
     if uid == socket.assigns.current_user.id do
-      {:noreply, assign(socket, invite_error: "You can't remove yourself.")}
+      {:noreply, put_flash(socket, :error, "You can't remove yourself.")}
     else
       case Workspaces.remove_member(ws.id, uid) do
         {:ok, _} ->
@@ -98,7 +97,7 @@ defmodule AvelineWeb.TeamLive do
           {:noreply, assign(socket, members: members, member_count: length(members))}
 
         {:error, _} ->
-          {:noreply, assign(socket, invite_error: "Could not remove member.")}
+          {:noreply, put_flash(socket, :error, "Could not remove member.")}
       end
     end
   end
@@ -111,20 +110,24 @@ defmodule AvelineWeb.TeamLive do
 
   def handle_info(_other, socket), do: {:noreply, socket}
 
+  defp invite_url(code) do
+    base = AvelineWeb.Endpoint.url()
+    base <> "/invite/" <> code
+  rescue
+    _ -> "/invite/" <> code
+  end
+
   @impl true
   def render(assigns) do
+    invite_full = if assigns[:invite], do: invite_url(assigns.invite.code), else: nil
+    assigns = assign(assigns, invite_full: invite_full)
+
     ~H"""
     <div class="container">
       <h1 class="page-title">Team</h1>
       <p class="page-subtitle">
         Everyone who can read + comment in <span class="mono">{@workspace.slug}</span>.
       </p>
-
-      <%= if @invite_flash do %>
-        <div class="banner" style="border-color:rgba(74,222,128,0.30);color:#4ADE80">
-          {@invite_flash}
-        </div>
-      <% end %>
 
       <div class="section-label">
         Members <span class="count">{@member_count}</span>
@@ -169,34 +172,53 @@ defmodule AvelineWeb.TeamLive do
         </li>
       </ul>
 
-      <div class="section-label" style="margin-top:32px">Invite</div>
+      <div class="section-label" style="margin-top:32px">Invite link</div>
 
-      <form phx-submit="invite" phx-change="update_invite" class="auth-form" style="max-width:420px">
-        <label class="auth-label" for="invite-username">Username</label>
-        <input
-          type="text"
-          name="username"
-          id="invite-username"
-          value={@invite_username}
-          autocomplete="off"
-          autocapitalize="none"
-          autocorrect="off"
-          spellcheck="false"
-          placeholder="e.g. trevor"
-          class={"auth-input " <> if @invite_error, do: "auth-input-error", else: ""}
-          phx-debounce="200"
-        />
-        <div class="auth-hint">
-          Add an existing user by their username. They'll see this workspace immediately.
+      <%= if @invite do %>
+        <div class="invite-block">
+          <p class="auth-hint" style="margin-bottom:10px">
+            Anyone with this link can join <strong>{@workspace.name}</strong>. New users get a signup screen; existing users join with one click.
+          </p>
+          <div class="invite-url-row">
+            <code id="invite-url-value" class="invite-url">{@invite_full}</code>
+            <button
+              type="button"
+              id="copy-invite-btn"
+              class="auth-secondary"
+              phx-hook="CopyToken"
+              data-target="#invite-url-value"
+              style="height:36px;padding:0 14px"
+            >
+              Copy
+            </button>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button
+              phx-click="rotate_invite"
+              data-confirm="Rotate the invite link? The current link will stop working."
+              class="auth-secondary"
+              style="height:32px;padding:0 12px;font-size:12px"
+            >
+              Rotate
+            </button>
+            <button
+              phx-click="revoke_invite"
+              data-confirm="Revoke the invite link entirely?"
+              class="auth-secondary"
+              style="height:32px;padding:0 12px;font-size:12px;color:var(--danger);border-color:rgba(229,72,77,0.3)"
+            >
+              Revoke
+            </button>
+          </div>
         </div>
-        <%= if @invite_error do %>
-          <div class="auth-error">{@invite_error}</div>
-        <% end %>
-
-        <button type="submit" class="auth-submit" style="max-width:140px" disabled={@invite_username == ""}>
-          Add to workspace
-        </button>
-      </form>
+      <% else %>
+        <div class="banner">
+          No active invite link.
+          <button phx-click="create_invite" class="auth-link" style="background:none;border:none;cursor:pointer;padding:0;margin-left:6px">
+            Generate one
+          </button>
+        </div>
+      <% end %>
     </div>
     """
   end

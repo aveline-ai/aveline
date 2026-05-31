@@ -70,6 +70,7 @@ defmodule Aveline.Accounts do
   """
   def signup(attrs) when is_map(attrs) do
     normalized = normalize_signup_attrs(attrs)
+    invite_code = Map.get(attrs, :invite_code) || Map.get(attrs, "invite_code")
 
     Multi.new()
     |> Multi.insert(:user, User.changeset(%User{}, normalized))
@@ -85,6 +86,25 @@ defmodule Aveline.Accounts do
     |> Multi.run(:membership, fn _repo, %{user: user, workspace: ws} ->
       Workspaces.ensure_member(ws.id, user.id)
     end)
+    |> Multi.run(:invite_join, fn _repo, %{user: user} ->
+      case invite_code do
+        nil ->
+          {:ok, nil}
+
+        "" ->
+          {:ok, nil}
+
+        code when is_binary(code) ->
+          case Workspaces.get_active_invite_by_code(code) do
+            nil ->
+              {:ok, nil}
+
+            invite ->
+              {:ok, _} = Workspaces.ensure_member(invite.workspace_id, user.id)
+              {:ok, invite.workspace}
+          end
+      end
+    end)
     |> Multi.run(:token, fn _repo, %{user: user} ->
       case Tokens.mint(user.id, "initial signup token") do
         {:ok, _t, plaintext} -> {:ok, plaintext}
@@ -93,8 +113,8 @@ defmodule Aveline.Accounts do
     end)
     |> Repo.transaction()
     |> case do
-      {:ok, %{user: user, workspace: ws, token: plaintext}} ->
-        {:ok, %{user: user, workspace: ws, token: plaintext}}
+      {:ok, %{user: user, workspace: ws, invite_join: joined, token: plaintext}} ->
+        {:ok, %{user: user, workspace: ws, joined_workspace: joined, token: plaintext}}
 
       {:error, _step, %Ecto.Changeset{} = cs, _changes} ->
         {:error, cs}

@@ -38,17 +38,6 @@
             <span class="count">{@pinned_count}</span>
           <% end %>
         </.link>
-        <.link
-          navigate={~p"/w/#{@workspace.slug}/team"}
-          class={"sidebar-item " <> if assigns[:nav_active] == :team, do: "active", else: ""}
-        >
-          <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="6" cy="6" r="2.2" />
-            <circle cx="11" cy="6.5" r="1.7" />
-            <path d="M2.5 13c0-2 1.7-3.2 3.5-3.2s3.5 1.2 3.5 3.2M9.7 13c0-1.4 1.2-2.4 2.7-2.4s2.6 1 2.6 2.4" stroke-linecap="round" />
-          </svg>
-          <span class="label">Team</span>
-        </.link>
       </div>
 
       <%= if (assigns[:personal_views] || []) != [] do %>
@@ -92,6 +81,30 @@
       </div>
 
       <div class="sidebar-spacer"></div>
+
+      <div class="sidebar-section sidebar-section-bottom">
+        <.link
+          navigate={~p"/w/#{@workspace.slug}/team"}
+          class={"sidebar-item " <> if assigns[:nav_active] == :team, do: "active", else: ""}
+        >
+          <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="6" cy="6" r="2.2" />
+            <circle cx="11" cy="6.5" r="1.7" />
+            <path d="M2.5 13c0-2 1.7-3.2 3.5-3.2s3.5 1.2 3.5 3.2M9.7 13c0-1.4 1.2-2.4 2.7-2.4s2.6 1 2.6 2.4" stroke-linecap="round" />
+          </svg>
+          <span class="label">Team</span>
+        </.link>
+        <.link
+          navigate={~p"/settings"}
+          class={"sidebar-item " <> if assigns[:nav_active] == :settings, do: "active", else: ""}
+        >
+          <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="8" cy="8" r="2.2" />
+            <path d="M8 1.5v2.4M8 12.1v2.4M14.5 8h-2.4M3.9 8H1.5M12.6 3.4l-1.7 1.7M5.1 10.9l-1.7 1.7M12.6 12.6l-1.7-1.7M5.1 5.1L3.4 3.4" stroke-linecap="round" />
+          </svg>
+          <span class="label">Settings</span>
+        </.link>
+      </div>
 
       <%= if assigns[:current_user] do %>
         <div class="sidebar-footer">

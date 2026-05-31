@@ -161,4 +161,85 @@ defmodule Aveline.Workspaces do
   defp broadcast_member(workspace_id, event, payload) do
     PubSub.broadcast(Aveline.PubSub, members_topic(workspace_id), {event, payload})
   end
+
+  # ===== Invites =====
+
+  alias Aveline.Workspaces.Invite
+
+  @invite_prefix "inv_"
+
+  def mint_invite_code do
+    rand = :crypto.strong_rand_bytes(16) |> Base.url_encode64(padding: false)
+    @invite_prefix <> binary_part(rand, 0, 22)
+  end
+
+  def get_active_invite_for_workspace(workspace_id) when is_binary(workspace_id) do
+    Repo.one(
+      from i in Invite,
+        where: i.workspace_id == ^workspace_id and is_nil(i.revoked_at)
+    )
+  end
+
+  def get_active_invite_by_code(code) when is_binary(code) do
+    Repo.one(
+      from i in Invite,
+        where: i.code == ^code and is_nil(i.revoked_at),
+        preload: [:workspace, :created_by]
+    )
+  end
+
+  def get_active_invite_by_code(_), do: nil
+
+  @doc """
+  Get or create the active invite for the workspace. Idempotent.
+  """
+  def ensure_invite(workspace_id, created_by_id) do
+    case get_active_invite_for_workspace(workspace_id) do
+      %Invite{} = invite ->
+        {:ok, invite}
+
+      nil ->
+        %Invite{}
+        |> Invite.changeset(%{
+          workspace_id: workspace_id,
+          code: mint_invite_code(),
+          created_by_id: created_by_id
+        })
+        |> Repo.insert()
+    end
+  end
+
+  @doc """
+  Rotate: revoke the existing active invite (if any) and mint a fresh one.
+  Old links stop working immediately.
+  """
+  def rotate_invite(workspace_id, user_id) do
+    Repo.transaction(fn ->
+      case get_active_invite_for_workspace(workspace_id) do
+        nil -> :ok
+        %Invite{} = i ->
+          {:ok, _} =
+            i
+            |> Ecto.Changeset.change(%{revoked_at: DateTime.utc_now(), revoked_by_id: user_id})
+            |> Repo.update()
+      end
+
+      {:ok, fresh} =
+        %Invite{}
+        |> Invite.changeset(%{
+          workspace_id: workspace_id,
+          code: mint_invite_code(),
+          created_by_id: user_id
+        })
+        |> Repo.insert()
+
+      fresh
+    end)
+  end
+
+  def revoke_invite(%Invite{} = invite, user_id) do
+    invite
+    |> Ecto.Changeset.change(%{revoked_at: DateTime.utc_now(), revoked_by_id: user_id})
+    |> Repo.update()
+  end
 end
