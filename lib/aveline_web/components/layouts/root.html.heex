@@ -461,13 +461,16 @@
         padding: 14px 16px; overflow-x: auto;
         font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.55;
       }
+      .blocks .blk-code { position: relative; padding-top: 28px; }
       .blocks .blk-code::before {
         content: attr(data-lang);
-        display: inline-block;
+        position: absolute;
+        top: 8px; left: 16px;
         font-size: 10.5px; text-transform: uppercase;
         letter-spacing: 0.08em; color: var(--text-muted);
-        margin-bottom: 8px;
+        font-family: 'Inter', sans-serif;
       }
+      .blocks .blk-code[data-lang=""] { padding-top: 14px; }
       .blocks .blk-code[data-lang=""]::before { content: none; }
       .blocks .blk-table-wrap { overflow-x: auto; }
       .blocks .blk-table {
