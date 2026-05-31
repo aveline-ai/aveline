@@ -5,9 +5,11 @@ defmodule Aveline.Workspaces do
 
   import Ecto.Query
 
+  alias Aveline.Accounts
   alias Aveline.Repo
   alias Aveline.Workspaces.Membership
   alias Aveline.Workspaces.Workspace
+  alias Phoenix.PubSub
 
   @doc """
   Base query — excludes soft-deleted workspaces.
@@ -104,15 +106,59 @@ defmodule Aveline.Workspaces do
   def list_members(workspace_id) do
     from(m in Membership,
       where: m.workspace_id == ^workspace_id,
+      order_by: [asc: m.inserted_at],
       preload: [:user]
     )
     |> Repo.all()
   end
 
+  @doc """
+  Add a workspace member by username. Returns
+    * `{:ok, %Membership{}, %User{}}` on success (or if already a member — idempotent)
+    * `{:error, :user_not_found}` if no user with that username exists
+    * `{:error, changeset}` on validation failure
+  """
+  def add_member_by_username(workspace_id, username) when is_binary(username) do
+    username = username |> String.trim() |> String.downcase()
+
+    case Accounts.get_user_by_username(username) do
+      nil ->
+        {:error, :user_not_found}
+
+      user ->
+        with {:ok, membership} <- ensure_member(workspace_id, user.id) do
+          broadcast_member(workspace_id, :member_added, %{
+            membership: membership,
+            user: user
+          })
+
+          {:ok, membership, user}
+        end
+    end
+  end
+
+  def add_member_by_username(_, _), do: {:error, :user_not_found}
+
   def remove_member(workspace_id, user_id) do
     case get_membership(workspace_id, user_id) do
-      nil -> {:error, :not_found}
-      m -> Repo.delete(m)
+      nil ->
+        {:error, :not_found}
+
+      m ->
+        case Repo.delete(m) do
+          {:ok, deleted} ->
+            broadcast_member(workspace_id, :member_removed, %{user_id: user_id})
+            {:ok, deleted}
+
+          err ->
+            err
+        end
     end
+  end
+
+  def members_topic(workspace_id), do: "workspace:" <> workspace_id <> ":members"
+
+  defp broadcast_member(workspace_id, event, payload) do
+    PubSub.broadcast(Aveline.PubSub, members_topic(workspace_id), {event, payload})
   end
 end

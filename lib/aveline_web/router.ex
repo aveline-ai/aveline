@@ -39,6 +39,7 @@ defmodule AvelineWeb.Router do
     live "/w/:slug/i/:item_slug", ItemShowLive, :show
     live "/w/:slug/views", ViewListLive, :index
     live "/w/:slug/v/:view_slug", ViewShowLive, :show
+    live "/w/:slug/team", TeamLive, :index
   end
 
   # ===== Open API =====
