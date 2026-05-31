@@ -1,8 +1,8 @@
 defmodule AvelineWeb.SettingsLive do
   @moduledoc """
-  User settings. v0 only allows editing the display name — username is
-  used in personal-workspace slugs so we leave it alone until we have a
-  rename-with-slug-redirect story.
+  User settings, scoped to a workspace URL so the sidebar follows you in
+  from wherever you were. The settings themselves are global (per-user);
+  the workspace in the URL is only used to keep the sidebar context.
   """
   use AvelineWeb, :live_view
 
@@ -10,52 +10,37 @@ defmodule AvelineWeb.SettingsLive do
   alias Aveline.Items
   alias Aveline.Repo
   alias Aveline.Views
-  alias Aveline.Workspaces
   alias AvelineWeb.LiveSession
 
   @impl true
-  def mount(_params, session, socket) do
-    case LiveSession.current_user(session) do
-      nil ->
-        {:ok, socket |> put_flash(:error, "Sign in first.") |> push_navigate(to: ~p"/login")}
+  def mount(%{"slug" => slug}, session, socket) do
+    user = LiveSession.current_user(session)
 
-      user ->
-        # Reuse the sidebar by picking the user's first workspace as context.
-        # Settings itself is global — `nav_active: :settings` highlights it.
-        workspaces = Workspaces.list_for_user(user.id)
-        primary = List.first(workspaces)
-
-        layout_assigns =
-          case primary do
-            nil ->
-              %{}
-
-            ws ->
-              items = Items.list_current(ws.id)
-
-              %{
-                workspace: ws,
-                personal_views: Views.list_personal_views(ws.id, user.id),
-                team_views: Views.list_team_views(ws.id),
-                total_count: length(items),
-                pinned_count: Enum.count(items, & &1.pinned),
-                topbar_title: "Settings",
-                nav_active: :settings
-              }
-          end
+    case LiveSession.fetch_workspace_for_user(slug, user) do
+      {:ok, ws} ->
+        items = Items.list_current(ws.id)
 
         {:ok,
          assign(socket,
-           Map.merge(
-             %{
-               page_title: "Aveline · Settings",
-               current_user: user,
-               display_name: user.display_name || "",
-               saved: false,
-               error: nil
-             },
-             layout_assigns
-           ))}
+           page_title: "Aveline · Settings",
+           current_user: user,
+           workspace: ws,
+           personal_views: Views.list_personal_views(ws.id, user.id),
+           team_views: Views.list_team_views(ws.id),
+           total_count: length(items),
+           pinned_count: Enum.count(items, & &1.pinned),
+           topbar_title: "Settings",
+           nav_active: :settings,
+           display_name: user.display_name || "",
+           saved: false,
+           error: nil
+         )}
+
+      :not_found ->
+        {:ok, socket |> put_flash(:error, "Workspace not found.") |> push_navigate(to: ~p"/")}
+
+      :forbidden ->
+        {:ok, socket |> put_flash(:error, "Forbidden.") |> push_navigate(to: ~p"/")}
     end
   end
 
@@ -69,13 +54,17 @@ defmodule AvelineWeb.SettingsLive do
     new_name = raw |> to_string() |> String.trim()
     next_name = if new_name == "", do: nil, else: new_name
 
-    changeset =
-      User.changeset(user, %{"display_name" => next_name})
+    changeset = User.changeset(user, %{"display_name" => next_name})
 
     case Repo.update(changeset) do
       {:ok, updated} ->
         {:noreply,
-         assign(socket, current_user: updated, display_name: next_name || "", saved: true, error: nil)}
+         assign(socket,
+           current_user: updated,
+           display_name: next_name || "",
+           saved: true,
+           error: nil
+         )}
 
       {:error, cs} ->
         {:noreply, assign(socket, error: format_error(cs))}
