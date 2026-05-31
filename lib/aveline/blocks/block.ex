@@ -1,0 +1,249 @@
+defmodule Aveline.Blocks.Block do
+  @moduledoc """
+  Block validation + normalization.
+
+  Blocks live inside `items.blocks` (jsonb). This module is pure — no Repo,
+  no Ecto. Given a map (typically decoded from a JSON request body), it
+  returns `{:ok, normalized}` (string keys, deterministic field order) or
+  `{:error, reason}`.
+
+  v0 block types:
+    * `heading`   — `%{type, level (1-3), text}` (plain text, no inline)
+    * `paragraph` — `%{type, content: [<inline span>]}`
+    * `code`      — `%{type, language: string|null, content: string}`
+    * `list`      — `%{type, ordered: bool, items: [%{id, content: [<inline>]}]}`
+    * `table`     — `%{type, headers: [string], rows: [[ [<inline>] ]]}`
+  Every block has an `id` (`b_<22>` for blocks, `li_<22>` for list items)
+  and an optional `metadata` map (free-form jsonb).
+  """
+
+  alias Aveline.Blocks.Id
+  alias Aveline.Blocks.Inline
+
+  @types ~w(heading paragraph code list table)
+
+  @doc "Returns the list of supported block types."
+  def types, do: @types
+
+  @doc """
+  Validate and normalize a block. Mints an `id` if one isn't supplied (only
+  for internal callers — the API/CLI surface always lets the server mint).
+
+  Returns `{:ok, normalized}` or `{:error, reason_string}`.
+  """
+  def validate(block, opts \\ [])
+
+  def validate(%{} = block, opts) do
+    mint_id? = Keyword.get(opts, :mint_id?, false)
+
+    with {:ok, type} <- validate_type(block),
+         {:ok, id} <- validate_or_mint_id(block, mint_id?),
+         {:ok, metadata} <- validate_metadata(block),
+         {:ok, type_fields} <- validate_type_fields(type, block) do
+      out =
+        %{"id" => id, "type" => type}
+        |> Map.merge(type_fields)
+        |> maybe_put_metadata(metadata)
+
+      {:ok, out}
+    end
+  end
+
+  def validate(_, _), do: {:error, "block must be an object"}
+
+  @doc """
+  Validate a partial patch (used by `modify_block`). Only fields present in
+  the patch are validated; the rest are left untouched on apply. `type` and
+  `id` cannot be changed by a patch.
+  """
+  def validate_patch(existing_block, %{} = patch) do
+    type = Map.fetch!(existing_block, "type")
+
+    cond do
+      Map.has_key?(patch, "type") and patch["type"] != type ->
+        {:error, "cannot change block type via modify_block; delete + insert instead"}
+
+      Map.has_key?(patch, "id") ->
+        {:error, "cannot change block id via modify_block"}
+
+      true ->
+        # Build a synthetic full block (existing merged with patch) and revalidate.
+        merged = Map.merge(existing_block, Map.delete(patch, "type"))
+
+        case validate(merged) do
+          {:ok, normalized} -> {:ok, normalized}
+          err -> err
+        end
+    end
+  end
+
+  # ===== Internal: type-specific validators =====
+
+  defp validate_type(%{"type" => t}) when t in @types, do: {:ok, t}
+
+  defp validate_type(%{"type" => t}) when is_binary(t),
+    do: {:error, "unknown block type #{inspect(t)}; expected one of #{inspect(@types)}"}
+
+  defp validate_type(_), do: {:error, "block.type required"}
+
+  defp validate_or_mint_id(%{"id" => id}, _) when is_binary(id) do
+    if Id.valid_block_id?(id),
+      do: {:ok, id},
+      else: {:error, "block.id must start with b_"}
+  end
+
+  defp validate_or_mint_id(%{}, true), do: {:ok, Id.mint_block()}
+  defp validate_or_mint_id(%{}, false), do: {:error, "block.id required"}
+
+  defp validate_metadata(%{"metadata" => m}) when is_map(m), do: {:ok, m}
+  defp validate_metadata(%{"metadata" => nil}), do: {:ok, nil}
+  defp validate_metadata(%{"metadata" => _}), do: {:error, "block.metadata must be an object"}
+  defp validate_metadata(%{}), do: {:ok, nil}
+
+  defp maybe_put_metadata(map, nil), do: map
+  defp maybe_put_metadata(map, m) when m == %{}, do: map
+  defp maybe_put_metadata(map, m), do: Map.put(map, "metadata", m)
+
+  # heading
+  defp validate_type_fields("heading", %{"level" => level, "text" => text})
+       when level in [1, 2, 3] and is_binary(text) do
+    {:ok, %{"level" => level, "text" => text}}
+  end
+
+  defp validate_type_fields("heading", _) do
+    {:error, "heading requires level (1-3) and text (string)"}
+  end
+
+  # paragraph
+  defp validate_type_fields("paragraph", %{"content" => content}) do
+    case Inline.validate_spans(content) do
+      {:ok, normalized} -> {:ok, %{"content" => normalized}}
+      err -> err
+    end
+  end
+
+  defp validate_type_fields("paragraph", _) do
+    {:error, "paragraph requires content (list of inline spans)"}
+  end
+
+  # code
+  defp validate_type_fields("code", %{"content" => content} = block) when is_binary(content) do
+    lang =
+      case Map.get(block, "language") do
+        nil -> nil
+        "" -> nil
+        s when is_binary(s) -> s
+        _ -> :error
+      end
+
+    if lang == :error do
+      {:error, "code.language must be a string or null"}
+    else
+      out =
+        %{"content" => content}
+        |> then(fn m -> if lang, do: Map.put(m, "language", lang), else: Map.put(m, "language", nil) end)
+
+      {:ok, out}
+    end
+  end
+
+  defp validate_type_fields("code", _) do
+    {:error, "code requires content (string)"}
+  end
+
+  # list
+  defp validate_type_fields("list", %{"items" => items} = block) when is_list(items) do
+    ordered = Map.get(block, "ordered", false)
+
+    if not is_boolean(ordered) do
+      {:error, "list.ordered must be a boolean"}
+    else
+      case validate_list_items(items) do
+        {:ok, normalized} -> {:ok, %{"ordered" => ordered, "items" => normalized}}
+        err -> err
+      end
+    end
+  end
+
+  defp validate_type_fields("list", _), do: {:error, "list requires items (list)"}
+
+  # table
+  defp validate_type_fields("table", %{"headers" => headers, "rows" => rows})
+       when is_list(headers) and is_list(rows) do
+    cond do
+      Enum.any?(headers, fn h -> not is_binary(h) end) ->
+        {:error, "table.headers must be a list of strings"}
+
+      Enum.any?(rows, fn r -> not is_list(r) end) ->
+        {:error, "table.rows must be a list of lists of cells"}
+
+      Enum.any?(rows, fn r -> length(r) != length(headers) end) ->
+        {:error, "every table row must have the same length as headers"}
+
+      true ->
+        case validate_table_rows(rows) do
+          {:ok, normalized} -> {:ok, %{"headers" => headers, "rows" => normalized}}
+          err -> err
+        end
+    end
+  end
+
+  defp validate_type_fields("table", _) do
+    {:error, "table requires headers (list of strings) and rows (list of cell lists)"}
+  end
+
+  # ===== Helpers (placed after all validate_type_fields clauses so the
+  # compiler doesn't complain about non-contiguous clause grouping) =====
+
+  defp validate_list_items(items) do
+    Enum.reduce_while(items, {:ok, []}, fn raw_item, {:ok, acc} ->
+      case validate_list_item(raw_item) do
+        {:ok, normalized} -> {:cont, {:ok, acc ++ [normalized]}}
+        err -> {:halt, err}
+      end
+    end)
+  end
+
+  defp validate_list_item(%{"content" => content} = item) do
+    id =
+      case Map.get(item, "id") do
+        nil -> Id.mint_list_item()
+        existing when is_binary(existing) -> existing
+        _ -> :error
+      end
+
+    cond do
+      id == :error ->
+        {:error, "list item id must be a string"}
+
+      is_binary(id) and not Aveline.Blocks.Id.valid_list_item_id?(id) ->
+        {:error, "list item id must start with li_"}
+
+      true ->
+        case Inline.validate_spans(content) do
+          {:ok, normalized} -> {:ok, %{"id" => id, "content" => normalized}}
+          err -> err
+        end
+    end
+  end
+
+  defp validate_list_item(_), do: {:error, "list item must be %{content: [...]}"}
+
+  defp validate_table_rows(rows) do
+    Enum.reduce_while(rows, {:ok, []}, fn row, {:ok, acc} ->
+      case validate_table_row(row) do
+        {:ok, normalized} -> {:cont, {:ok, acc ++ [normalized]}}
+        err -> {:halt, err}
+      end
+    end)
+  end
+
+  defp validate_table_row(row) when is_list(row) do
+    Enum.reduce_while(row, {:ok, []}, fn cell, {:ok, acc} ->
+      case Inline.validate_spans(cell) do
+        {:ok, normalized} -> {:cont, {:ok, acc ++ [normalized]}}
+        err -> {:halt, err}
+      end
+    end)
+  end
+end
