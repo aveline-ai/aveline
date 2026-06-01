@@ -249,58 +249,75 @@ defmodule AvelineWeb.SignupLive do
     assigns = assign(assigns, user: user, workspace: ws, plaintext: plaintext)
 
     ~H"""
-    <div class="auth-shell" id="show-token-shell" phx-hook="UnsavedTokenGuard">
+    <div class="auth-shell">
       <div class="auth-card auth-card-wide">
         <div class="auth-brand auth-brand-hero">
           <span class="nav-brand-mark" style="width:36px;height:36px">A</span>
           <span class="auth-brand-name" style="font-size:26px">aveline</span>
         </div>
-        <h1 class="auth-title">Save your API key</h1>
+
+        <h1 class="auth-title">You're in, {@user.username}</h1>
         <p class="auth-subtitle">
-          Hi <strong>{@user.username}</strong> — this is the only time you'll see
-          this. We store the hash, not the plaintext, so there's no recovery.
-          Stash it in 1Password now.
+          Two quick things to get the most out of Aveline.
         </p>
 
-        <div class="token-field">
-          <input
-            type="text"
-            id="token-value"
-            class="token-field-input"
-            value={@plaintext}
-            readonly
-            onfocus="this.select()"
-          />
-          <button
-            type="button"
-            id="copy-token-btn"
-            class="token-field-copy"
-            phx-hook="CopyToken"
-            data-target="#token-value"
-            title="Copy"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="9" y="9" width="12" height="12" rx="2" />
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-            </svg>
-            <span class="token-field-copy-label">Copy</span>
-          </button>
+        <div class="onboarding-step">
+          <div class="onboarding-step-num">1</div>
+          <div class="onboarding-step-body">
+            <div class="onboarding-step-title">Install the CLI</div>
+            <p class="onboarding-step-desc">
+              Download the latest binary for your OS, then run <code>aveline login</code>
+              with the API key you just saved.
+            </p>
+            <a
+              href="https://github.com/aveline-ai/cli/releases/latest"
+              target="_blank"
+              rel="noopener"
+              class="auth-secondary"
+              style="display:inline-flex;align-items:center;gap:6px;padding:0 14px;height:34px;text-decoration:none"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+              Open releases
+            </a>
+          </div>
         </div>
 
-        <form action={~p"/login"} method="post" id="continue-form" style="margin-top:16px">
+        <div class="onboarding-step">
+          <div class="onboarding-step-num">2</div>
+          <div class="onboarding-step-body">
+            <div class="onboarding-step-title">Tell Claude about Aveline</div>
+            <p class="onboarding-step-desc">
+              Paste this into your project's <code>CLAUDE.md</code> (or
+              <code>~/.claude/CLAUDE.md</code> for a global rule). Claude will
+              know to read + write from the wiki via the CLI.
+            </p>
+            <div class="snippet">
+              <pre><code id="claude-snippet">Our team uses Aveline as a shared wiki for team knowledge — a Notion replacement designed to be read and written by AI agents. Use the `aveline` CLI to interact with it (`aveline --help` for the full verb set; common verbs: `list`, `get`, `save`, `edit`, `reply`).</code></pre>
+              <button
+                type="button"
+                id="claude-snippet-copy"
+                class="snippet-copy"
+                phx-hook="CopyToken"
+                data-target="#claude-snippet"
+                title="Copy"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="12" height="12" rx="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                <span class="token-field-copy-label">Copy</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <form action={~p"/login"} method="post" id="continue-form" style="margin-top:8px">
           <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
           <input type="hidden" name="token" value={@plaintext} />
-          <button id="continue-btn" type="submit" class="auth-submit" disabled>
-            I saved it — continue
+          <button id="continue-btn" type="submit" class="auth-submit">
+            Continue into {@workspace.name}
           </button>
         </form>
-
-        <div class="auth-divider"></div>
-
-        <div class="auth-cli-hint">
-          <div class="auth-cli-hint-title">Use this in the CLI</div>
-          <pre class="auth-cli-block">{"aveline login\n# paste the token when prompted"}</pre>
-        </div>
       </div>
     </div>
     """
