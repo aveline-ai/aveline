@@ -24,24 +24,45 @@ defmodule Aveline.Tokens do
   end
 
   @doc """
-  Mint a new token for the given user.
-
-  Returns `{:ok, %ApiToken{}, plaintext}` on success.
+  Mint a new token for the given user. Returns
+  `{:ok, %ApiToken{}, plaintext}` on success.
   """
   def mint(user_id, name) when is_binary(user_id) and is_binary(name) do
-    plaintext = generate_plaintext()
+    mint_with(generate_plaintext(), user_id, name)
+  end
 
-    attrs = %{
-      user_id: user_id,
-      name: name,
-      token_hash: hash(plaintext),
-      token_prefix: String.slice(plaintext, 0, 8)
-    }
+  @doc """
+  Like `mint/2` but takes a pre-generated plaintext (e.g. the signup form
+  shows the token to the user *before* they submit, so the same plaintext
+  needs to land in the DB on submit).
+  """
+  def mint_with(plaintext, user_id, name)
+      when is_binary(plaintext) and is_binary(user_id) and is_binary(name) do
+    if valid_plaintext_shape?(plaintext) do
+      attrs = %{
+        user_id: user_id,
+        name: name,
+        token_hash: hash(plaintext),
+        token_prefix: String.slice(plaintext, 0, 8)
+      }
 
-    case %ApiToken{} |> ApiToken.changeset(attrs) |> Repo.insert() do
-      {:ok, token} -> {:ok, token, plaintext}
-      {:error, _} = err -> err
+      case %ApiToken{} |> ApiToken.changeset(attrs) |> Repo.insert() do
+        {:ok, token} -> {:ok, token, plaintext}
+        {:error, _} = err -> err
+      end
+    else
+      {:error, :invalid_plaintext}
     end
+  end
+
+  @doc "Generate a fresh plaintext token without persisting it."
+  def generate_plaintext do
+    rand = :crypto.strong_rand_bytes(@random_bytes) |> Base.url_encode64(padding: false)
+    @prefix <> String.slice(rand, 0, 32)
+  end
+
+  defp valid_plaintext_shape?(p) when is_binary(p) do
+    String.starts_with?(p, @prefix) and byte_size(p) == byte_size(@prefix) + 32
   end
 
   @doc """
@@ -91,11 +112,6 @@ defmodule Aveline.Tokens do
   end
 
   # ===== Internals =====
-
-  defp generate_plaintext do
-    rand = :crypto.strong_rand_bytes(@random_bytes) |> Base.url_encode64(padding: false)
-    @prefix <> String.slice(rand, 0, 32)
-  end
 
   defp hash(plaintext) do
     :crypto.hash(:sha256, plaintext) |> Base.encode16(case: :lower)

@@ -14,6 +14,7 @@ defmodule AvelineWeb.SignupLive do
 
   alias Aveline.Accounts
   alias Aveline.Slug
+  alias Aveline.Tokens
 
   @impl true
   def mount(_params, session, socket) do
@@ -43,13 +44,11 @@ defmodule AvelineWeb.SignupLive do
        workspace_name: "",
        error: nil,
        result: nil,
-       fake_token: mint_fake_token()
+       # Pre-generate the real token on mount so the user sees their actual
+       # API key in the form. We only persist (hash) it when they submit.
+       preview_token: Tokens.generate_plaintext()
      )}
   end
-
-  # A static dotted placeholder that looks like an API key without
-  # being mistaken for one. Same shape as `avl_<32 chars>`.
-  defp mint_fake_token, do: "avl_" <> String.duplicate("•", 32)
 
   @impl true
   def handle_event("validate", params, socket) do
@@ -96,7 +95,8 @@ defmodule AvelineWeb.SignupLive do
       true ->
         case Accounts.signup(%{
                "username" => username,
-               "workspace_name" => workspace_name
+               "workspace_name" => workspace_name,
+               "plaintext_token" => socket.assigns.preview_token
              }) do
           {:ok, %{user: user, workspace: ws, token: plaintext}} ->
             {:noreply,
@@ -203,9 +203,32 @@ defmodule AvelineWeb.SignupLive do
           </div>
 
           <label class="auth-label" style="margin-top:18px">Your API key</label>
-          <div class="token-preview">{@fake_token}</div>
+          <div class="token-field">
+            <input
+              type="text"
+              id="preview-token-value"
+              class="token-field-input"
+              value={@preview_token}
+              readonly
+              onfocus="this.select()"
+            />
+            <button
+              type="button"
+              id="preview-copy-btn"
+              class="token-field-copy"
+              phx-hook="CopyToken"
+              data-target="#preview-token-value"
+              title="Copy"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="12" height="12" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              <span class="token-field-copy-label">Copy</span>
+            </button>
+          </div>
           <div class="auth-hint">
-            Generated when you sign up — save it like a password. (CLI uses this too.)
+            This is yours — save it like a password. We save the hash only when you sign up.
           </div>
 
           <button type="submit" class="auth-submit" disabled={not @can_submit}>

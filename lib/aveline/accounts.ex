@@ -123,7 +123,16 @@ defmodule Aveline.Accounts do
       end
     end)
     |> Multi.run(:token, fn _repo, %{user: user} ->
-      case Tokens.mint(user.id, "initial signup token") do
+      preset = Map.get(attrs, :plaintext_token) || Map.get(attrs, "plaintext_token")
+
+      result =
+        if is_binary(preset) and preset != "" do
+          Tokens.mint_with(preset, user.id, "initial signup token")
+        else
+          Tokens.mint(user.id, "initial signup token")
+        end
+
+      case result do
         {:ok, _t, plaintext} -> {:ok, plaintext}
         other -> other
       end
