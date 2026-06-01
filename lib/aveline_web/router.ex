@@ -31,6 +31,7 @@ defmodule AvelineWeb.Router do
     live "/signup", SignupLive, :index
     live "/login", LoginLive, :index
     live "/invite/:code", InviteLive, :index
+    live "/new-workspace", WorkspaceNewLive, :new
     get "/login/:token", SessionController, :create
     post "/login", SessionController, :create
     get "/logout", SessionController, :delete
