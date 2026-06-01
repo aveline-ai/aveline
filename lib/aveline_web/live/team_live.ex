@@ -26,6 +26,7 @@ defmodule AvelineWeb.TeamLive do
            page_title: "Aveline · Team · #{ws.name}",
            current_user: user,
            workspace: ws,
+           sidebar_workspaces: Workspaces.list_for_user(user.id),
            personal_views: Views.list_personal_views(ws.id, user.id),
            team_views: Views.list_team_views(ws.id),
            total_count: length(items),

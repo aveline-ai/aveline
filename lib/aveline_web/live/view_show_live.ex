@@ -4,6 +4,7 @@ defmodule AvelineWeb.ViewShowLive do
 
   alias Aveline.Docs
   alias Aveline.Views
+  alias Aveline.Workspaces
   alias AvelineWeb.LiveSession
 
   @impl true
@@ -28,7 +29,8 @@ defmodule AvelineWeb.ViewShowLive do
                page_title: "Aveline · View · #{view.name}",
                current_user: user,
                workspace: ws,
-               personal_views: Views.list_personal_views(ws.id, user.id),
+               sidebar_workspaces: Workspaces.list_for_user(user.id),
+           personal_views: Views.list_personal_views(ws.id, user.id),
                team_views: Views.list_team_views(ws.id),
                total_count: length(all_items),
                pinned_count: Enum.count(all_items, & &1.pinned),

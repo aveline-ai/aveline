@@ -83,15 +83,70 @@
         position: sticky; top: 0;
         overflow-y: auto;
       }
+      /* ===== Workspace switcher (uses <details> for native click-away) ===== */
+      .workspace-switcher { position: relative; }
+      .workspace-switcher > summary {
+        list-style: none;
+        cursor: pointer;
+        user-select: none;
+      }
+      .workspace-switcher > summary::-webkit-details-marker { display: none; }
       .sidebar-header {
         display: flex; align-items: center; gap: 8px;
         padding: 6px 8px 10px;
         margin-bottom: 4px;
+        border-radius: 6px;
+        transition: background 0.08s ease;
       }
+      .workspace-switcher > summary:hover .sidebar-header { background: rgba(255,255,255,0.03); }
+      .workspace-switcher[open] > summary .sidebar-header { background: rgba(255,255,255,0.05); }
       .sidebar-workspace {
         flex: 1; min-width: 0;
         font-weight: 500; font-size: 13px;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .sidebar-header-chev {
+        width: 12px; height: 12px;
+        color: var(--text-muted);
+        flex-shrink: 0;
+        transition: transform 0.12s ease;
+      }
+      .workspace-switcher[open] .sidebar-header-chev { transform: rotate(180deg); }
+
+      .switcher-menu {
+        position: absolute;
+        top: calc(100% + 4px); left: 0;
+        width: calc(100% + 0px);
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-strong);
+        border-radius: 6px;
+        padding: 4px;
+        box-shadow: 0 10px 24px rgba(0,0,0,0.5);
+        z-index: 20;
+      }
+      .switcher-label {
+        padding: 6px 8px 4px;
+        font-size: 10.5px; font-weight: 500;
+        text-transform: uppercase; letter-spacing: 0.06em;
+        color: var(--text-muted);
+      }
+      .switcher-item {
+        display: flex; align-items: center; gap: 8px;
+        padding: 6px 8px; border-radius: 5px;
+        font-size: 13px; color: var(--text-secondary);
+        line-height: 18px;
+      }
+      .switcher-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+      .switcher-item.current { color: var(--text); }
+      .switcher-item .check {
+        margin-left: auto;
+        color: var(--accent);
+        font-size: 12px;
+      }
+      .switcher-item-meta { font-size: 11px; color: var(--text-muted); }
+      .switcher-divider {
+        height: 1px; background: var(--border);
+        margin: 4px -4px;
       }
       .sidebar-section { margin-bottom: 4px; }
       .sidebar-label {

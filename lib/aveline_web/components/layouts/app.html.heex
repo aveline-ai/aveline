@@ -7,10 +7,35 @@
 <%= if assigns[:workspace] do %>
   <div class="shell-sidebar">
     <aside class="sidebar">
-      <div class="sidebar-header">
-        <.link navigate={~p"/"} class="nav-brand-mark" title="Aveline">A</.link>
-        <div class="sidebar-workspace" title={@workspace.name}>{@workspace.name}</div>
-      </div>
+      <details class="workspace-switcher">
+        <summary>
+          <div class="sidebar-header">
+            <span class="nav-brand-mark" title="Aveline">A</span>
+            <div class="sidebar-workspace" title={@workspace.name}>{@workspace.name}</div>
+            <svg class="sidebar-header-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 6l4 4 4-4" />
+            </svg>
+          </div>
+        </summary>
+        <div class="switcher-menu">
+          <div class="switcher-label">Workspaces</div>
+          <%= for w <- (assigns[:sidebar_workspaces] || []) do %>
+            <.link
+              navigate={~p"/w/#{w.slug}"}
+              class={"switcher-item " <> if w.id == @workspace.id, do: "current", else: ""}
+            >
+              <span>{w.name}</span>
+              <%= if w.id == @workspace.id do %>
+                <span class="check">✓</span>
+              <% end %>
+            </.link>
+          <% end %>
+          <div class="switcher-divider"></div>
+          <.link navigate={~p"/"} class="switcher-item">
+            <span class="switcher-item-meta">All workspaces…</span>
+          </.link>
+        </div>
+      </details>
 
       <div class="sidebar-section">
         <.link
