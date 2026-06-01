@@ -94,7 +94,7 @@ defmodule AvelineWeb.WorkspaceNewLive do
           <span class="auth-brand-name">aveline</span>
         </div>
 
-        <form phx-change="validate" phx-submit="submit">
+        <form phx-change="validate" phx-submit="submit" class="auth-form">
           <input
             type="text"
             name="name"
