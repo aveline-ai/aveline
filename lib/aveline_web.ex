@@ -10,7 +10,8 @@ defmodule AvelineWeb do
       use AvelineWeb, :live_view
   """
 
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
+  def static_paths,
+    do: ~w(assets fonts images favicon.ico favicon.svg favicon.png favicon-32.png favicon-180.png logo.svg robots.txt)
 
   def router do
     quote do

@@ -1,0 +1,18 @@
+<svg width="248" height="56" viewBox="0 0 248 56" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Aveline">
+  <defs>
+    <clipPath id="mark">
+      <rect x="4" y="4" width="48" height="48" rx="12" />
+    </clipPath>
+  </defs>
+  <!-- the mark: a rectangle split where human and agent meet -->
+  <g clip-path="url(#mark)">
+    <rect x="0" y="0" width="28" height="56" fill="#ffffff" />
+    <rect x="28" y="0" width="28" height="56" fill="#08080a" />
+    <rect x="26.9" y="0" width="2.2" height="56" fill="#6ee7b7" opacity="0.9" />
+    <circle cx="15" cy="28" r="6" fill="#1a1410" />
+    <rect x="38.5" y="17" width="6" height="22" rx="3" fill="#6ee7b7" />
+  </g>
+  <rect x="4" y="4" width="48" height="48" rx="12" fill="none" stroke="#1a1410" stroke-opacity="0.12" />
+  <!-- wordmark -->
+  <text x="68" y="37" font-family="Fraunces, Georgia, 'Times New Roman', serif" font-size="30" font-weight="500" letter-spacing="-0.5" fill="#1a1410">Aveline</text>
+</svg>

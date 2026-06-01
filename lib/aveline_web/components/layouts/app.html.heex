@@ -9,7 +9,10 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <.link navigate={~p"/"} class="nav-brand-mark" title="Aveline">A</.link>
-        <div class="sidebar-workspace" title={@workspace.name}>{@workspace.name}</div>
+        <div class="sidebar-workspace" title={@workspace.name}>
+          <span class="brand-wordmark" style="font-size:14px;display:block;line-height:1">aveline</span>
+          <span style="font-size:11px;color:var(--text-muted);display:block;margin-top:2px;line-height:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{@workspace.name}</span>
+        </div>
       </div>
 
       <div class="sidebar-section">
@@ -140,7 +143,7 @@
     <nav class="nav">
       <.link navigate={~p"/"} class="nav-brand">
         <span class="nav-brand-mark">A</span>
-        <span>aveline</span>
+        <span class="brand-wordmark">aveline</span>
       </.link>
       <div class="nav-spacer"></div>
       <%= if assigns[:current_user] do %>

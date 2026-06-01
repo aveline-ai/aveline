@@ -7,11 +7,14 @@
     <.live_title default="Aveline">
       {assigns[:page_title]}
     </.live_title>
+    <link rel="icon" type="image/svg+xml" href={~p"/favicon.svg"} />
+    <link rel="icon" type="image/png" sizes="32x32" href={~p"/favicon-32.png"} />
+    <link rel="apple-touch-icon" href={~p"/favicon-180.png"} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap"
     />
     <link
       rel="stylesheet"
@@ -200,10 +203,19 @@
         font-weight: 600; font-size: 14px; letter-spacing: -0.01em;
       }
       .nav-brand-mark {
-        width: 18px; height: 18px; border-radius: 5px;
-        background: linear-gradient(135deg, var(--accent) 0%, #5E59C6 100%);
-        display: flex; align-items: center; justify-content: center;
-        font-size: 11px; font-weight: 700; color: white;
+        width: 22px; height: 22px;
+        background-image: url("/favicon.svg");
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        flex-shrink: 0;
+        /* Hide any text inside (the literal "A" letter we still pass for
+           backwards compat with old templates) — only the SVG shows. */
+        font-size: 0; color: transparent;
+      }
+      .brand-wordmark {
+        font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
+        font-weight: 500; letter-spacing: -0.01em;
       }
       .nav-sep { color: var(--text-muted); font-size: 12px; }
       .nav-crumb {
@@ -783,7 +795,10 @@
         display: flex; align-items: center; gap: 8px;
         margin-bottom: 28px;
       }
-      .auth-brand-name { font-weight: 600; font-size: 14px; letter-spacing: -0.01em; }
+      .auth-brand-name {
+        font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
+        font-weight: 500; font-size: 18px; letter-spacing: -0.01em;
+      }
       .auth-title {
         font-size: 22px; font-weight: 600; letter-spacing: -0.015em;
         margin-bottom: 6px;
