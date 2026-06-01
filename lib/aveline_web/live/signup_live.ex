@@ -102,17 +102,17 @@ defmodule AvelineWeb.SignupLive do
 
   @impl true
   def render(%{state: :form} = assigns) do
+    trimmed = String.trim(assigns.username || "")
+    slug_preview = if trimmed != "", do: String.downcase(trimmed), else: nil
+    assigns = assign(assigns, slug_preview: slug_preview)
+
     ~H"""
     <div class="auth-shell">
-      <div class="auth-card">
-        <div class="auth-brand">
-          <span class="nav-brand-mark">A</span>
-          <span class="auth-brand-name">aveline</span>
+      <div class="auth-card auth-card-spare">
+        <div class="auth-brand auth-brand-hero">
+          <span class="nav-brand-mark" style="width:36px;height:36px">A</span>
+          <span class="auth-brand-name" style="font-size:26px">aveline</span>
         </div>
-        <h1 class="auth-title">Create an account</h1>
-        <p class="auth-subtitle">
-          Pick a username. You'll get an API key — that's your password.
-        </p>
 
         <form phx-change="validate" phx-submit="submit" class="auth-form">
           <label class="auth-label" for="username">Username</label>
@@ -125,15 +125,18 @@ defmodule AvelineWeb.SignupLive do
             autocapitalize="none"
             autocorrect="off"
             spellcheck="false"
-            placeholder="e.g. arie"
-            class={"auth-input " <> if @error, do: "auth-input-error", else: ""}
+            placeholder="arie"
+            class={"auth-input auth-input-hero " <> if @error, do: "auth-input-error", else: ""}
             phx-debounce="250"
             autofocus
           />
-          <div class="auth-hint">Lowercase letters, digits, and hyphens. 2–60 chars.</div>
-          <%= if @error do %>
-            <div class="auth-error">{@error}</div>
-          <% end %>
+          <div class="auth-hint" style="min-height:18px">
+            <%= if @error do %>
+              <span class="auth-error" style="margin:0">{@error}</span>
+            <% else %>
+              aveline.ai/w/<code>{@slug_preview || ""}</code>
+            <% end %>
+          </div>
 
           <button
             type="submit"
