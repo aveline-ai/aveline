@@ -1,5 +1,12 @@
 defmodule AvelineWeb.WorkspaceListLive do
-  @moduledoc false
+  @moduledoc """
+  `/` lands users on a workspace. Most people have one (their Personal),
+  so we just push_navigate there. Signed-out visitors see the auth
+  landing. If a user somehow has zero workspaces, the no-workspaces
+  state is rendered.
+
+  Future: prefer the most recently visited workspace (cookie / DB).
+  """
   use AvelineWeb, :live_view
 
   alias Aveline.Workspaces
@@ -9,18 +16,24 @@ defmodule AvelineWeb.WorkspaceListLive do
   def mount(_params, session, socket) do
     user = LiveSession.current_user(session)
 
-    workspaces =
-      case user do
-        nil -> []
-        u -> Workspaces.list_for_user(u.id)
-      end
+    cond do
+      is_nil(user) ->
+        {:ok, assign(socket, page_title: "Aveline", current_user: nil, no_workspaces: false)}
 
-    {:ok,
-     assign(socket,
-       page_title: "Aveline · Workspaces",
-       current_user: user,
-       workspaces: workspaces
-     )}
+      true ->
+        case Workspaces.list_for_user(user.id) do
+          [%{slug: slug} | _] ->
+            {:ok, push_navigate(socket, to: ~p"/w/#{slug}")}
+
+          [] ->
+            {:ok,
+             assign(socket,
+               page_title: "Aveline",
+               current_user: user,
+               no_workspaces: true
+             )}
+        end
+    end
   end
 
   @impl true
@@ -28,7 +41,7 @@ defmodule AvelineWeb.WorkspaceListLive do
     if is_nil(assigns.current_user) do
       render_signed_out(assigns)
     else
-      render_signed_in(assigns)
+      render_no_workspaces(assigns)
     end
   end
 
@@ -59,26 +72,23 @@ defmodule AvelineWeb.WorkspaceListLive do
     """
   end
 
-  defp render_signed_in(assigns) do
+  defp render_no_workspaces(assigns) do
     ~H"""
-    <div class="container-narrow">
-      <h1 class="page-title">Workspaces</h1>
-      <p class="page-subtitle">Pick one to get started.</p>
-
-      <%= if @workspaces == [] do %>
-        <div class="empty">No workspaces yet.</div>
-      <% else %>
-        <ul class="card-list">
-          <li :for={w <- @workspaces}>
-            <.link navigate={~p"/w/#{w.slug}"} class="card">
-              <div class="card-title">{w.name}</div>
-              <div class="card-meta">
-                <span class="card-slug">{w.slug}</span>
-              </div>
-            </.link>
-          </li>
-        </ul>
-      <% end %>
+    <div class="auth-shell">
+      <div class="auth-card">
+        <div class="auth-brand">
+          <span class="nav-brand-mark">A</span>
+          <span class="auth-brand-name">aveline</span>
+        </div>
+        <h1 class="auth-title">No workspaces</h1>
+        <p class="auth-subtitle">
+          You're signed in as <strong>{@current_user.username}</strong> but aren't a
+          member of any workspace. Ask someone to share an invite link.
+        </p>
+        <.link navigate={~p"/logout"} class="auth-secondary" style="display:flex;align-items:center;justify-content:center;text-decoration:none;margin-top:8px">
+          Log out
+        </.link>
+      </div>
     </div>
     """
   end
