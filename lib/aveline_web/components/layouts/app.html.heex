@@ -112,12 +112,6 @@
       <%= if assigns[:current_user] do %>
         <div class="sidebar-footer">
           <div class="sidebar-user">
-            <span
-              class="avatar-sm"
-              style={"background:hsl(#{avatar_hue(@current_user.username)},65%,18%);color:hsl(#{avatar_hue(@current_user.username)},75%,75%)"}
-            >
-              {initial(@current_user.username)}
-            </span>
             <span class="name">{@current_user.username}</span>
             <a href={~p"/logout"}>log out</a>
           </div>
@@ -148,9 +142,6 @@
       <div class="nav-spacer"></div>
       <%= if assigns[:current_user] do %>
         <div class="nav-user">
-          <span class="avatar" style={"background:hsl(#{avatar_hue(@current_user.username)},65%,18%);color:hsl(#{avatar_hue(@current_user.username)},75%,75%)"}>
-            {initial(@current_user.username)}
-          </span>
           <span>{@current_user.username}</span>
           <span class="nav-sep">·</span>
           <a href={~p"/logout"}>log out</a>

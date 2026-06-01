@@ -123,17 +123,10 @@ defmodule AvelineWeb.DocShowLive do
 
   def handle_info(_other, socket), do: {:noreply, socket}
 
-  defp actor_icon("human"), do: "👤"
-  defp actor_icon("agent"), do: "🤖"
-  defp actor_icon(_), do: ""
-
   defp message_actor(%{actor_user: %Ecto.Association.NotLoaded{}}), do: nil
   defp message_actor(%{actor_user: a}), do: a
   defp message_actor(_), do: nil
 
-  defp owner(%{owner: %Ecto.Association.NotLoaded{}}), do: nil
-  defp owner(%{owner: o}), do: o
-  defp owner(_), do: nil
 
   @impl true
   def render(assigns) do
@@ -163,18 +156,13 @@ defmodule AvelineWeb.DocShowLive do
           <% end %>
 
           <div class="article-meta">
-            <%= if owner(@item) do %>
-              <span class="article-meta-item">
-                <span
-                  class="avatar-sm"
-                  style={"background:hsl(#{avatar_hue(owner(@item).username)},65%,18%);color:hsl(#{avatar_hue(owner(@item).username)},75%,75%)"}
-                >
-                  {initial(owner(@item).username)}
-                </span>
-                <span class="article-meta-val">{owner(@item).username}</span>
+            <span class="article-meta-item">
+              <AvelineWeb.Icons.actor type={@item.actor_type} class="actor-icon" title={@item.actor_type} />
+              <span class="article-meta-val">
+                {if @item.actor_user, do: @item.actor_user.username, else: "?"}
               </span>
-              <span class="card-meta-dot">·</span>
-            <% end %>
+            </span>
+            <span class="card-meta-dot">·</span>
             <span class="article-meta-item" title={absolute_time(@item.updated_at)}>
               <span class="article-meta-val">v{@item.version_number} · {relative_time(@item.updated_at)}</span>
             </span>
@@ -208,7 +196,8 @@ defmodule AvelineWeb.DocShowLive do
                   <span class="version-num">v{v.version_number}</span>
                   <%= if v.actor_user do %>
                     <span class="version-actor">
-                      {actor_icon(v.actor_type)} {v.actor_user.username}
+                      <AvelineWeb.Icons.actor type={v.actor_type} class="actor-icon" />
+                      {v.actor_user.username}
                     </span>
                   <% end %>
                   <span title={absolute_time(v.inserted_at)}>{relative_time(v.inserted_at)}</span>
@@ -247,24 +236,12 @@ defmodule AvelineWeb.DocShowLive do
           <% else %>
             <ol class="thread-list">
               <li :for={m <- @messages} class="thread-message" id={"m-#{m.id}"}>
-                <div class="thread-avatar">
-                  <%= if message_actor(m) do %>
-                    <span
-                      class="avatar-sm"
-                      style={"background:hsl(#{avatar_hue(message_actor(m).username)},65%,18%);color:hsl(#{avatar_hue(message_actor(m).username)},75%,75%)"}
-                    >
-                      {initial(message_actor(m).username)}
-                    </span>
-                  <% else %>
-                    <span class="avatar-sm">?</span>
-                  <% end %>
-                </div>
                 <div class="thread-body">
                   <div class="thread-meta">
+                    <AvelineWeb.Icons.actor type={m.actor_type} class="actor-icon" title={m.actor_type} />
                     <span class="thread-author">
                       {if message_actor(m), do: message_actor(m).username, else: "?"}
                     </span>
-                    <span class="actor-badge" title={m.actor_type}>{actor_icon(m.actor_type)}</span>
                     <span class="card-meta-dot">·</span>
                     <span title={absolute_time(m.inserted_at)}>{relative_time(m.inserted_at)}</span>
                     <%= if m.edited_at do %>

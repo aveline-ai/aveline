@@ -300,13 +300,14 @@
       .card-slug { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); }
       .card-meta-dot { color: var(--text-muted); opacity: 0.5; }
 
-      /* ===== Avatar ===== */
-      .avatar-sm {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 18px; height: 18px; border-radius: 50%;
-        font-size: 10px; font-weight: 600;
-        color: var(--text); flex-shrink: 0;
+      /* ===== Actor icon (human / agent) ===== */
+      .actor-icon {
+        width: 14px; height: 14px;
+        color: var(--text-muted);
+        flex-shrink: 0;
+        display: inline-block; vertical-align: -2px;
       }
+      .actor-icon-sm { width: 12px; height: 12px; }
       .owner-chip {
         display: inline-flex; align-items: center; gap: 6px;
         color: var(--text-secondary); font-size: 12px;
@@ -704,15 +705,17 @@
         display: flex; flex-direction: column; gap: 14px;
       }
       .thread-message {
-        display: flex; gap: 10px;
-        padding: 4px;
+        padding: 4px 4px 10px;
       }
-      .thread-avatar { flex-shrink: 0; padding-top: 1px; }
-      .thread-body { flex: 1; min-width: 0; }
+      .thread-body { min-width: 0; }
       .thread-meta {
         display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
         font-size: 11.5px; color: var(--text-muted);
         margin-bottom: 4px;
+      }
+      .thread-meta .actor-icon {
+        vertical-align: 0;
+        margin-right: 2px;
       }
       .thread-author { color: var(--text); font-weight: 500; font-size: 13px; }
       .thread-edited, .thread-via { font-style: italic; }

@@ -136,12 +136,6 @@ defmodule AvelineWeb.TeamLive do
       <ul class="card-list">
         <li :for={m <- @members} class="card team-row">
           <div class="team-row-left">
-            <span
-              class="avatar"
-              style={"width:32px;height:32px;font-size:13px;background:hsl(#{avatar_hue(m.user.username)},65%,18%);color:hsl(#{avatar_hue(m.user.username)},75%,75%)"}
-            >
-              {initial(m.user.username)}
-            </span>
             <div>
               <div class="team-row-name">
                 {m.user.username}

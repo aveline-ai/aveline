@@ -106,15 +106,10 @@ defmodule AvelineWeb.ViewShowLive do
                 <div class="card-summary">{i.summary}</div>
               <% end %>
               <div class="card-meta">
-                <%= if i.owner do %>
-                  <span class="owner-chip">
-                    <span
-                      class="avatar-sm"
-                      style={"background:hsl(#{avatar_hue(i.owner.username)},65%,18%);color:hsl(#{avatar_hue(i.owner.username)},75%,75%)"}
-                    >
-                      {initial(i.owner.username)}
-                    </span>
-                    {i.owner.username}
+                <%= if i.actor_user do %>
+                  <span style="display:inline-flex;align-items:center;gap:5px">
+                    <AvelineWeb.Icons.actor type={i.actor_type} class="actor-icon" title={i.actor_type} />
+                    {i.actor_user.username}
                   </span>
                   <span class="card-meta-dot">·</span>
                 <% end %>
