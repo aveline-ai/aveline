@@ -52,20 +52,16 @@ defmodule AvelineWeb.SignupLive do
 
   @impl true
   def handle_event("validate", params, socket) do
-    {username, username_err} = check_username(params["username"] || "")
-    workspace_name = (params["workspace_name"] || "") |> to_string()
-
-    error =
-      cond do
-        username_err != nil -> username_err
-        true -> nil
-      end
+    # Pure input capture — no validation messages until submit. Any prior
+    # error clears once the user starts editing again.
+    username = params["username"] |> to_string() |> String.trim() |> String.downcase()
+    workspace_name = params["workspace_name"] |> to_string()
 
     {:noreply,
      assign(socket,
        username: username,
        workspace_name: workspace_name,
-       error: error
+       error: nil
      )}
   end
 
@@ -114,6 +110,15 @@ defmodule AvelineWeb.SignupLive do
     end
   end
 
+  def handle_event("submit_blocked", %{"reason" => "not_copied"}, socket) do
+    {:noreply,
+     assign(socket,
+       error: "Copy the API key first — you won't be able to see it again after sign up."
+     )}
+  end
+
+  def handle_event("submit_blocked", _, socket), do: {:noreply, socket}
+
   defp check_username(raw) do
     username =
       raw
@@ -149,13 +154,10 @@ defmodule AvelineWeb.SignupLive do
   @impl true
   def render(%{state: :form} = assigns) do
     trimmed_username = String.trim(assigns.username || "")
-    workspace_slug = if assigns.workspace_name != "", do: Slug.derive(assigns.workspace_name), else: nil
 
     assigns =
       assign(assigns,
-        username_slug: if(trimmed_username != "", do: String.downcase(trimmed_username), else: nil),
-        workspace_slug: workspace_slug,
-        can_submit: trimmed_username != "" and String.trim(assigns.workspace_name) != "" and assigns.error == nil
+        can_submit: trimmed_username != "" and String.trim(assigns.workspace_name) != ""
       )
 
     ~H"""
@@ -185,7 +187,7 @@ defmodule AvelineWeb.SignupLive do
             autocorrect="off"
             spellcheck="false"
             placeholder="arie"
-            class={"auth-input auth-input-hero " <> if @error, do: "auth-input-error", else: ""}
+            class="auth-input auth-input-hero"
             phx-debounce="250"
             autofocus
           />
@@ -201,13 +203,6 @@ defmodule AvelineWeb.SignupLive do
             class="auth-input auth-input-hero"
             phx-debounce="250"
           />
-          <div class="auth-hint" style="min-height:18px">
-            <%= if @error do %>
-              <span class="auth-error" style="margin:0">{@error}</span>
-            <% else %>
-              aveline.ai/w/<code>{@workspace_slug || ""}</code>
-            <% end %>
-          </div>
 
           <label class="auth-label" style="margin-top:18px">Your API key</label>
           <div class="token-field">
@@ -241,6 +236,10 @@ defmodule AvelineWeb.SignupLive do
           <button type="submit" class="auth-submit" disabled={not @can_submit}>
             Sign up
           </button>
+
+          <%= if @error do %>
+            <div class="auth-error" style="margin-top:14px;text-align:center">{@error}</div>
+          <% end %>
         </form>
 
         <div class="auth-footer">

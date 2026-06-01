@@ -125,21 +125,17 @@ const Hooks = {
   },
 
   // Guards a form submit: if the user hasn't copied a target (via our
-  // Copy button OR via native Ctrl/Cmd+C on the input), confirm before
-  // allowing submit. Runs in the capture phase so it fires before
-  // LiveView's submit handler, and uses stopImmediatePropagation to
-  // cancel cleanly if the user backs out.
+  // Copy button OR via native Ctrl/Cmd+C on the input), block submit
+  // and push a `submit_blocked` event to the LV so it can render an
+  // inline error. Runs in the capture phase + stopImmediatePropagation
+  // so LV's own submit handler doesn't fire.
   //
-  //   <form phx-hook="RequireCopy" data-target="#preview-token-value"
-  //         data-message="You haven't copied your API key…">
+  //   <form phx-hook="RequireCopy" data-target="#preview-token-value" />
   RequireCopy: {
     mounted() {
       this.copied = false
       const targetSel = this.el.dataset.target
       const target = targetSel ? document.querySelector(targetSel) : null
-      const message =
-        this.el.dataset.message ||
-        "You haven't copied your API key yet — once you submit you won't see it again. Continue anyway?"
 
       this.onCopied = () => { this.copied = true }
       window.addEventListener("phx:token-copied", this.onCopied)
@@ -151,13 +147,9 @@ const Hooks = {
 
       this.onSubmit = (e) => {
         if (this.copied) return
-        const ok = window.confirm(message)
-        if (!ok) {
-          e.preventDefault()
-          e.stopImmediatePropagation()
-        } else {
-          this.copied = true
-        }
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        this.pushEvent("submit_blocked", { reason: "not_copied" })
       }
       this.el.addEventListener("submit", this.onSubmit, true)
     },
