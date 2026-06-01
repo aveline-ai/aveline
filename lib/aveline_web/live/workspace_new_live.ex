@@ -82,44 +82,40 @@ defmodule AvelineWeb.WorkspaceNewLive do
 
   @impl true
   def render(assigns) do
+    trimmed = String.trim(assigns.name)
+    slug_preview = if trimmed != "", do: Slug.derive(trimmed), else: nil
+    assigns = assign(assigns, slug_preview: slug_preview, trimmed: trimmed)
+
     ~H"""
     <div class="auth-shell">
-      <div class="auth-card">
-        <div class="auth-brand">
+      <div class="auth-card auth-card-spare">
+        <div class="auth-brand" style="margin-bottom:28px">
           <span class="nav-brand-mark">A</span>
           <span class="auth-brand-name">aveline</span>
         </div>
-        <h1 class="auth-title">New workspace</h1>
-        <p class="auth-subtitle">
-          Pick a name for your team. We'll generate a slug from it.
-        </p>
 
-        <form phx-change="validate" phx-submit="submit" class="auth-form">
-          <label class="auth-label" for="ws-name">Workspace name</label>
+        <form phx-change="validate" phx-submit="submit">
           <input
             type="text"
             name="name"
             id="ws-name"
             value={@name}
             autocomplete="off"
-            placeholder="e.g. Stable Engineering"
-            class={"auth-input " <> if @error, do: "auth-input-error", else: ""}
+            placeholder="Name your workspace"
+            class={"auth-input auth-input-hero " <> if @error, do: "auth-input-error", else: ""}
             phx-debounce="250"
             autofocus
           />
-          <div class="auth-hint">
-            <%= if String.trim(@name) != "" do %>
-              Slug: <code>{Slug.derive(@name) || "—"}</code>
-            <% else %>
-              Used in the URL (<code>/w/&lt;slug&gt;</code>).
+          <div class="auth-hint" style="min-height:18px">
+            <%= cond do %>
+              <% @error -> %><span class="auth-error" style="margin:0">{@error}</span>
+              <% @slug_preview -> %>aveline.ai/w/<code>{@slug_preview}</code>
+              <% true -> %>
             <% end %>
           </div>
-          <%= if @error do %>
-            <div class="auth-error">{@error}</div>
-          <% end %>
 
-          <button type="submit" class="auth-submit" disabled={String.trim(@name) == ""}>
-            Create workspace
+          <button type="submit" class="auth-submit" disabled={@trimmed == ""}>
+            Create
           </button>
         </form>
       </div>
