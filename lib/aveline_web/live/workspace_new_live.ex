@@ -95,13 +95,14 @@ defmodule AvelineWeb.WorkspaceNewLive do
         </div>
 
         <form phx-change="validate" phx-submit="submit" class="auth-form">
+          <label class="auth-label" for="ws-name">Workspace name</label>
           <input
             type="text"
             name="name"
             id="ws-name"
             value={@name}
             autocomplete="off"
-            placeholder="Name your workspace"
+            placeholder="Aveline AI"
             class={"auth-input auth-input-hero " <> if @error, do: "auth-input-error", else: ""}
             phx-debounce="250"
             autofocus
