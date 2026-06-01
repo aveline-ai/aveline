@@ -108,10 +108,10 @@ defmodule AvelineWeb.WorkspaceNewLive do
             autofocus
           />
           <div class="auth-hint" style="min-height:18px">
-            <%= cond do %>
-              <% @error -> %><span class="auth-error" style="margin:0">{@error}</span>
-              <% @slug_preview -> %>aveline.ai/w/<code>{@slug_preview}</code>
-              <% true -> %>
+            <%= if @error do %>
+              <span class="auth-error" style="margin:0">{@error}</span>
+            <% else %>
+              aveline.ai/w/<code>{@slug_preview || ""}</code>
             <% end %>
           </div>
 
