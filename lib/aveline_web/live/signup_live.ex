@@ -68,24 +68,30 @@ defmodule AvelineWeb.SignupLive do
   def handle_event("submit", params, socket) do
     {username, username_err} = check_username(params["username"] || "")
     workspace_name = (params["workspace_name"] || "") |> to_string() |> String.trim()
+    copied = params["copied"] == "true"
+
+    workspace_err =
+      cond do
+        workspace_name == "" -> "Pick a workspace name."
+        Slug.derive(workspace_name) in [nil, ""] -> "Workspace name needs at least one letter or digit."
+        true -> nil
+      end
+
+    copy_err =
+      if copied,
+        do: nil,
+        else: "Copy the API key first — you won't be able to see it again after sign up."
+
+    # Priority: username → workspace → copy. Show at most one.
+    first_error = username_err || workspace_err || copy_err
 
     cond do
-      username_err != nil ->
-        {:noreply, assign(socket, username: username, error: username_err)}
-
-      workspace_name == "" ->
+      first_error != nil ->
         {:noreply,
          assign(socket,
            username: username,
            workspace_name: workspace_name,
-           error: "Pick a workspace name."
-         )}
-
-      Slug.derive(workspace_name) in [nil, ""] ->
-        {:noreply,
-         assign(socket,
-           workspace_name: workspace_name,
-           error: "Workspace name needs at least one letter or digit."
+           error: first_error
          )}
 
       true ->
@@ -109,15 +115,6 @@ defmodule AvelineWeb.SignupLive do
         end
     end
   end
-
-  def handle_event("submit_blocked", %{"reason" => "not_copied"}, socket) do
-    {:noreply,
-     assign(socket,
-       error: "Copy the API key first — you won't be able to see it again after sign up."
-     )}
-  end
-
-  def handle_event("submit_blocked", _, socket), do: {:noreply, socket}
 
   defp check_username(raw) do
     username =
@@ -173,9 +170,11 @@ defmodule AvelineWeb.SignupLive do
           phx-submit="submit"
           class="auth-form"
           id="signup-form"
-          phx-hook="RequireCopy"
+          phx-hook="TrackCopy"
           data-target="#preview-token-value"
+          data-flag="#copied-flag"
         >
+          <input type="hidden" name="copied" id="copied-flag" value="false" />
           <label class="auth-label" for="username">Username</label>
           <input
             type="text"

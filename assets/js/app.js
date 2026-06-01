@@ -124,34 +124,33 @@ const Hooks = {
     },
   },
 
-  // Guards a form submit: if the user hasn't copied a target (via our
-  // Copy button OR via native Ctrl/Cmd+C on the input), block submit
-  // and push a `submit_blocked` event to the LV so it can render an
-  // inline error. Runs in the capture phase + stopImmediatePropagation
-  // so LV's own submit handler doesn't fire.
+  // Tracks whether a target element has been copied (via our Copy
+  // button OR via native Ctrl/Cmd+C on the input) and flips the value
+  // of a hidden input from "false" to "true" so the server can see it
+  // in submitted form data. Does NOT block submission — the server
+  // decides whether to error on the missing copy.
   //
-  //   <form phx-hook="RequireCopy" data-target="#preview-token-value" />
-  RequireCopy: {
+  //   <form phx-hook="TrackCopy"
+  //         data-target="#preview-token-value"
+  //         data-flag="#copied-flag" />
+  TrackCopy: {
     mounted() {
-      this.copied = false
       const targetSel = this.el.dataset.target
       const target = targetSel ? document.querySelector(targetSel) : null
+      const flagSel = this.el.dataset.flag
+      const flag = flagSel ? document.querySelector(flagSel) : null
 
-      this.onCopied = () => { this.copied = true }
-      window.addEventListener("phx:token-copied", this.onCopied)
+      const setCopied = () => {
+        if (flag) flag.value = "true"
+      }
+
+      this.onCopied = setCopied
+      window.addEventListener("phx:token-copied", setCopied)
 
       if (target) {
-        this.onNativeCopy = () => { this.copied = true }
-        target.addEventListener("copy", this.onNativeCopy)
+        this.onNativeCopy = setCopied
+        target.addEventListener("copy", setCopied)
       }
-
-      this.onSubmit = (e) => {
-        if (this.copied) return
-        e.preventDefault()
-        e.stopImmediatePropagation()
-        this.pushEvent("submit_blocked", { reason: "not_copied" })
-      }
-      this.el.addEventListener("submit", this.onSubmit, true)
     },
     destroyed() {
       if (this.onCopied) window.removeEventListener("phx:token-copied", this.onCopied)
