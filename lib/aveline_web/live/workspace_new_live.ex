@@ -89,9 +89,9 @@ defmodule AvelineWeb.WorkspaceNewLive do
     ~H"""
     <div class="auth-shell">
       <div class="auth-card auth-card-spare">
-        <div class="auth-brand" style="margin-bottom:28px">
-          <span class="nav-brand-mark">A</span>
-          <span class="auth-brand-name">aveline</span>
+        <div class="auth-brand auth-brand-hero">
+          <span class="nav-brand-mark" style="width:36px;height:36px">A</span>
+          <span class="auth-brand-name" style="font-size:26px">aveline</span>
         </div>
 
         <form phx-change="validate" phx-submit="submit" class="auth-form">
