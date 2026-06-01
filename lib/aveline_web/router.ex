@@ -36,7 +36,7 @@ defmodule AvelineWeb.Router do
     post "/login", SessionController, :create
     get "/logout", SessionController, :delete
 
-    live "/", WorkspaceListLive, :index
+    live "/", SignupLive, :index
     live "/w/:slug", WorkspaceShowLive, :index
     live "/w/:slug/d/:doc_slug", DocShowLive, :show
     live "/w/:slug/views", ViewListLive, :index

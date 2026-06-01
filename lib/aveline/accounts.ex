@@ -71,20 +71,37 @@ defmodule Aveline.Accounts do
   def signup(attrs) when is_map(attrs) do
     normalized = normalize_signup_attrs(attrs)
     invite_code = Map.get(attrs, :invite_code) || Map.get(attrs, "invite_code")
+    workspace_name = Map.get(attrs, :workspace_name) || Map.get(attrs, "workspace_name")
 
     Multi.new()
     |> Multi.insert(:user, User.changeset(%User{}, normalized))
     |> Multi.run(:workspace, fn _repo, %{user: user} ->
-      slug = workspace_slug_for(user.username)
+      # If signing up via invite, skip creating a personal workspace —
+      # they'll just join the inviting one in :invite_join below.
+      cond do
+        invite_code in [nil, ""] and is_binary(workspace_name) and String.trim(workspace_name) != "" ->
+          name = String.trim(workspace_name)
+          slug = Aveline.Slug.derive(name)
 
-      Workspaces.create_workspace(%{
-        "slug" => slug,
-        "name" => "Personal",
-        "created_by_id" => user.id
-      })
+          if slug in [nil, ""] do
+            {:error, "could not derive workspace slug from name"}
+          else
+            Workspaces.create_workspace(%{
+              "slug" => slug,
+              "name" => name,
+              "created_by_id" => user.id
+            })
+          end
+
+        invite_code in [nil, ""] ->
+          {:error, :workspace_name_required}
+
+        true ->
+          {:ok, nil}
+      end
     end)
     |> Multi.run(:membership, fn _repo, %{user: user, workspace: ws} ->
-      Workspaces.ensure_member(ws.id, user.id)
+      if ws, do: Workspaces.ensure_member(ws.id, user.id), else: {:ok, nil}
     end)
     |> Multi.run(:invite_join, fn _repo, %{user: user} ->
       case invite_code do
@@ -118,6 +135,9 @@ defmodule Aveline.Accounts do
 
       {:error, _step, %Ecto.Changeset{} = cs, _changes} ->
         {:error, cs}
+
+      {:error, _step, :workspace_name_required, _changes} ->
+        {:error, :workspace_name_required}
 
       {:error, _step, other, _changes} ->
         {:error, other}
