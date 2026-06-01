@@ -124,6 +124,48 @@ const Hooks = {
     },
   },
 
+  // Guards a form submit: if the user hasn't copied a target (via our
+  // Copy button OR via native Ctrl/Cmd+C on the input), confirm before
+  // allowing submit. Runs in the capture phase so it fires before
+  // LiveView's submit handler, and uses stopImmediatePropagation to
+  // cancel cleanly if the user backs out.
+  //
+  //   <form phx-hook="RequireCopy" data-target="#preview-token-value"
+  //         data-message="You haven't copied your API key…">
+  RequireCopy: {
+    mounted() {
+      this.copied = false
+      const targetSel = this.el.dataset.target
+      const target = targetSel ? document.querySelector(targetSel) : null
+      const message =
+        this.el.dataset.message ||
+        "You haven't copied your API key yet — once you submit you won't see it again. Continue anyway?"
+
+      this.onCopied = () => { this.copied = true }
+      window.addEventListener("phx:token-copied", this.onCopied)
+
+      if (target) {
+        this.onNativeCopy = () => { this.copied = true }
+        target.addEventListener("copy", this.onNativeCopy)
+      }
+
+      this.onSubmit = (e) => {
+        if (this.copied) return
+        const ok = window.confirm(message)
+        if (!ok) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+        } else {
+          this.copied = true
+        }
+      }
+      this.el.addEventListener("submit", this.onSubmit, true)
+    },
+    destroyed() {
+      if (this.onCopied) window.removeEventListener("phx:token-copied", this.onCopied)
+    },
+  },
+
   // Guards an unsaved-token page: warns on reload/close until a
   // `phx:token-copied` event fires; also enables the Continue button
   // once the token is copied.

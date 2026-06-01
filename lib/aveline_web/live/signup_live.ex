@@ -166,7 +166,14 @@ defmodule AvelineWeb.SignupLive do
           <span class="auth-brand-name" style="font-size:26px">aveline</span>
         </div>
 
-        <form phx-change="validate" phx-submit="submit" class="auth-form">
+        <form
+          phx-change="validate"
+          phx-submit="submit"
+          class="auth-form"
+          id="signup-form"
+          phx-hook="RequireCopy"
+          data-target="#preview-token-value"
+        >
           <label class="auth-label" for="username">Username</label>
           <input
             type="text"
