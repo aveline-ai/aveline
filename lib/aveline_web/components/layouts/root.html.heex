@@ -681,10 +681,10 @@
 
       .thread-panel {
         position: fixed;
-        /* Sit 24px below the topbar with right offset that aligns the
-           panel with the container's right padding edge. Sidebar-aware. */
-        top: calc(48px + 24px);
-        max-height: calc(100vh - 48px - 48px);
+        /* 24px breathing room top + max-height; right aligns with the
+           centered container's padding edge. Sidebar-aware right offset. */
+        top: 24px;
+        max-height: calc(100vh - 48px);
         right: max(28px, calc(50vw - 708px));
         width: 380px;
         display: flex; flex-direction: column;

@@ -128,7 +128,7 @@
         >
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.04a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.04a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-            <circle cx="12" cy="12" r="3"/>
+          <circle cx="12" cy="12" r="3"/>
           </svg>
           <span class="label">Settings</span>
         </.link>
@@ -145,34 +145,9 @@
     </aside>
 
     <div class="main-wrap">
-      <header class="topbar">
-        <span class="topbar-title">
-          {assigns[:topbar_title] || @workspace.name}
-        </span>
-        <div class="topbar-spacer"></div>
-        <%= if assigns[:topbar_meta] do %>
-          <div class="topbar-meta">{@topbar_meta}</div>
-        <% end %>
-      </header>
       {@inner_content}
     </div>
   </div>
 <% else %>
-  <div class="shell">
-    <nav class="nav">
-      <.link navigate={~p"/"} class="nav-brand">
-        <span class="nav-brand-mark">A</span>
-        <span class="brand-wordmark">aveline</span>
-      </.link>
-      <div class="nav-spacer"></div>
-      <%= if assigns[:current_user] do %>
-        <div class="nav-user">
-          <span>{@current_user.username}</span>
-          <span class="nav-sep">·</span>
-          <a href={~p"/logout"}>log out</a>
-        </div>
-      <% end %>
-    </nav>
-    <main>{@inner_content}</main>
-  </div>
+  <main>{@inner_content}</main>
 <% end %>
