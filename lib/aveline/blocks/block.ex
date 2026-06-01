@@ -2,7 +2,7 @@ defmodule Aveline.Blocks.Block do
   @moduledoc """
   Block validation + normalization.
 
-  Blocks live inside `items.blocks` (jsonb). This module is pure — no Repo,
+  Blocks live inside `docs.blocks` (jsonb). This module is pure — no Repo,
   no Ecto. Given a map (typically decoded from a JSON request body), it
   returns `{:ok, normalized}` (string keys, deterministic field order) or
   `{:error, reason}`.

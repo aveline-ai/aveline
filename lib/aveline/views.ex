@@ -129,7 +129,7 @@ defmodule Aveline.Views do
   defp broadcast(other, _event), do: other
 
   @doc """
-  Items matching a view's tag_filter.
+  Docs matching a view's tag_filter.
   """
   def matching_items(%View{} = view, opts \\ []) do
     extra =

@@ -61,7 +61,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
        pinned_only: pinned_only,
        search: params["q"] || "",
        nav_active: if(pinned_only, do: :pinned, else: :all),
-       topbar_title: if(pinned_only, do: "Pinned", else: "All notes")
+       topbar_title: if(pinned_only, do: "Pinned", else: "All docs")
      )}
   end
 
@@ -135,7 +135,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
             type="text"
             name="value"
             value={@search}
-            placeholder="Search titles…"
+            placeholder="Search docs…"
             class="search-input"
             autocomplete="off"
           />
@@ -165,10 +165,10 @@ defmodule AvelineWeb.WorkspaceShowLive do
       <%= if @shown_items == [] do %>
         <div class="empty">
           <%= if @pinned_only do %>
-            Nothing pinned yet. Pin a note from the CLI:
+            Nothing pinned yet. Pin a doc from the CLI:
             <code style="margin-left:4px">aveline edit &lt;slug&gt; --pin</code>.
           <% else %>
-            No notes match the current filter.
+            No docs match the current filter.
           <% end %>
         </div>
       <% else %>

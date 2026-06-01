@@ -4,7 +4,7 @@
 #   (also runs via `mix ecto.setup` and `mix ecto.reset`)
 #
 # Deterministic. Three users, one workspace, hardcoded tokens, agent-authored
-# items (each with multiple versions to demonstrate the changelog), mixed
+# docs (each with multiple versions to demonstrate the changelog), mixed
 # human + agent comments. Re-running is idempotent.
 
 import Ecto.Query
@@ -108,7 +108,7 @@ Enum.each(users, fn {spec, u} ->
   end
 end)
 
-# ===== Items =====
+# ===== Docs =====
 # Each is created as agent-authored (per product wedge: agents own content).
 # After creation we optionally edit a few via apply_ops to demonstrate the
 # version history feature.
@@ -138,7 +138,7 @@ ol = fn items ->
   }
 end
 
-item_specs = [
+doc_specs = [
   %{
     slug: "stack-overview",
     title: "Stack overview",
@@ -329,7 +329,7 @@ item_specs = [
       heading.(2, "SQL"),
       code.("sql", """
       SELECT i.title, i.version_number, i.intent
-      FROM items i
+      FROM docs i
       WHERE i.base_doc_id = $1
       ORDER BY i.version_number DESC
       LIMIT 10;
@@ -366,12 +366,12 @@ item_specs = [
   }
 ]
 
-# Create items if they don't already exist (idempotent).
-created_items =
-  Enum.map(item_specs, fn spec ->
+# Create docs if they don't already exist (idempotent).
+created_docs =
+  Enum.map(doc_specs, fn spec ->
     case Docs.get_current_by_slug(workspace.id, spec.slug) do
       nil ->
-        {:ok, item} =
+        {:ok, doc} =
           Docs.create_doc(%{
             workspace_id: workspace.id,
             owner_id: spec.owner.id,
@@ -386,24 +386,24 @@ created_items =
             intent: "initial seed: write the #{spec.slug} note"
           })
 
-        item
+        doc
 
       existing ->
         existing
     end
   end)
 
-# ===== Versions: demonstrate the changelog on a couple of items =====
+# ===== Versions: demonstrate the changelog on a couple of docs =====
 
 # For stack-overview, append a new paragraph (v2)
-stack = Enum.find(created_items, &(&1.slug == "stack-overview"))
+stack = Enum.find(created_docs, &(&1.slug == "stack-overview"))
 
 if stack && stack.version_number == 1 do
   new_block = %{
     "type" => "paragraph",
     "content" => [
-      %{"text" => "Updated: we now also broadcast every item mutation on PubSub topics like "},
-      %{"text" => "item:<base_doc_id>", "marks" => ["code"]},
+      %{"text" => "Updated: we now also broadcast every doc mutation on PubSub topics like "},
+      %{"text" => "doc:<base_doc_id>", "marks" => ["code"]},
       %{"text" => " so LiveViews update in real time."}
     ],
     "metadata" => %{"content_intent" => "document the pubsub addition"}
@@ -425,7 +425,7 @@ if stack && stack.version_number == 1 do
 end
 
 # For oncall-runbook, two follow-up edits to show v3 history
-oncall = Enum.find(created_items, &(&1.slug == "oncall-runbook"))
+oncall = Enum.find(created_docs, &(&1.slug == "oncall-runbook"))
 
 if oncall && oncall.version_number == 1 do
   ops_v2 = [
@@ -522,36 +522,36 @@ end)
 
 # ===== Thread messages =====
 # Mix of human + agent commenters so the actor icons render meaningfully.
-# Anchored to a specific item version (the CURRENT version at seed time).
+# Anchored to a specific doc version (the CURRENT version at seed time).
 
 current = fn slug ->
   Docs.get_current_by_slug(workspace.id, slug)
 end
 
 thread_specs = [
-  %{item: "stack-overview", author: "bob", actor: "human",
+  %{doc: "stack-overview", author: "bob", actor: "human",
     body: "Worth noting: the Session pooler limit on Supabase free tier is 200 connections — we'll hit it before we hit Fly's process limit."},
-  %{item: "stack-overview", author: "alice", actor: "agent",
+  %{doc: "stack-overview", author: "alice", actor: "agent",
     body: "Good call. Worth adding to architecture-decisions when we make the call to upgrade."},
-  %{item: "stack-overview", author: "carol", actor: "human",
+  %{doc: "stack-overview", author: "carol", actor: "human",
     body: "Reading this on my first day — super helpful, thanks."},
-  %{item: "oncall-runbook", author: "alice", actor: "human",
+  %{doc: "oncall-runbook", author: "alice", actor: "human",
     body: "Reminder: the page button in Sentry now defaults to ALL responders. Be specific about who you're paging."},
-  %{item: "oncall-runbook", author: "bob", actor: "agent",
+  %{doc: "oncall-runbook", author: "bob", actor: "agent",
     body: "Added an escalation section in v2 and tightened the SLA in v3 — see history."},
-  %{item: "deploy-guide", author: "carol", actor: "human",
+  %{doc: "deploy-guide", author: "carol", actor: "human",
     body: "Does the pre-flight need to include mix dialyzer? Or is that overkill for v0?"}
 ]
 
 Enum.each(thread_specs, fn spec ->
-  item = current.(spec.item)
+  doc = current.(spec.doc)
   author = users_by_username[spec.author]
 
   exists? =
     Repo.exists?(
       from m in Aveline.Comments.Comment,
         where:
-          m.doc_id == ^item.id and
+          m.doc_id == ^doc.id and
             m.actor_user_id == ^author.id and
             m.body == ^spec.body and
             is_nil(m.deleted_at)
@@ -560,7 +560,7 @@ Enum.each(thread_specs, fn spec ->
   unless exists? do
     {:ok, _} =
       Comments.create_comment(%{
-        "doc_id" => item.id,
+        "doc_id" => doc.id,
         "body" => spec.body,
         "actor_user_id" => author.id,
         "actor_type" => spec.actor
@@ -581,7 +581,7 @@ Enum.each(users, fn {spec, _} ->
 end)
 
 IO.puts("")
-IO.puts("Items: #{length(item_specs)} (stack-overview at v2, oncall-runbook at v3)")
+IO.puts("Docs: #{length(doc_specs)} (stack-overview at v2, oncall-runbook at v3)")
 IO.puts("Views: #{length(view_specs)} (3 team, 2 personal)")
 IO.puts("Comments: #{length(thread_specs)} (mixed human + agent)")
 IO.puts("")

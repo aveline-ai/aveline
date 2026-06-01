@@ -144,7 +144,7 @@ defmodule AvelineWeb.DocShowLive do
       <div class="item-article">
         <%= if @item.deleted_at do %>
           <div class="banner banner-warning">
-            This note is deleted. URL preserved for archive.
+            This doc is deleted. URL preserved for archive.
           </div>
         <% end %>
 
@@ -345,7 +345,7 @@ defmodule AvelineWeb.DocShowLive do
               <textarea
                 name="body"
                 class="reply-input"
-                placeholder="Reply to this note…"
+                placeholder="Reply to this doc…"
                 rows="2"
               ></textarea>
               <div class="reply-footer">

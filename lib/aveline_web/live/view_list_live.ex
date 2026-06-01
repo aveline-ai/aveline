@@ -81,7 +81,7 @@ defmodule AvelineWeb.ViewListLive do
                     <span :for={t <- v.tag_filter} class="chip chip-accent">{t}</span>
                   </span>
                 <% else %>
-                  <span>all notes</span>
+                  <span>all docs</span>
                 <% end %>
               </div>
             </.link>

@@ -72,7 +72,7 @@ defmodule AvelineWeb.ViewShowLive do
       <div class="chip-row" style="margin-bottom:14px;align-items:center">
         <span style="font-size:12px;color:var(--text-muted);margin-right:2px">Filter:</span>
         <%= if @view.tag_filter == [] do %>
-          <span class="chip">all notes</span>
+          <span class="chip">all docs</span>
         <% else %>
           <span :for={tag <- @view.tag_filter} class="chip chip-accent">{tag}</span>
         <% end %>
@@ -87,7 +87,7 @@ defmodule AvelineWeb.ViewShowLive do
       </div>
 
       <%= if @shown_items == [] do %>
-        <div class="empty">No notes match this view.</div>
+        <div class="empty">No docs match this view.</div>
       <% else %>
         <ul class="card-list">
           <li :for={i <- @shown_items}>
