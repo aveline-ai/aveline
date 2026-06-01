@@ -228,7 +228,7 @@ defmodule AvelineWeb.SignupLive do
             </button>
           </div>
           <div class="auth-hint">
-            This is yours — save it like a password. We save the hash only when you sign up.
+            Copy this now — we only store its hash, so you won't be able to see it again.
           </div>
 
           <button type="submit" class="auth-submit" disabled={not @can_submit}>
