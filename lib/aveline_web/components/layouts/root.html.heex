@@ -606,18 +606,19 @@
       }
       .item-article {
         min-width: 0;
-        max-width: 760px;
-        /* Leave room for the fixed thread panel on wide screens. */
+        max-width: 720px;
+        /* Reserve space for the fixed thread panel on wide screens. */
         margin-right: 440px;
       }
 
       .thread-panel {
         position: fixed;
-        /* 24px breathing room top + bottom + right, regardless of scroll. */
+        /* 24px breathing room top + bottom; align with the container's
+           right edge with 48px gap from the article's right edge. */
         top: calc(48px + 24px);
         bottom: 24px;
         right: max(28px, calc((100vw - 1240px) / 2 + 28px));
-        width: 400px;
+        width: 380px;
         display: flex; flex-direction: column;
         padding: 16px;
         background: var(--bg-card);
