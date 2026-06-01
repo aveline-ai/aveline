@@ -1,8 +1,6 @@
 defmodule AvelineWeb.Icons do
   @moduledoc """
-  Small inline SVG icons. Monochrome, sized 14px by default, render in
-  `currentColor` so the parent's color controls them (use `var(--text-muted)`
-  for the modern grey look).
+  Small inline SVG icons (Lucide-style — outlined, 2px stroke, currentColor).
   """
   use Phoenix.Component
 
@@ -10,25 +8,44 @@ defmodule AvelineWeb.Icons do
   attr :class, :string, default: "actor-icon"
   attr :title, :string, default: nil
 
+  # Lucide "user" — person silhouette
   def actor(%{type: "human"} = assigns) do
     ~H"""
-    <svg class={@class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <svg
+      class={@class}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
       <title :if={@title}>{@title}</title>
-      <circle cx="8" cy="5.5" r="2.5" />
-      <path d="M2.5 13.5c0-2.8 2.4-4.4 5.5-4.4s5.5 1.6 5.5 4.4" />
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
     </svg>
     """
   end
 
+  # Lucide "bot" — rectangle face with antenna + eyes + side ports
   def actor(%{type: "agent"} = assigns) do
     ~H"""
-    <svg class={@class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <svg
+      class={@class}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
       <title :if={@title}>{@title}</title>
-      <rect x="3" y="5.5" width="10" height="7.5" rx="1.6" />
-      <path d="M8 3v2.5" />
-      <circle cx="6.2" cy="9" r="0.85" fill="currentColor" stroke="none" />
-      <circle cx="9.8" cy="9" r="0.85" fill="currentColor" stroke="none" />
-      <path d="M6.5 11.5h3" />
+      <path d="M12 8V4H8" />
+      <rect width="16" height="12" x="4" y="8" rx="2" />
+      <path d="M2 14h2" />
+      <path d="M20 14h2" />
+      <path d="M15 13v2" />
+      <path d="M9 13v2" />
     </svg>
     """
   end
