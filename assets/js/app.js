@@ -78,8 +78,9 @@ const Hooks = {
     },
   },
 
-  // Copies the textContent of `data-target` (CSS selector) to the
-  // clipboard when this element is clicked. Dispatches `phx:token-copied`
+  // Copies the value of `data-target` (CSS selector) to the clipboard
+  // when this element is clicked. Works for inputs (reads .value) and
+  // regular elements (reads .textContent). Dispatches `phx:token-copied`
   // so other elements (the Continue button, the unload guard) can react.
   CopyToken: {
     mounted() {
@@ -88,7 +89,10 @@ const Hooks = {
         const targetSel = this.el.dataset.target
         const target = document.querySelector(targetSel)
         if (!target) return
-        const text = target.textContent.trim()
+        const text =
+          target.tagName === "INPUT" || target.tagName === "TEXTAREA"
+            ? target.value.trim()
+            : target.textContent.trim()
         try {
           await navigator.clipboard.writeText(text)
         } catch (err) {
@@ -102,14 +106,21 @@ const Hooks = {
             document.execCommand("copy")
             sel.removeAllRanges()
           } catch (err2) {
-            this.el.textContent = "Couldn't copy — select the token above manually"
+            this.setLabel("Couldn't copy — select manually")
             return
           }
         }
-        this.el.textContent = "Copied ✓"
+        this.setLabel("Copied ✓")
         this.el.classList.add("copied")
         window.dispatchEvent(new CustomEvent("phx:token-copied"))
       })
+    },
+    // Some copy buttons have nested SVG + a .token-field-copy-label
+    // <span>. Set the label without clobbering the icon.
+    setLabel(text) {
+      const labelEl = this.el.querySelector(".token-field-copy-label")
+      if (labelEl) labelEl.textContent = text
+      else this.el.textContent = text
     },
   },
 

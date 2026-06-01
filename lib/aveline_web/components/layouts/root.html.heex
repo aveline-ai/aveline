@@ -959,6 +959,42 @@
         word-break: break-all;
       }
 
+      /* ===== Token field with attached copy button (show-token state) ===== */
+      .token-field {
+        display: flex;
+        align-items: stretch;
+        background: var(--bg-input);
+        border: 1.5px solid var(--accent-dim);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+      .token-field-input {
+        flex: 1; min-width: 0;
+        background: transparent;
+        border: none; outline: none;
+        padding: 12px 14px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 14px;
+        color: var(--accent);
+        letter-spacing: 0.02em;
+      }
+      .token-field-input::selection { background: var(--accent-dim); }
+      .token-field-copy {
+        display: flex; align-items: center; gap: 6px;
+        padding: 0 14px;
+        background: rgba(255,255,255,0.04);
+        border: none;
+        border-left: 1.5px solid var(--accent-dim);
+        color: var(--text-secondary);
+        font-size: 13px; font-weight: 500;
+        cursor: pointer;
+        transition: background 0.08s ease, color 0.08s ease;
+      }
+      .token-field-copy:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+      .token-field-copy svg { width: 16px; height: 16px; }
+      .token-field-copy.copied { color: #4ADE80; }
+      .token-field-copy.copied svg { display: none; }
+
       .token-display {
         background: var(--bg);
         border: 1.5px solid var(--accent-dim);

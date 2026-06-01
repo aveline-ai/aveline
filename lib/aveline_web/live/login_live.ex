@@ -18,29 +18,26 @@ defmodule AvelineWeb.LoginLive do
   def render(assigns) do
     ~H"""
     <div class="auth-shell">
-      <div class="auth-card">
-        <div class="auth-brand">
-          <span class="nav-brand-mark">A</span>
-          <span class="auth-brand-name">aveline</span>
+      <div class="auth-card auth-card-spare">
+        <div class="auth-brand auth-brand-hero">
+          <span class="nav-brand-mark" style="width:36px;height:36px">A</span>
+          <span class="auth-brand-name" style="font-size:26px">aveline</span>
         </div>
-        <h1 class="auth-title">Log in</h1>
-        <p class="auth-subtitle">Paste your API token.</p>
 
         <form action={~p"/login"} method="post" class="auth-form">
           <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
-          <label class="auth-label" for="token">API token</label>
+          <label class="auth-label" for="token">API key</label>
           <input
             type="password"
             name="token"
             id="token"
             placeholder="avl_…"
-            class="auth-input mono"
+            class="auth-input auth-input-hero mono"
             autocomplete="off"
             spellcheck="false"
             autofocus
             required
           />
-          <div class="auth-hint">Starts with <code>avl_</code> followed by 32 characters.</div>
 
           <button type="submit" class="auth-submit">Log in</button>
         </form>

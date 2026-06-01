@@ -255,29 +255,38 @@ defmodule AvelineWeb.InviteLive do
           token — stash it in 1Password now.
         </p>
 
-        <div class="token-display">
-          <code id="token-value" class="token-value">{@plaintext}</code>
-        </div>
-
-        <div class="auth-actions">
+        <div class="token-field">
+          <input
+            type="text"
+            id="token-value"
+            class="token-field-input"
+            value={@plaintext}
+            readonly
+            onfocus="this.select()"
+          />
           <button
             type="button"
             id="copy-token-btn"
-            class="auth-secondary"
+            class="token-field-copy"
             phx-hook="CopyToken"
             data-target="#token-value"
+            title="Copy"
           >
-            Copy token
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="12" height="12" rx="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+            <span class="token-field-copy-label">Copy</span>
           </button>
-
-          <form action={~p"/login?next=#{@next_path}"} method="post" id="continue-form">
-            <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
-            <input type="hidden" name="token" value={@plaintext} />
-            <button id="continue-btn" type="submit" class="auth-submit" disabled>
-              I saved it — go to {@workspace.name}
-            </button>
-          </form>
         </div>
+
+        <form action={~p"/login?next=#{@next_path}"} method="post" id="continue-form" style="margin-top:16px">
+          <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+          <input type="hidden" name="token" value={@plaintext} />
+          <button id="continue-btn" type="submit" class="auth-submit" disabled>
+            I saved it — go to {@workspace.name}
+          </button>
+        </form>
       </div>
     </div>
     """
