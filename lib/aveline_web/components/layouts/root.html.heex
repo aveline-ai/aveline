@@ -611,8 +611,11 @@
 
       .thread-panel {
         position: sticky;
-        top: 48px;
-        height: calc(100vh - 48px);
+        /* Sit 24px below the topbar (48px tall) so the panel has the same
+           breathing room above it as the article has from the top of the
+           content area. Bottom inset matches. */
+        top: calc(48px + 24px);
+        height: calc(100vh - 48px - 48px);
         display: flex; flex-direction: column;
         padding: 16px;
         background: var(--bg-card);
