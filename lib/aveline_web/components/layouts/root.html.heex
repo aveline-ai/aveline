@@ -597,30 +597,33 @@
       .thread-resolved { color: #4ADE80; }
       .thread-content-resolved { opacity: 0.55; text-decoration: line-through; }
 
-      /* ===== Item detail layout (article + sticky thread) ===== */
+      /* ===== Item detail layout (article + fixed thread) ===== */
       .item-layout {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(360px, 400px);
-        gap: 40px;
         max-width: 1240px;
         margin: 0 auto;
         padding: 24px 28px 80px;
-        align-items: start;
+        position: relative;
       }
-      .item-article { min-width: 0; }
+      .item-article {
+        min-width: 0;
+        max-width: 760px;
+        /* Leave room for the fixed thread panel on wide screens. */
+        margin-right: 440px;
+      }
 
       .thread-panel {
-        position: sticky;
-        /* Sit 24px below the topbar (48px tall) so the panel has the same
-           breathing room above it as the article has from the top of the
-           content area. Bottom inset matches. */
+        position: fixed;
+        /* 24px breathing room top + bottom + right, regardless of scroll. */
         top: calc(48px + 24px);
-        height: calc(100vh - 48px - 48px);
+        bottom: 24px;
+        right: max(28px, calc((100vw - 1240px) / 2 + 28px));
+        width: 400px;
         display: flex; flex-direction: column;
         padding: 16px;
         background: var(--bg-card);
         border: 1px solid var(--border);
         border-radius: var(--radius-lg);
+        z-index: 5;
       }
       .thread-panel-header {
         display: flex; align-items: center; gap: 8px;
@@ -652,14 +655,17 @@
       .thread-composer-wrap { flex-shrink: 0; padding-top: 8px; }
 
       @media (max-width: 980px) {
-        .item-layout {
-          grid-template-columns: minmax(0, 1fr);
-          gap: 28px;
+        .item-article {
+          margin-right: 0;
+          max-width: none;
         }
         .thread-panel {
           position: static;
+          width: auto;
           height: auto;
           max-height: none;
+          margin-top: 32px;
+          inset: auto;
         }
         .thread-scroll {
           overflow-y: visible;
