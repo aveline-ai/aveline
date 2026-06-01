@@ -27,7 +27,6 @@ defmodule AvelineWeb.DocShowLive do
               Broadcasts.subscribe(Broadcasts.doc_topic(item.base_doc_id))
             end
 
-            related = Docs.related_docs(item, 5)
             all_items = Docs.list_current(ws.id)
             messages = Comments.list_for_base_doc(item.base_doc_id)
             versions = Docs.list_versions(item.base_doc_id)
@@ -43,7 +42,6 @@ defmodule AvelineWeb.DocShowLive do
                pinned_count: Enum.count(all_items, & &1.pinned),
                topbar_title: item.title,
                item: item,
-               related: related,
                messages: messages,
                versions: versions,
                show_history: false
@@ -233,40 +231,6 @@ defmodule AvelineWeb.DocShowLive do
         <article class="prose">
           <AvelineWeb.BlockRenderer.render blocks={@item.blocks || []} />
         </article>
-
-        <%= if @related != [] do %>
-          <div class="section-label" style="margin-top:48px">
-            Related <span class="count">{length(@related)}</span>
-          </div>
-          <ul class="card-list">
-            <li :for={r <- @related}>
-              <.link navigate={~p"/w/#{@workspace.slug}/d/#{r.slug}"} class="card">
-                <div class="card-title">
-                  <%= if r.pinned do %>
-                    <span class="pin">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2l2.39 7.36H22l-6.18 4.49L18.21 22 12 17.27 5.79 22l2.39-8.15L2 9.36h7.61z" />
-                      </svg>
-                    </span>
-                  <% end %>
-                  {r.title}
-                </div>
-                <%= if r.summary do %>
-                  <div class="card-summary">{r.summary}</div>
-                <% end %>
-                <div class="card-meta">
-                  <span title={absolute_time(r.updated_at)}>{relative_time(r.updated_at)}</span>
-                  <%= if r.tags != [] do %>
-                    <span class="card-meta-dot">·</span>
-                    <span style="display:flex;gap:4px;flex-wrap:wrap">
-                      <span :for={t <- r.tags} class="chip">{t}</span>
-                    </span>
-                  <% end %>
-                </div>
-              </.link>
-            </li>
-          </ul>
-        <% end %>
       </div>
 
       <aside class="thread-panel" id="thread">
