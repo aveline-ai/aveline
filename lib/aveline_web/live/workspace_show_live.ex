@@ -440,9 +440,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
               <% end %>
               <div class="card-meta">
                 <%= if i.actor_user do %>
-                  <.author text={i.actor_user.username}>
-                    <:icon><AvelineWeb.Icons.actor type={i.actor_type} class="actor-icon" title={i.actor_type} /></:icon>
-                  </.author>
+                  <.author text={i.actor_user.username} />
                   <span class="card-meta-dot">·</span>
                 <% end %>
                 <span title={absolute_time(i.updated_at)}>{relative_time(i.updated_at)}</span>
