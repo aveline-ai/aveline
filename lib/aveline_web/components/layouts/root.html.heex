@@ -986,10 +986,27 @@
         display: flex; flex-direction: column;
       }
       .tag-row {
-        display: flex; align-items: center; gap: 12px;
-        padding: 10px 0;
+        display: flex; align-items: flex-start; gap: 12px;
+        padding: 12px 0;
         border-bottom: 1px solid var(--border);
         font-size: 13.5px;
+      }
+      .tag-row-body { flex: 1; min-width: 0; }
+      .tag-row-head {
+        display: flex; align-items: center; gap: 10px;
+        flex-wrap: wrap;
+      }
+      .tag-row-desc {
+        margin: 4px 0 0;
+        color: var(--text-secondary);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      .tag-new-form { margin: 8px 0 18px; }
+      .tag-new-fields { display: flex; gap: 8px; align-items: center; }
+      .tag-new-slug {
+        flex: 0 0 220px;
+        font-family: 'JetBrains Mono', monospace;
       }
       .tag-row:last-child { border-bottom: none; }
       .tag-row-link {

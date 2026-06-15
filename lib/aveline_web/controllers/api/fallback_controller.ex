@@ -127,6 +127,17 @@ defmodule AvelineWeb.Api.FallbackController do
     render_error(conn, 422, "validation_failed", "Disposition entry must be an object.")
   end
 
+  def call(conn, {:error, {:unknown_tags, slugs}}) do
+    render_error(
+      conn,
+      422,
+      "unknown_tags",
+      "One or more tags don't exist in this workspace yet. Create them first.",
+      field: "tags",
+      context: %{unknown_tags: slugs}
+    )
+  end
+
   # Bare `:error` last-resort
   def call(conn, :error) do
     render_error(conn, 500, "internal_error", "Unexpected error.")

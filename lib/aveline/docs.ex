@@ -24,6 +24,7 @@ defmodule Aveline.Docs do
   alias Aveline.Events
   alias Aveline.Repo
   alias Aveline.Slug
+  alias Aveline.Tags
   alias Ecto.Multi
 
   # ===== Read =====
@@ -149,134 +150,6 @@ defmodule Aveline.Docs do
     |> Repo.all()
     |> Enum.sort()
   end
-
-@doc """
-  Tag stats for the Tags management page: name, doc count, last-used at.
-  Sorted by usage desc, then alpha for stability across reloads.
-  """
-  def list_tags_with_stats(workspace_id) do
-    from(d in base_query(),
-      where: d.workspace_id == ^workspace_id,
-      select: %{
-        tag: fragment("UNNEST(?)", d.tags),
-        updated_at: d.updated_at
-      }
-    )
-    |> Repo.all()
-    |> Enum.group_by(& &1.tag)
-    |> Enum.map(fn {tag, rows} ->
-      %{
-        tag: tag,
-        count: length(rows),
-        last_used_at: rows |> Enum.map(& &1.updated_at) |> Enum.max(DateTime)
-      }
-    end)
-    |> Enum.sort_by(fn %{count: c, tag: t} -> {-c, t} end)
-  end
-
-  @doc """
-  Rename a tag across every current doc in the workspace. Idempotent: if
-  no doc carries the old tag, returns `{:ok, 0}`. Returns affected count.
-
-  Records a `tag_renamed` event on success.
-  """
-  def rename_tag(workspace_id, old_tag, new_tag, actor_user_id \\ nil)
-      when is_binary(workspace_id) and is_binary(old_tag) and is_binary(new_tag) do
-    new_tag = String.downcase(new_tag)
-
-    with :ok <- Slug.validate(new_tag) do
-      affected = mutate_tags(workspace_id, old_tag, fn tags -> rename_in(tags, old_tag, new_tag) end)
-
-      if affected > 0 do
-        Events.record(%{
-          workspace_id: workspace_id,
-          actor: actor_user_id,
-          actor_type: "human",
-          action: "tag_renamed",
-          target_kind: "tag",
-          target_label: new_tag,
-          data: %{"from" => old_tag, "to" => new_tag, "affected" => affected}
-        })
-      end
-
-      {:ok, affected}
-    end
-  end
-
-  @doc """
-  Merge `source_tag` into `target_tag` across every current doc. If a doc
-  carries both, the source is dropped and the target stays. Returns
-  affected count.
-
-  Records a `tag_merged` event on success.
-  """
-  def merge_tags(workspace_id, source_tag, target_tag, actor_user_id \\ nil)
-      when is_binary(workspace_id) and is_binary(source_tag) and is_binary(target_tag) do
-    affected = mutate_tags(workspace_id, source_tag, fn tags -> rename_in(tags, source_tag, target_tag) end)
-
-    if affected > 0 do
-      Events.record(%{
-        workspace_id: workspace_id,
-        actor: actor_user_id,
-        actor_type: "human",
-        action: "tag_merged",
-        target_kind: "tag",
-        target_label: target_tag,
-        data: %{"from" => source_tag, "into" => target_tag, "affected" => affected}
-      })
-    end
-
-    {:ok, affected}
-  end
-
-  @doc """
-  Strip `tag` from every current doc in the workspace. Records a
-  `tag_deleted` event on success.
-  """
-  def delete_tag(workspace_id, tag, actor_user_id \\ nil)
-      when is_binary(workspace_id) and is_binary(tag) do
-    affected = mutate_tags(workspace_id, tag, fn tags -> List.delete(tags, tag) end)
-
-    if affected > 0 do
-      Events.record(%{
-        workspace_id: workspace_id,
-        actor: actor_user_id,
-        actor_type: "human",
-        action: "tag_deleted",
-        target_kind: "tag",
-        target_label: tag,
-        data: %{"affected" => affected}
-      })
-    end
-
-    {:ok, affected}
-  end
-
-  # Load every doc carrying `tag`, run the transform on its tags array,
-  # write back. Bulk-via-rows because docs.tags is a `text[]` and we need
-  # dedup/normalize after the transform — easier in Elixir than SQL.
-  defp mutate_tags(workspace_id, tag, transform) do
-    docs =
-      from(d in base_query(),
-        where: d.workspace_id == ^workspace_id and ^tag in d.tags
-      )
-      |> Repo.all()
-
-    Enum.each(docs, fn doc ->
-      new_tags = doc.tags |> transform.() |> Enum.uniq()
-
-      doc
-      |> Ecto.Changeset.change(%{tags: new_tags})
-      |> Repo.update!()
-    end)
-
-    length(docs)
-  end
-
-  defp rename_in(tags, old, new) do
-    Enum.map(tags, fn t -> if t == old, do: new, else: t end)
-  end
-
   def list_versions(base_doc_id) when is_binary(base_doc_id) do
     from(d in Doc,
       where: d.base_doc_id == ^base_doc_id,
@@ -359,16 +232,28 @@ defmodule Aveline.Docs do
   defp stringify_kv(kv), do: kv
 
   def apply_ops(:new, ops, base_attrs, opts) when is_list(ops) and is_map(base_attrs) do
-    case Document.apply_ops([], ops) do
-      {:ok, new_blocks} -> insert_version(:new, new_blocks, ops, base_attrs, opts)
-      {:error, reason, _idx} -> {:error, reason}
+    ws_id = Map.fetch!(base_attrs, :workspace_id)
+    tags = Map.get(base_attrs, :tags, []) || []
+
+    with :ok <- Tags.ensure_all_exist(ws_id, tags),
+         {:ok, new_blocks} <- run_document_apply([], ops) do
+      insert_version(:new, new_blocks, ops, base_attrs, opts)
     end
   end
 
   def apply_ops(%Doc{} = current, ops, update_attrs, opts)
       when is_list(ops) and is_map(update_attrs) do
-    case Document.apply_ops(current.blocks || [], ops) do
-      {:ok, new_blocks} -> insert_version(current, new_blocks, ops, update_attrs, opts)
+    tags = Map.get(update_attrs, :tags, current.tags) || []
+
+    with :ok <- Tags.ensure_all_exist(current.workspace_id, tags),
+         {:ok, new_blocks} <- run_document_apply(current.blocks || [], ops) do
+      insert_version(current, new_blocks, ops, update_attrs, opts)
+    end
+  end
+
+  defp run_document_apply(blocks, ops) do
+    case Document.apply_ops(blocks, ops) do
+      {:ok, new_blocks} -> {:ok, new_blocks}
       {:error, reason, _idx} -> {:error, reason}
     end
   end

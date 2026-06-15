@@ -20,6 +20,7 @@ alias Aveline.DocViews
 alias Aveline.Events
 alias Aveline.Kudos
 alias Aveline.Repo
+alias Aveline.Tags
 alias Aveline.Tokens.ApiToken
 alias Aveline.Workspaces
 
@@ -161,6 +162,31 @@ ol = fn items ->
     "items" => Enum.map(items, fn spans -> %{"content" => spans} end)
   }
 end
+
+# ===== Tags =====
+# Every tag carries a description (required, 1..280 chars). Pre-created
+# here so doc inserts below pass Tag-exists validation.
+
+tag_specs = [
+  {"architecture", "How the system is shaped and the why behind those calls."},
+  {"database", "Postgres schema, migrations, query patterns, and indexing."},
+  {"decisions", "ADRs and other choices that should not be re-litigated."},
+  {"deploys", "Shipping the backend — pre-flight, deploy steps, rollback."},
+  {"dev", "Local development — setup, tooling, day-to-day workflows."},
+  {"examples", "Worked examples and reference snippets for common tasks."},
+  {"observability", "Logs, metrics, alerting, error tracking, dashboards."},
+  {"oncall", "What to do when paged — triage flows and escalation."},
+  {"onboarding", "Read-these-first content for new teammates."},
+  {"runbook", "Operational playbooks for live incidents."},
+  {"stack", "The components Aveline runs on and how they fit together."}
+]
+
+Enum.each(tag_specs, fn {slug, description} ->
+  case Tags.get(workspace.id, slug) do
+    nil -> {:ok, _} = Tags.create(workspace.id, slug, description, alice.id)
+    _ -> :ok
+  end
+end)
 
 doc_specs = [
   %{
