@@ -15,17 +15,11 @@ defmodule Aveline.Broadcasts do
   def doc_topic(base_doc_id), do: "doc:" <> base_doc_id
   def doc_comments_topic(base_doc_id), do: "doc:" <> base_doc_id <> ":comments"
   def workspace_docs_topic(workspace_id), do: "workspace:" <> workspace_id <> ":docs"
-  def workspace_views_topic(workspace_id), do: "workspace:" <> workspace_id <> ":views"
 
   def publish_doc_event(event, %{base_doc_id: base, workspace_id: ws_id} = doc)
       when event in [:doc_created, :doc_updated, :doc_deleted, :doc_restored] do
     PubSub.broadcast(@pubsub, doc_topic(base), {event, doc})
     PubSub.broadcast(@pubsub, workspace_docs_topic(ws_id), {event, doc})
     :ok
-  end
-
-  def publish_view_event(event, %{workspace_id: ws_id} = view)
-      when event in [:view_created, :view_updated, :view_deleted, :view_restored] do
-    PubSub.broadcast(@pubsub, workspace_views_topic(ws_id), {event, view})
   end
 end

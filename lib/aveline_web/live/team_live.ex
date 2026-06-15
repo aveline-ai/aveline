@@ -3,7 +3,6 @@ defmodule AvelineWeb.TeamLive do
   use AvelineWeb, :live_view
 
   alias Aveline.Docs
-  alias Aveline.Views
   alias Aveline.Workspaces
   alias AvelineWeb.LiveSession
 
@@ -27,8 +26,8 @@ defmodule AvelineWeb.TeamLive do
            current_user: user,
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
-           personal_views: Views.list_personal_views(ws.id, user.id),
-           team_views: Views.list_team_views(ws.id),
+           favorites: Aveline.SidebarFavorites.list_for_user(ws.id, user.id),
+           workspace_tags: Docs.list_workspace_tags(ws.id),
            total_count: length(items),
            pinned_count: Enum.count(items, & &1.pinned),
            topbar_title: "Team",
@@ -86,13 +85,17 @@ defmodule AvelineWeb.TeamLive do
     end
   end
 
+  def handle_event("toggle_sidebar_favorite", params, socket) do
+    {:noreply, Aveline.SidebarFavorites.handle_toggle(socket, params)}
+  end
+
   def handle_event("remove_member", %{"user-id" => uid}, socket) do
     ws = socket.assigns.workspace
 
     if uid == socket.assigns.current_user.id do
       {:noreply, put_flash(socket, :error, "You can't remove yourself.")}
     else
-      case Workspaces.remove_member(ws.id, uid) do
+      case Workspaces.remove_member(ws.id, uid, socket.assigns.current_user.id) do
         {:ok, _} ->
           members = Workspaces.list_members(ws.id)
           {:noreply, assign(socket, members: members, member_count: length(members))}
@@ -124,7 +127,7 @@ defmodule AvelineWeb.TeamLive do
     assigns = assign(assigns, invite_full: invite_full)
 
     ~H"""
-    <div class="container">
+    <div class="content">
       <h1 class="page-title">Team</h1>
       <p class="page-subtitle">
         Everyone who can read + comment in <span class="mono">{@workspace.slug}</span>.

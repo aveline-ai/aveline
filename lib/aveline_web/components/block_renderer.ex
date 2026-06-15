@@ -4,7 +4,9 @@ defmodule AvelineWeb.BlockRenderer do
   inline spans with marks + optional links.
 
   Each block ends up as a top-level element with its `id` as the DOM id so
-  deep links like `#b_abc` work natively.
+  deep links like `#b_abc` work natively. The anchor button is rendered
+  *inside* each block so it inherits that block's font-size / line-height,
+  letting CSS center it on the first line via `1lh`.
   """
   use Phoenix.Component
 
@@ -24,18 +26,28 @@ defmodule AvelineWeb.BlockRenderer do
     ~H"""
     <%= case @block["level"] do %>
       <% 1 -> %>
-        <h1 id={@block["id"]} class="blk-h1">{@block["text"]}</h1>
+        <h1 id={@block["id"]} class="blk-h1 blk-anchored">
+          <.block_anchor id={@block["id"]} />
+          {@block["text"]}
+        </h1>
       <% 2 -> %>
-        <h2 id={@block["id"]} class="blk-h2">{@block["text"]}</h2>
+        <h2 id={@block["id"]} class="blk-h2 blk-anchored">
+          <.block_anchor id={@block["id"]} />
+          {@block["text"]}
+        </h2>
       <% _ -> %>
-        <h3 id={@block["id"]} class="blk-h3">{@block["text"]}</h3>
+        <h3 id={@block["id"]} class="blk-h3 blk-anchored">
+          <.block_anchor id={@block["id"]} />
+          {@block["text"]}
+        </h3>
     <% end %>
     """
   end
 
   def block(%{block: %{"type" => "paragraph"}} = assigns) do
     ~H"""
-    <p id={@block["id"]} class="blk-p">
+    <p id={@block["id"]} class="blk-p blk-anchored">
+      <.block_anchor id={@block["id"]} />
       <.spans content={@block["content"] || []} />
     </p>
     """
@@ -47,19 +59,23 @@ defmodule AvelineWeb.BlockRenderer do
     assigns = assign(assigns, lang: lang, code_class: code_class)
 
     ~H"""
-    <pre
-      id={@block["id"]}
-      class="blk-code"
-      data-lang={@lang}
-      phx-hook="HighlightCode"
-      phx-update="ignore"
-    ><code class={@code_class}>{@block["content"]}</code></pre>
+    <div class="blk-code-wrap blk-anchored">
+      <.block_anchor id={@block["id"]} />
+      <pre
+        id={@block["id"]}
+        class="blk-code"
+        data-lang={@lang}
+        phx-hook="HighlightCode"
+        phx-update="ignore"
+      ><code class={@code_class}>{@block["content"]}</code></pre>
+    </div>
     """
   end
 
   def block(%{block: %{"type" => "list", "ordered" => true}} = assigns) do
     ~H"""
-    <ol id={@block["id"]} class="blk-list">
+    <ol id={@block["id"]} class="blk-list blk-anchored">
+      <.block_anchor id={@block["id"]} />
       <li :for={item <- @block["items"] || []} id={item["id"]}>
         <.spans content={item["content"] || []} />
       </li>
@@ -69,7 +85,8 @@ defmodule AvelineWeb.BlockRenderer do
 
   def block(%{block: %{"type" => "list"}} = assigns) do
     ~H"""
-    <ul id={@block["id"]} class="blk-list">
+    <ul id={@block["id"]} class="blk-list blk-anchored">
+      <.block_anchor id={@block["id"]} />
       <li :for={item <- @block["items"] || []} id={item["id"]}>
         <.spans content={item["content"] || []} />
       </li>
@@ -79,7 +96,8 @@ defmodule AvelineWeb.BlockRenderer do
 
   def block(%{block: %{"type" => "table"}} = assigns) do
     ~H"""
-    <div class="blk-table-wrap">
+    <div class="blk-table-wrap blk-anchored">
+      <.block_anchor id={@block["id"]} />
       <table id={@block["id"]} class="blk-table">
         <thead>
           <tr>
@@ -101,6 +119,41 @@ defmodule AvelineWeb.BlockRenderer do
   def block(assigns) do
     ~H"""
     <div class="blk-unknown">Unknown block type: {@block["type"]}</div>
+    """
+  end
+
+  attr :id, :string, required: true
+
+  defp block_anchor(assigns) do
+    ~H"""
+    <span :if={@id} class="block-gutter" contenteditable="false">
+      <a
+        href={"#" <> @id}
+        class="block-anchor"
+        phx-hook="CopyBlockLink"
+        id={"anchor-" <> @id}
+        data-block-id={@id}
+        title="Copy link to this block"
+        aria-label="Copy link to this block"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+      </a>
+      <button
+        type="button"
+        class="block-comment-btn"
+        phx-click="start_block_comment"
+        phx-value-block-id={@id}
+        title="Comment on this block"
+        aria-label="Comment on this block"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </button>
+    </span>
     """
   end
 

@@ -57,6 +57,76 @@ defmodule AvelineWeb.Api.FallbackController do
     render_error(conn, status, Atom.to_string(code), message)
   end
 
+  # Comment-disposition errors raised from Aveline.Comments.Disposition.
+  def call(conn, {:error, {:disposition_coverage_mismatch, %{missing: missing, extra: extra}}}) do
+    render_error(
+      conn,
+      422,
+      "disposition_coverage_mismatch",
+      "Every open comment thread must be dispositioned exactly once.",
+      field: "comment_dispositions",
+      context: %{missing: missing, extra: extra}
+    )
+  end
+
+  def call(conn, {:error, {:duplicate_dispositions, ids}}) do
+    render_error(
+      conn,
+      422,
+      "duplicate_dispositions",
+      "A comment was dispositioned more than once.",
+      field: "comment_dispositions",
+      context: %{duplicate_ids: ids}
+    )
+  end
+
+  def call(conn, {:error, {:reanchor_target_missing, comment_id, block_id}}) do
+    render_error(
+      conn,
+      422,
+      "reanchor_target_missing",
+      "Re-anchor target block does not exist in the new version's blocks.",
+      field: "comment_dispositions",
+      context: %{comment_id: comment_id, new_block_id: block_id}
+    )
+  end
+
+  def call(conn, {:error, {:invalid_action, action}}) do
+    render_error(
+      conn,
+      422,
+      "invalid_disposition_action",
+      "Disposition action must be one of: resolve, reanchor, leave.",
+      field: "comment_dispositions",
+      context: %{got: action}
+    )
+  end
+
+  def call(conn, {:error, {:missing_field, field}}) do
+    render_error(
+      conn,
+      422,
+      "validation_failed",
+      "Missing required field: #{field}.",
+      field: field
+    )
+  end
+
+  def call(conn, {:error, {:comment_not_found, id}}) do
+    render_error(
+      conn,
+      422,
+      "comment_not_found",
+      "Dispositioned comment no longer exists.",
+      field: "comment_dispositions",
+      context: %{comment_id: id}
+    )
+  end
+
+  def call(conn, {:error, :invalid_disposition}) do
+    render_error(conn, 422, "validation_failed", "Disposition entry must be an object.")
+  end
+
   # Bare `:error` last-resort
   def call(conn, :error) do
     render_error(conn, 500, "internal_error", "Unexpected error.")

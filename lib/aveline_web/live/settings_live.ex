@@ -9,7 +9,6 @@ defmodule AvelineWeb.SettingsLive do
   alias Aveline.Accounts.User
   alias Aveline.Docs
   alias Aveline.Repo
-  alias Aveline.Views
   alias Aveline.Workspaces
   alias AvelineWeb.LiveSession
 
@@ -27,8 +26,8 @@ defmodule AvelineWeb.SettingsLive do
            current_user: user,
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
-           personal_views: Views.list_personal_views(ws.id, user.id),
-           team_views: Views.list_team_views(ws.id),
+           favorites: Aveline.SidebarFavorites.list_for_user(ws.id, user.id),
+           workspace_tags: Docs.list_workspace_tags(ws.id),
            total_count: length(items),
            pinned_count: Enum.count(items, & &1.pinned),
            topbar_title: "Settings",
@@ -49,6 +48,10 @@ defmodule AvelineWeb.SettingsLive do
   @impl true
   def handle_event("update", %{"display_name" => raw}, socket) do
     {:noreply, assign(socket, display_name: raw, saved: false, error: nil)}
+  end
+
+  def handle_event("toggle_sidebar_favorite", params, socket) do
+    {:noreply, Aveline.SidebarFavorites.handle_toggle(socket, params)}
   end
 
   def handle_event("save", %{"display_name" => raw}, socket) do
@@ -80,7 +83,7 @@ defmodule AvelineWeb.SettingsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="container-narrow">
+    <div class="content">
       <h1 class="page-title">Settings</h1>
       <p class="page-subtitle">
         Signed in as <span class="mono">{@current_user.username}</span>.

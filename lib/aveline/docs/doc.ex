@@ -32,6 +32,7 @@ defmodule Aveline.Docs.Doc do
              :operations,
              :intent,
              :resolves_comment_ids,
+             :comment_dispositions,
              :inserted_at,
              :updated_at,
              :deleted_at
@@ -49,6 +50,9 @@ defmodule Aveline.Docs.Doc do
     field :operations, {:array, :map}, default: []
     field :intent, :string
     field :resolves_comment_ids, {:array, :binary_id}, default: []
+    # Each entry: %{"comment_id", "action" ("resolve"|"reanchor"|"leave"),
+    #               "new_block_id"?, "note"?}. See Aveline.Comments.Disposition.
+    field :comment_dispositions, {:array, :map}, default: []
     field :deleted_at, :utc_datetime_usec
 
     belongs_to :workspace, Workspace, type: :binary_id
@@ -79,7 +83,8 @@ defmodule Aveline.Docs.Doc do
       :actor_type,
       :operations,
       :intent,
-      :resolves_comment_ids
+      :resolves_comment_ids,
+      :comment_dispositions
     ])
     |> validate_required([
       :base_doc_id,

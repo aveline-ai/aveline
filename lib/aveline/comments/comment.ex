@@ -12,6 +12,7 @@ defmodule Aveline.Comments.Comment do
            only: [
              :id,
              :doc_id,
+             :parent_comment_id,
              :block_id,
              :body,
              :actor_type,
@@ -32,7 +33,9 @@ defmodule Aveline.Comments.Comment do
     belongs_to :doc, Doc, type: :binary_id
     belongs_to :actor_user, User, type: :binary_id
     belongs_to :resolved_by, User, type: :binary_id
+    belongs_to :resolved_by_doc, Doc, type: :binary_id
     belongs_to :deleted_by, User, type: :binary_id
+    belongs_to :parent_comment, __MODULE__, type: :binary_id
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -41,7 +44,7 @@ defmodule Aveline.Comments.Comment do
 
   def create_changeset(comment, attrs) do
     comment
-    |> cast(attrs, [:doc_id, :block_id, :body, :actor_user_id, :actor_type])
+    |> cast(attrs, [:doc_id, :parent_comment_id, :block_id, :body, :actor_user_id, :actor_type])
     |> validate_required([:doc_id, :body, :actor_user_id, :actor_type])
     |> validate_inclusion(:actor_type, @actor_types)
     |> validate_length(:body, min: 1, max: 10_000)

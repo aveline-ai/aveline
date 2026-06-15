@@ -28,13 +28,18 @@ defmodule AvelineWeb.LoginLive do
           <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
           <label class="auth-label" for="token">API key</label>
           <input
-            type="password"
+            type="text"
             name="token"
             id="token"
             placeholder="avl_…"
             class="auth-input auth-input-hero mono"
             autocomplete="off"
+            autocapitalize="none"
+            autocorrect="off"
             spellcheck="false"
+            data-1p-ignore
+            data-lpignore="true"
+            data-bwignore
             autofocus
             required
           />

@@ -29,20 +29,25 @@
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}></script>
     <style>
       :root {
-        --bg: #08090A;
-        --bg-elevated: #101114;
-        --bg-card: #131418;
-        --bg-card-hover: #1A1B20;
-        --bg-input: #0F1014;
+        /* Near-monochrome dark surfaces — slight cool drift, no purple cast. */
+        --bg: #0A0A0B;
+        --bg-elevated: #111114;
+        --bg-card: #16161A;
+        --bg-card-hover: #1B1C20;
+        --bg-input: #0F0F12;
         --border: rgba(255,255,255,0.06);
         --border-strong: rgba(255,255,255,0.10);
-        --text: #E6E6E6;
-        --text-secondary: #B4B8C0;
-        --text-muted: #6E727A;
-        --accent: #8B85FF;
-        --accent-dim: rgba(139,133,255,0.15);
-        --pinned: #F2C94C;
-        --pinned-dim: rgba(242,201,76,0.12);
+        --text: #E8E8EA;
+        --text-secondary: #A8A9B0;
+        --text-muted: #696970;
+        /* Single accent: a calm system-blue. Used ONLY for primary actions,
+           active nav, links, and focus rings. Everything else stays mono. */
+        --accent: #3B82F6;
+        --accent-hover: #4F8EF7;
+        --accent-dim: rgba(59,130,246,0.14);
+        /* Pinned reuses text color — no gold (see article-pin-btn / card-pin). */
+        --pinned: var(--text);
+        --pinned-dim: rgba(255,255,255,0.06);
         --danger: #E5484D;
         --radius-sm: 4px;
         --radius: 6px;
@@ -164,6 +169,42 @@
         line-height: 18px;
       }
       .sidebar-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+      /* Per-user "star" row: the wrap IS the visual row — it gets the
+         hover/active background. The link fills it, the star sits flush
+         on the right inside that same row. */
+      .sidebar-item-wrap {
+        display: flex; align-items: center;
+        margin: 1px 0;
+        border-radius: 5px;
+        padding-right: 4px;
+        transition: background 0.08s ease;
+      }
+      .sidebar-item-wrap:hover { background: rgba(255,255,255,0.04); }
+      .sidebar-item-wrap:has(.active) { background: rgba(255,255,255,0.07); }
+      /* The inner link drops its own background — the wrap owns it. */
+      .sidebar-item-wrap .sidebar-item-row {
+        flex: 1; min-width: 0;
+        margin: 0;
+        background: transparent !important;
+      }
+      .sidebar-item-wrap .sidebar-item-row:hover { background: transparent; }
+      .sidebar-star {
+        width: 22px; height: 22px;
+        display: inline-flex; align-items: center; justify-content: center;
+        color: var(--text-muted);
+        background: transparent; border: none;
+        border-radius: 4px;
+        opacity: 0;
+        cursor: pointer;
+        transition: opacity 0.1s ease, color 0.1s ease, background 0.1s ease;
+        flex-shrink: 0;
+      }
+      .sidebar-star svg { width: 13px; height: 13px; fill: none; }
+      .sidebar-item-wrap:hover .sidebar-star { opacity: 0.85; }
+      .sidebar-star:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+      /* Starred: solid filled grey (text-secondary), always visible. No blue. */
+      .sidebar-star.is-starred { opacity: 1; color: var(--text-secondary); }
+      .sidebar-star.is-starred svg { fill: currentColor; }
       .sidebar-item.active {
         background: rgba(255,255,255,0.07);
         color: var(--text); font-weight: 500;
@@ -234,14 +275,21 @@
         font-size: 12px; color: var(--text-muted);
         display: flex; align-items: center; gap: 8px;
       }
+      /* Canonical page container. Every in-app LV renders into a `.content`
+         div so the chrome-to-content distance is identical when switching
+         tabs on wide monitors. Padding constants kept tight so the centered
+         column doesn't drift on smaller screens. */
       .content {
+        max-width: 1200px;
+        margin: 0 auto;
         padding: 24px 28px 80px;
         flex: 1;
+        width: 100%;
       }
-      .content-narrow {
-        padding: 32px 28px 80px;
-        max-width: 760px; margin: 0 auto;
-        flex: 1;
+      /* Reading-width inner section for forms / long-form copy. Sits
+         inside `.content` and keeps line length comfortable. */
+      .content-section-narrow {
+        max-width: 720px;
       }
 
       .nav {
@@ -297,8 +345,6 @@
 
       /* ===== Page layout ===== */
       main { flex: 1; width: 100%; }
-      .container { max-width: 880px; margin: 0 auto; padding: 32px 24px 80px; }
-      .container-narrow { max-width: 720px; margin: 0 auto; padding: 32px 24px 80px; }
 
       /* ===== Headers ===== */
       .page-eyebrow {
@@ -354,6 +400,12 @@
       }
       .card-slug { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); }
       .card-meta-dot { color: var(--text-muted); opacity: 0.5; }
+      .card-stat {
+        display: inline-flex; align-items: center; gap: 4px;
+        color: var(--text-muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .card-stat svg { width: 12px; height: 12px; opacity: 0.75; }
 
       /* ===== Actor icon (human / agent) ===== */
       .actor-icon {
@@ -383,11 +435,16 @@
 
       /* ===== Tooltip (browser-native via title attr) — no extra CSS ===== */
 
-      .pin {
+      /* Pinned marker on card titles — filled solid in the text color,
+         matching the article-pin-btn pinned state. No gold. */
+      .card-pin {
         display: inline-flex; align-items: center; justify-content: center;
         width: 14px; height: 14px;
-        color: var(--pinned);
+        margin-right: 4px;
+        color: var(--text);
+        flex-shrink: 0;
       }
+      .card-pin svg { width: 12px; height: 12px; }
 
       /* ===== Chips ===== */
       .chip {
@@ -403,12 +460,33 @@
       .chip:hover { color: var(--text); border-color: var(--border-strong); }
       .chip-accent {
         background: var(--accent-dim);
-        border-color: rgba(139,133,255,0.25);
+        border-color: rgba(59,130,246,0.30);
         color: var(--accent);
       }
       .chip-active {
         background: var(--text); color: var(--bg);
         border-color: var(--text);
+      }
+      /* Keep contrast on hover: active chips stay dark-text on light-bg. */
+      .chip-active:hover {
+        color: var(--bg);
+        background: var(--text-secondary);
+        border-color: var(--text-secondary);
+      }
+      /* Disabled chip: tag exists but the current filter has no docs that
+         also carry it. Show it so users see what's there, but don't let
+         them click into an empty result. */
+      .chip-disabled {
+        color: var(--text-muted);
+        background: transparent;
+        border-color: var(--border);
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+      .chip-disabled:hover {
+        color: var(--text-muted);
+        background: transparent;
+        border-color: var(--border);
       }
       .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
 
@@ -436,6 +514,32 @@
         display: flex; flex-direction: column; gap: 10px;
         margin-bottom: 16px;
       }
+      /* Segmented control — connected buttons sharing borders. One container
+         per segment (pin-mode = triple, sort = double). The active button is
+         filled, others are quiet. Buttons share edges, no gaps between. */
+      .seg-row { display: flex; flex-wrap: wrap; gap: 12px; }
+      .seg {
+        display: inline-flex;
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+      .seg-btn {
+        font-size: 12px; font-weight: 500;
+        color: var(--text-muted);
+        padding: 6px 12px;
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        transition: color 0.08s ease, background 0.08s ease;
+      }
+      .seg-btn + .seg-btn { border-left: 1px solid var(--border-strong); }
+      .seg-btn:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+      .seg-btn-active {
+        background: var(--accent-dim);
+        color: var(--accent);
+      }
+      .seg-btn-active:hover { background: var(--accent-dim); color: var(--accent); }
       .search-input {
         width: 100%;
         height: 36px; padding: 0 12px;
@@ -450,26 +554,86 @@
       .search-input::placeholder { color: var(--text-muted); }
       .search-input:focus { border-color: var(--accent); }
 
-      /* ===== Article (item detail) ===== */
-      .article-header { margin-bottom: 24px; }
-      .article-title {
-        font-size: 32px; font-weight: 600; letter-spacing: -0.02em;
-        line-height: 1.2; margin-bottom: 12px;
+      /* ===== Article (doc detail) ===== */
+      .article-header { margin-bottom: 10px; }
+      .article-title-row {
+        display: flex; align-items: flex-start; gap: 12px;
+        margin-bottom: 8px;
       }
-      .article-summary { color: var(--text-secondary); font-size: 16px; margin-bottom: 16px; }
+      .article-title {
+        flex: 1; min-width: 0;
+        font-size: 32px; font-weight: 600; letter-spacing: -0.02em;
+        line-height: 1.2;
+        margin: 0;
+      }
+      .article-pin-btn {
+        flex-shrink: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 36px; height: 36px;
+        margin-top: 4px;
+        border: none; background: transparent;
+        border-radius: 8px;
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: color 0.1s ease, background 0.1s ease, transform 0.06s ease;
+      }
+      .article-pin-btn svg {
+        width: 20px; height: 20px;
+        fill: none; stroke: currentColor;
+        transition: fill 0.1s ease, color 0.1s ease;
+      }
+      .article-pin-btn:hover {
+        color: var(--text);
+        background: rgba(255,255,255,0.05);
+      }
+      .article-pin-btn:active { transform: scale(0.94); }
+      /* Pinned = clearly filled icon in the normal text color. No gold. */
+      .article-pin-btn.is-pinned { color: var(--text); }
+      .article-pin-btn.is-pinned svg { fill: currentColor; }
+      .article-pin-btn.is-static { cursor: default; }
+      .article-pin-btn.is-static:hover { background: transparent; }
+
+      /* Kudos toggle next to the pin. Same shape language. Counter sits to
+         the right of the icon. "Given" state fills the thumb solid. */
+      .article-kudos-btn {
+        flex-shrink: 0;
+        display: inline-flex; align-items: center; gap: 4px;
+        height: 36px;
+        margin-top: 4px;
+        padding: 0 10px;
+        border: none; background: transparent;
+        border-radius: 8px;
+        color: var(--text-muted);
+        cursor: pointer;
+        font-size: 13px; font-variant-numeric: tabular-nums;
+        transition: color 0.1s ease, background 0.1s ease, transform 0.06s ease;
+      }
+      .article-kudos-btn svg {
+        width: 18px; height: 18px;
+        fill: none; stroke: currentColor;
+        transition: fill 0.1s ease;
+      }
+      .article-kudos-btn:hover {
+        color: var(--accent);
+        background: var(--accent-dim);
+      }
+      .article-kudos-btn:active { transform: scale(0.94); }
+      .article-kudos-btn.is-given { color: var(--accent); }
+      .article-kudos-btn.is-given svg { fill: currentColor; }
+      .article-kudos-btn.is-static { cursor: default; }
+      .article-kudos-btn.is-static:hover { background: transparent; color: var(--text-muted); }
+      .article-kudos-count { font-weight: 500; }
+      .article-summary { color: var(--text-secondary); font-size: 15px; margin-bottom: 10px; }
       .article-meta {
-        display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
-        padding: 12px 0;
-        border-top: 1px solid var(--border);
-        border-bottom: 1px solid var(--border);
-        font-size: 13px; color: var(--text-muted);
+        display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+        font-size: 12.5px; color: var(--text-muted);
       }
       .article-meta-item { display: inline-flex; align-items: center; gap: 6px; }
       .article-meta-key { color: var(--text-muted); }
       .article-meta-val { color: var(--text-secondary); }
 
       /* ===== Prose (rendered markdown) ===== */
-      .prose { font-size: 15px; line-height: 1.7; color: var(--text); padding-top: 24px; }
+      .prose { font-size: 15px; line-height: 1.7; color: var(--text); padding-top: 4px; }
       .prose > * + * { margin-top: 16px; }
       .prose h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; margin-top: 32px; }
       .prose h2 {
@@ -523,6 +687,63 @@
 
       /* ===== Blocks renderer ===== */
       .blocks > * + * { margin-top: 16px; }
+      .blk-anchored { position: relative; }
+      .block-gutter {
+        position: absolute;
+        left: -52px;
+        top: 0;
+        height: 1lh;
+        display: inline-flex; align-items: center; gap: 2px;
+      }
+      .blk-anchored:hover > .block-gutter > * { opacity: 1; }
+      .blk-anchored:hover > .block-gutter > .block-anchor { opacity: 1; }
+      .block-comment-btn {
+        width: 22px; height: 22px;
+        display: inline-flex; align-items: center; justify-content: center;
+        color: var(--text-muted);
+        border-radius: 4px;
+        opacity: 0;
+        transition: opacity 0.1s ease, color 0.1s ease, background 0.1s ease;
+        background: transparent;
+        padding: 0;
+      }
+      .block-comment-btn svg { width: 13px; height: 13px; }
+      .block-comment-btn:hover { color: var(--accent); background: rgba(255,255,255,0.05); }
+      .block-anchor {
+        position: relative;
+        left: 0;
+        top: 0;
+        /* 1lh = one line-height of the host block, so a heading's anchor
+           is exactly one heading-line tall and centers its icon on the
+           first text line. Works uniformly across h1/h2/h3/p/list/code. */
+        height: 1lh;
+        width: 22px;
+        display: inline-flex; align-items: center; justify-content: center;
+        color: var(--text-muted);
+        border-radius: 4px;
+        opacity: 0;
+        transition: opacity 0.1s ease, color 0.1s ease, background 0.1s ease;
+        text-decoration: none;
+      }
+      .block-anchor svg { width: 13px; height: 13px; }
+      .block-anchor:hover { color: var(--accent); background: rgba(255,255,255,0.05); }
+      .block-anchor.copied { color: var(--accent); opacity: 1; }
+      /* Code wrapper's font is monospace 13px line-height ~1.6 — still 1lh works. */
+      .blk-code-wrap { position: relative; }
+      .blk-table-wrap.blk-anchored > .block-gutter { top: 4px; }
+      /* Lists put list-style markers in the left padding (~22px); shift the
+         gutter further out so it doesn't sit over the bullet. */
+      .blk-list.blk-anchored > .block-gutter { left: -74px; }
+      /* scroll under the sticky topbar (48px) when jumping to a block */
+      .blocks [id] { scroll-margin-top: 64px; }
+      @keyframes blk-target-flash {
+        0%   { background-color: rgba(120, 119, 255, 0.22); }
+        100% { background-color: transparent; }
+      }
+      .blk-target-flash {
+        animation: blk-target-flash 1.6s ease-out;
+        border-radius: 4px;
+      }
       .blocks .blk-h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.015em; margin-top: 32px; }
       .blocks .blk-h2 {
         font-size: 18px; font-weight: 600; letter-spacing: -0.01em;
@@ -604,31 +825,111 @@
         border-radius: var(--radius); font-size: 13px; color: var(--danger);
       }
 
-      /* ===== Version history ===== */
-      .version-history {
-        margin: 20px 0 32px;
-        padding: 16px;
+      /* ===== Version switcher (dropdown next to v{n} chip) ===== */
+      .version-switcher { position: relative; display: inline-flex; }
+      .version-switcher > summary {
+        list-style: none; cursor: pointer; user-select: none;
+        display: inline-flex; align-items: center; gap: 4px;
+      }
+      .version-switcher > summary::-webkit-details-marker { display: none; }
+      .version-switcher-trigger {
+        color: var(--text-muted); font-size: 12px;
+        padding: 2px 4px; border-radius: 4px;
+        transition: background 0.08s ease, color 0.08s ease;
+      }
+      .version-switcher-trigger:hover { background: rgba(255,255,255,0.05); color: var(--text-secondary); }
+      .version-switcher[open] .version-switcher-trigger {
+        background: rgba(255,255,255,0.06); color: var(--text);
+      }
+      .version-switcher-chev {
+        width: 11px; height: 11px;
+        transition: transform 0.12s ease;
+        opacity: 0.7;
+      }
+      .version-switcher[open] .version-switcher-chev { transform: rotate(180deg); }
+      .version-switcher-menu {
+        position: absolute;
+        top: calc(100% + 6px); left: 0;
+        min-width: 320px; max-width: 460px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 4px;
+        box-shadow: 0 12px 28px rgba(0,0,0,0.55);
+        z-index: 20;
+        max-height: 70vh; overflow-y: auto;
+      }
+      .version-switcher-item {
+        display: grid;
+        grid-template-columns: auto auto 1fr auto;
+        align-items: center; gap: 8px;
+        padding: 7px 9px; border-radius: 5px;
+        font-size: 13px; color: var(--text-secondary);
+        text-decoration: none;
+        line-height: 18px;
+      }
+      .version-switcher-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+      .version-switcher-item.current { color: var(--text); background: rgba(255,255,255,0.03); }
+      .version-switcher-num {
+        font-weight: 500; font-variant-numeric: tabular-nums;
+        color: var(--text); min-width: 28px;
+      }
+      .version-switcher-actor {
+        display: inline-flex; align-items: center; gap: 5px;
+        color: var(--text-secondary); font-size: 12.5px;
+      }
+      .version-switcher-time {
+        font-size: 11.5px; color: var(--text-muted); text-align: right;
+        white-space: nowrap;
+      }
+      .version-switcher-item .check { color: var(--accent); font-size: 12px; }
+      .version-switcher-intent {
+        grid-column: 1 / -1;
+        margin-top: 2px;
+        font-size: 12px; color: var(--text-muted);
+        font-style: italic;
+        overflow: hidden; text-overflow: ellipsis;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      }
+
+      /* ===== Doc state banner (historical / deleted) =====
+         One unified banner at the top of any doc page. At most one variant
+         renders at a time — see DocShowLive.doc_state_banner/1. */
+      .doc-banner {
+        margin: 0 0 18px;
+        padding: 10px 14px;
         background: var(--bg-card);
         border: 1px solid var(--border);
+        border-left: 3px solid var(--text-muted);
         border-radius: var(--radius);
-      }
-      .version-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
-      .version-item {
-        padding: 10px 12px;
-        border-left: 2px solid var(--border);
         font-size: 13px;
+        color: var(--text-muted);
       }
-      .version-current { border-left-color: var(--accent); }
-      .version-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); }
-      .version-num { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
-      .version-actor { color: var(--text-secondary); }
-      .version-intent { margin-top: 4px; color: var(--text); }
-      .version-ops { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
-      .version-op {
-        font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
-        background: var(--bg); padding: 1px 6px; border-radius: 3px;
-        border: 1px solid var(--border-strong); color: var(--text-secondary);
+      .doc-banner-row {
+        display: flex; align-items: center; gap: 8px;
+        flex-wrap: wrap;
       }
+      .doc-banner-tag {
+        font-weight: 500; color: var(--text);
+        font-variant-numeric: tabular-nums;
+      }
+      .doc-banner-actor {
+        display: inline-flex; align-items: center; gap: 5px;
+        color: var(--text-secondary);
+      }
+      .doc-banner-spacer { flex: 1; }
+      .doc-banner-action {
+        color: var(--accent); font-size: 12.5px;
+        text-decoration: none;
+      }
+      .doc-banner-action:hover { text-decoration: underline; }
+      .doc-banner-detail {
+        margin-top: 6px;
+        color: var(--text-secondary);
+        font-style: italic;
+      }
+      .doc-banner-historical { border-left-color: var(--accent); }
+      .doc-banner-deleted    { border-left-color: var(--danger); }
 
       /* ===== Team page ===== */
       .team-row {
@@ -665,81 +966,122 @@
       .thread-resolved { color: #4ADE80; }
       .thread-content-resolved { opacity: 0.55; text-decoration: line-through; }
 
-      /* ===== Item detail layout (article + fixed thread) ===== */
-      .item-layout {
-        max-width: 1240px;
+      /* ===== Doc detail layout (single column, inline comments) ===== */
+      .doc-layout {
+        max-width: 880px;
         margin: 0 auto;
-        padding: 24px 28px 80px;
-        position: relative;
+        padding: 20px 28px 80px;
       }
-      .item-article {
-        min-width: 0;
-        max-width: 720px;
-        /* Reserve space for the fixed thread panel on wide screens. */
-        margin-right: 440px;
+      .doc-article { min-width: 0; }
+
+      /* Per-block inline comments zone — sits under each block. */
+      .block-comments {
+        margin: 12px 0 0;
+        padding-left: 12px;
+        border-left: 2px solid var(--accent-dim);
       }
 
-      .thread-panel {
-        position: fixed;
-        /* 24px breathing room top + max-height; right aligns with the
-           centered container's padding edge. Sidebar-aware right offset. */
-        top: 24px;
-        max-height: calc(100vh - 48px);
-        right: max(28px, calc(50vw - 708px));
-        width: 380px;
+      /* General discussion. Notion-style: at the top of the doc body,
+         no label — just the threads (if any) followed by a compact
+         "Add a comment…" input that expands on focus. */
+      /* ===== History timeline ===== */
+      .event-list {
+        list-style: none; padding: 0; margin: 0;
         display: flex; flex-direction: column;
-        padding: 16px;
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        z-index: 5;
       }
-      .thread-panel-header {
-        display: flex; align-items: center; gap: 8px;
-        padding: 4px 4px 12px;
+      .event-row {
+        display: flex; align-items: center; gap: 6px;
+        padding: 8px 0;
         border-bottom: 1px solid var(--border);
-        font-size: 12px; font-weight: 500;
+        font-size: 13px; color: var(--text-secondary);
+        flex-wrap: wrap;
+      }
+      .event-row:last-child { border-bottom: none; }
+      .event-actor { display: inline-flex; align-items: center; gap: 5px; }
+      .event-actor-name { color: var(--text); font-weight: 500; }
+      .event-via {
+        font-size: 11.5px; color: var(--text-muted);
+        font-style: italic;
+      }
+      .event-verb { color: var(--text-muted); }
+      .event-target {
+        color: var(--accent);
+        text-decoration: none;
+        font-weight: 500;
+      }
+      .event-target:hover { text-decoration: underline; }
+      .event-detail { color: var(--text-muted); font-style: italic; }
+      .event-time { color: var(--text-muted); font-size: 12px; }
+
+      /* "Load more" button used at the bottom of paginated lists. */
+      .load-more-wrap {
+        display: flex; justify-content: center;
+        padding: 20px 0;
+      }
+      .load-more-btn {
+        font-size: 13px; font-weight: 500;
+        color: var(--text-secondary);
+        background: var(--bg-card);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+        padding: 8px 18px;
+        cursor: pointer;
+        transition: background 0.08s ease, color 0.08s ease;
+      }
+      .load-more-btn:hover {
+        background: var(--bg-card-hover);
+        color: var(--text);
+      }
+
+      .doc-discussion-top { margin: 0 0 10px; }
+      .doc-discussion-top:not(:has(.comment-card)) { margin-bottom: 4px; }
+      .doc-discussion { margin-top: 56px; padding-top: 24px; }
+      .doc-discussion-header {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 11px; font-weight: 500;
         text-transform: uppercase; letter-spacing: 0.08em;
         color: var(--text-muted);
-        flex-shrink: 0;
+        margin-bottom: 10px;
       }
-      .thread-panel-header .count {
+      .doc-discussion-header .count {
         color: var(--text-muted); font-weight: 400;
-        background: var(--bg); padding: 1px 6px; border-radius: 999px;
+        background: var(--bg-card); padding: 1px 6px; border-radius: 999px;
         font-size: 10px; text-transform: none; letter-spacing: 0;
       }
-      .thread-scroll {
-        flex: 1; min-height: 0;
-        overflow-y: auto;
-        padding: 14px 0 8px;
-        margin: 0 -4px;
+      .doc-discussion-subheader {
+        display: flex; align-items: center; gap: 8px;
+        margin: 24px 0 12px;
+        padding-top: 12px;
+        border-top: 1px dashed var(--border);
+        font-size: 11.5px; font-weight: 500;
+        text-transform: uppercase; letter-spacing: 0.06em;
+        color: var(--text-muted);
       }
-      .thread-scroll::-webkit-scrollbar { width: 6px; }
-      .thread-scroll::-webkit-scrollbar-thumb {
-        background: rgba(255,255,255,0.08); border-radius: 3px;
+      .doc-discussion-subheader .count {
+        color: var(--text-muted); font-weight: 400;
+        background: var(--bg-card); padding: 1px 6px; border-radius: 999px;
+        font-size: 10px; text-transform: none; letter-spacing: 0;
       }
-      .thread-scroll::-webkit-scrollbar-thumb:hover {
-        background: rgba(255,255,255,0.16);
+      .doc-discussion-subnote {
+        text-transform: none; letter-spacing: 0;
+        font-size: 11px; font-style: italic;
+        margin-left: 4px;
       }
-      .thread-composer-wrap { flex-shrink: 0; padding-top: 8px; }
-
-      @media (max-width: 980px) {
-        .item-article {
-          margin-right: 0;
-          max-width: none;
-        }
-        .thread-panel {
-          position: static;
-          width: auto;
-          height: auto;
-          max-height: none;
-          margin-top: 32px;
-          inset: auto;
-        }
-        .thread-scroll {
-          overflow-y: visible;
-          max-height: none;
-        }
+      .comment-card-wrap-orphan { padding-left: 0; }
+      .orphan-snippet {
+        font-size: 11px;
+        color: var(--text-muted);
+        padding: 4px 0 6px;
+        display: flex; align-items: center; gap: 6px;
+      }
+      .orphan-snippet-label {
+        text-transform: uppercase; letter-spacing: 0.06em;
+        font-weight: 500;
+      }
+      .orphan-snippet-text {
+        font-style: italic;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        min-width: 0;
       }
 
       .live-dot {
@@ -755,13 +1097,34 @@
         50%      { opacity: 1;   transform: scale(1.2); }
       }
 
-      .thread-list {
+      /* ===== Comment cards (one per thread, inline or in discussion) ===== */
+      .comment-card-list {
         list-style: none; padding: 0; margin: 0;
-        display: flex; flex-direction: column; gap: 14px;
+        display: flex; flex-direction: column; gap: 10px;
       }
-      .thread-message {
-        padding: 4px 4px 10px;
+      .comment-card-wrap { padding: 0; }
+      .comment-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 12px 14px;
+        transition: border-color 0.08s ease, opacity 0.15s ease;
       }
+      .comment-card:hover { border-color: var(--border-strong); }
+      .comment-card-wrap-resolved .comment-card {
+        opacity: 0.7;
+        background: transparent;
+      }
+      .comment-card-wrap-resolved .comment-card:hover { opacity: 1; }
+      .comment-card-replies {
+        list-style: none;
+        margin: 10px 0 0;
+        padding: 10px 0 0 12px;
+        display: flex; flex-direction: column; gap: 10px;
+        border-top: 1px solid var(--border);
+      }
+      .comment-card-replies > li { padding: 0; }
+
       .thread-body { min-width: 0; }
       .thread-meta {
         display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
@@ -779,7 +1142,22 @@
         font-size: 11px; color: var(--text-muted);
         padding: 2px 6px; border-radius: 4px;
       }
-      .thread-action-btn:hover { color: var(--danger); background: rgba(229,72,77,0.08); }
+      .thread-action-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+      .thread-action-btn[phx-click="delete_message"]:hover { color: var(--danger); background: rgba(229,72,77,0.08); }
+      .thread-actions { display: flex; gap: 4px; }
+
+      .comment-card-wrap-resolved .thread-content { text-decoration: line-through; }
+      .thread-version-badge {
+        font-size: 10.5px;
+        padding: 1px 6px; border-radius: 3px;
+        background: rgba(255,255,255,0.04);
+        color: var(--text-muted);
+        text-decoration: none;
+        font-variant-numeric: tabular-nums;
+      }
+      .thread-version-badge:hover {
+        background: rgba(255,255,255,0.08); color: var(--text-secondary);
+      }
       .thread-content {
         color: var(--text); font-size: 13.5px; line-height: 1.55;
         word-wrap: break-word; overflow-wrap: break-word;
@@ -798,41 +1176,90 @@
       .thread-content p { margin: 0; }
       .thread-content a { color: var(--accent); }
 
-      .thread-empty {
-        text-align: center; padding: 32px 16px;
-        color: var(--text-muted); font-size: 13px;
-      }
-
-      .reply-composer {
+      /* ===== Comment composer (block / reply / doc-level — same shell) ===== */
+      .comment-composer {
         border: 1px solid var(--border-strong);
         border-radius: var(--radius);
         background: var(--bg-input);
         padding: 10px 12px;
         transition: border-color 0.08s ease;
+        margin-top: 10px;
       }
-      .reply-composer:focus-within { border-color: var(--accent); }
-      .reply-input {
+      .comment-composer:focus-within { border-color: var(--accent); }
+      .comment-composer-inline { background: var(--bg-card); }
+      .comment-composer-reply {
+        margin-top: 10px;
+        background: var(--bg-card);
+      }
+      .comment-composer-input {
         width: 100%; border: none; outline: none;
         background: transparent; color: var(--text);
         font: inherit; font-size: 13.5px; line-height: 1.5;
         resize: none; min-height: 44px;
       }
-      .reply-input::placeholder { color: var(--text-muted); }
-      .reply-footer {
-        display: flex; align-items: center; justify-content: space-between;
+      .comment-composer-input::placeholder { color: var(--text-muted); }
+      .comment-composer-footer {
+        display: flex; align-items: center; gap: 8px;
         margin-top: 6px;
       }
-      .reply-hint { font-size: 11px; color: var(--text-muted); }
-      .reply-submit {
+      .comment-composer-hint {
+        font-size: 11px; color: var(--text-muted);
+        margin-right: auto;
+      }
+      .comment-composer-cancel {
+        font-size: 11px; color: var(--text-muted);
+        padding: 5px 10px; border-radius: 5px;
+        background: transparent;
+      }
+      .comment-composer-cancel:hover {
+        color: var(--text); background: rgba(255,255,255,0.05);
+      }
+      .comment-composer-submit {
         background: var(--accent); color: white;
         padding: 5px 12px; border-radius: 5px;
         font-size: 12px; font-weight: 500;
       }
-      .reply-submit:hover { background: #7470ff; }
-      .reply-submit:disabled {
+      .comment-composer-submit:hover { background: var(--accent-hover); }
+      .comment-composer-submit:disabled {
         background: rgba(255,255,255,0.05); color: var(--text-muted);
         cursor: not-allowed;
       }
+      /* Secondary action: visually subdued — same shape but ghost-styled
+         so the primary "Reply" stays the obvious default. */
+      .comment-composer-submit-resolve {
+        background: transparent;
+        color: var(--text-secondary);
+        border: 1px solid var(--border-strong);
+      }
+      .comment-composer-submit-resolve:hover {
+        background: rgba(255,255,255,0.05);
+        color: var(--text);
+      }
+
+      /* Compact doc-level composer at the top: a single quiet input that
+         expands on focus. Avoids dominating the article header. */
+      .doc-discussion-top > .comment-composer {
+        margin-top: 0;
+        padding: 6px 10px;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        transition: background 0.1s ease, border-color 0.1s ease, padding 0.1s ease;
+      }
+      .doc-discussion-top > .comment-composer:hover {
+        background: var(--bg-card);
+      }
+      .doc-discussion-top > .comment-composer:focus-within {
+        background: var(--bg-input);
+        border-color: var(--border-strong);
+        padding: 10px 12px;
+      }
+      .doc-discussion-top > .comment-composer .comment-composer-input {
+        min-height: 22px;
+        font-size: 13px;
+      }
+      .doc-discussion-top > .comment-composer .comment-composer-footer { display: none; }
+      .doc-discussion-top > .comment-composer:focus-within .comment-composer-footer { display: flex; }
 
       /* ===== Auth (signup / login / show token) ===== */
       .auth-shell {
@@ -916,7 +1343,7 @@
         border-radius: var(--radius);
         font-size: 14px; font-weight: 500;
       }
-      .auth-submit:hover { background: #7470ff; }
+      .auth-submit:hover { background: var(--accent-hover); }
       .auth-submit:disabled {
         background: rgba(255,255,255,0.06); color: var(--text-muted);
         cursor: not-allowed;

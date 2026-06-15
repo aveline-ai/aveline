@@ -1,20 +1,26 @@
 # Local development seed data.
 #
-#   mix run priv/repo/seeds.exs
-#   (also runs via `mix ecto.setup` and `mix ecto.reset`)
+#   mix ecto.reset   # ← canonical: drops + recreates + migrates + seeds
+#   mix run priv/repo/seeds.exs   # ← idempotent re-seed without drop
 #
 # Deterministic. Three users, one workspace, hardcoded tokens, agent-authored
 # docs (each with multiple versions to demonstrate the changelog), mixed
-# human + agent comments. Re-running is idempotent.
+# human + agent comments, plus a sprinkle of kudos / views / pin toggles /
+# resolves so the History tab has interesting traffic on first load.
+#
+# Every mutation flows through the standard contexts, so the events table
+# captures all of it automatically — we don't synthesize events here.
 
 import Ecto.Query
 
 alias Aveline.Accounts
 alias Aveline.Docs
 alias Aveline.Comments
+alias Aveline.DocViews
+alias Aveline.Events
+alias Aveline.Kudos
 alias Aveline.Repo
 alias Aveline.Tokens.ApiToken
-alias Aveline.Views
 alias Aveline.Workspaces
 
 # ===== Users =====
@@ -81,7 +87,25 @@ workspace =
       w
   end
 
-Enum.each(users, fn {_, u} -> {:ok, _} = Workspaces.ensure_member(workspace.id, u.id) end)
+Enum.each(users, fn {spec, u} ->
+  case Workspaces.get_membership(workspace.id, u.id) do
+    nil ->
+      {:ok, _} = Workspaces.ensure_member(workspace.id, u.id)
+
+      Events.record(%{
+        workspace_id: workspace.id,
+        actor: u.id,
+        actor_type: "human",
+        action: "member_joined",
+        target_kind: "user",
+        target_id: u.id,
+        target_label: spec.username
+      })
+
+    _ ->
+      :ok
+  end
+end)
 
 # ===== Tokens =====
 
@@ -476,50 +500,6 @@ if oncall && oncall.version_number == 1 do
   end
 end
 
-# ===== Views =====
-# Team views (visible to everyone) + personal views (only to creator).
-
-view_specs = [
-  %{slug: "onboarding", name: "Onboarding", tag_filter: ["onboarding"],
-    description: "Everything a new teammate should read first.",
-    created_by: "alice", scope: "team"},
-  %{slug: "runbook", name: "Runbooks", tag_filter: ["runbook"],
-    description: "Operational playbooks — read when something is on fire.",
-    created_by: "bob", scope: "team"},
-  %{slug: "architecture", name: "Architecture", tag_filter: ["architecture"],
-    description: "How the system is shaped and why.",
-    created_by: "alice", scope: "team"},
-  %{slug: "alice-stack-deep-dive", name: "Stack deep dive",
-    tag_filter: ["stack"],
-    description: "What I'm rereading while planning the v0.1 schema.",
-    created_by: "alice", scope: "personal"},
-  %{slug: "bob-ops-followups", name: "Ops follow-ups",
-    tag_filter: ["runbook", "deploys"],
-    description: "Bob's runbook bookmarks — not yet team-canonical.",
-    created_by: "bob", scope: "personal"}
-]
-
-Enum.each(view_specs, fn spec ->
-  case Views.get_active_by_slug(workspace.id, spec.slug) do
-    nil ->
-      creator = Map.fetch!(users_by_username, spec.created_by)
-
-      {:ok, _} =
-        Views.create_view(%{
-          "workspace_id" => workspace.id,
-          "created_by_id" => creator.id,
-          "slug" => spec.slug,
-          "name" => spec.name,
-          "tag_filter" => spec.tag_filter,
-          "description" => spec.description,
-          "scope" => spec.scope
-        })
-
-    _ ->
-      :ok
-  end
-end)
-
 # ===== Thread messages =====
 # Mix of human + agent commenters so the actor icons render meaningfully.
 # Anchored to a specific doc version (the CURRENT version at seed time).
@@ -568,6 +548,78 @@ Enum.each(thread_specs, fn spec ->
   end
 end)
 
+# ===== Demo activity =====
+# A handful of kudos, reads, pin toggles, and a resolve so the History
+# tab has something to show on first load. Each goes through the normal
+# context fn → emits an event → renders in /history.
+
+# Kudos: everyone gives kudos to a doc someone else wrote.
+kudos_specs = [
+  {"alice", "oncall-runbook"},
+  {"alice", "deploy-guide"},
+  {"bob", "stack-overview"},
+  {"bob", "architecture-decisions"},
+  {"carol", "stack-overview"},
+  {"carol", "local-dev-setup"},
+  {"carol", "oncall-runbook"}
+]
+
+Enum.each(kudos_specs, fn {username, slug} ->
+  giver = Map.fetch!(users_by_username, username)
+  doc = current.(slug)
+
+  if doc && doc.owner_id != giver.id do
+    # Idempotent: only the first toggle counts as "given"; reseeding
+    # without reset would toggle off, so guard with given_by?.
+    unless Kudos.given_by?(doc.base_doc_id, giver.id) do
+      {:ok, _} = Kudos.toggle(workspace.id, doc.base_doc_id, giver.id)
+    end
+  end
+end)
+
+# Doc views — distribute across users so the popularity sort isn't flat.
+# Dedup window prevents duplicates from re-seeding without reset.
+view_specs = [
+  {"alice", "deploy-guide"},
+  {"alice", "oncall-runbook"},
+  {"alice", "sentry-tips"},
+  {"bob", "architecture-decisions"},
+  {"bob", "stack-overview"},
+  {"bob", "local-dev-setup"},
+  {"carol", "stack-overview"},
+  {"carol", "local-dev-setup"},
+  {"carol", "architecture-decisions"},
+  {"carol", "oncall-runbook"},
+  {"carol", "deploy-guide"}
+]
+
+Enum.each(view_specs, fn {username, slug} ->
+  user = Map.fetch!(users_by_username, username)
+  doc = current.(slug)
+  if doc, do: DocViews.record(workspace.id, doc.base_doc_id, user.id, "human")
+end)
+
+# A pin toggle so doc_pinned shows up in history. Pin the deploy-guide
+# (it isn't pinned by default).
+if doc = current.("deploy-guide") do
+  unless doc.pinned, do: {:ok, _} = Docs.set_pinned(doc, true, bob.id)
+end
+
+# Resolve one of the open comment threads to seed a comment_resolved event.
+case Repo.one(
+       from c in Aveline.Comments.Comment,
+         join: d in Aveline.Docs.Doc,
+         on: d.id == c.doc_id,
+         where:
+           d.slug == "stack-overview" and
+             c.body == "Worth noting: the Session pooler limit on Supabase free tier is 200 connections — we'll hit it before we hit Fly's process limit." and
+             is_nil(c.resolved_at) and is_nil(c.deleted_at),
+         limit: 1
+     ) do
+  nil -> :ok
+  c -> {:ok, _} = Comments.resolve_comment(c, alice.id)
+end
+
 # ===== Summary =====
 
 IO.puts("")
@@ -582,6 +634,7 @@ end)
 
 IO.puts("")
 IO.puts("Docs: #{length(doc_specs)} (stack-overview at v2, oncall-runbook at v3)")
-IO.puts("Views: #{length(view_specs)} (3 team, 2 personal)")
 IO.puts("Comments: #{length(thread_specs)} (mixed human + agent)")
+events_count = Repo.aggregate(Aveline.Events.Event, :count, :id)
+IO.puts("History events: #{events_count} (all action types covered)")
 IO.puts("")

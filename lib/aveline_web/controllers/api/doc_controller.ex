@@ -2,36 +2,66 @@ defmodule AvelineWeb.Api.DocController do
   use AvelineWeb, :controller
 
   alias Aveline.Docs
-  alias Aveline.Views
+  alias Aveline.DocViews
+  alias Aveline.Kudos
 
   action_fallback AvelineWeb.Api.FallbackController
 
   def index(conn, params) do
     ws = conn.assigns.current_workspace
 
-    with {:ok, view} <- resolve_view(ws.id, params["view"]) do
-      opts = [
+    items =
+      Docs.list_current(ws.id,
         pinned: parse_pinned(params["pinned"]),
-        tags: combined_tags(params, view)
-      ]
+        tags: parse_tag_list(params["tag"] || params["tags"])
+      )
 
-      items = Docs.list_current(ws.id, opts)
-
-      conn
-      |> put_view(json: AvelineWeb.Api.DocJSON)
-      |> render(:index, %{items: items})
-    end
+    conn
+    |> put_view(json: AvelineWeb.Api.DocJSON)
+    |> render(:index, %{items: items})
   end
 
   def show(conn, %{"doc_slug" => slug}) do
     ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
 
     case Docs.get_current_by_slug(ws.id, slug) do
       nil -> {:error, :not_found}
       item ->
+        DocViews.record(ws.id, item.base_doc_id, user.id, "agent")
+
         conn
         |> put_view(json: AvelineWeb.Api.DocJSON)
         |> render(:show, %{item: item})
+    end
+  end
+
+  @doc """
+  Toggle kudos for the current user on this doc.
+  Returns `{"kudos": {"given_by_me": bool, "count": n}}`.
+  """
+  def kudos(conn, %{"doc_slug" => slug}) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    case Docs.get_current_by_slug(ws.id, slug) do
+      nil ->
+        {:error, :not_found}
+
+      %{owner_id: owner_id} when owner_id == user.id ->
+        {:error, :self_kudos, "You can't give kudos to your own doc."}
+
+      item ->
+        {:ok, action} = Kudos.toggle(ws.id, item.base_doc_id, user.id)
+        count = Kudos.count_for_base(item.base_doc_id)
+
+        conn
+        |> json(%{
+          "kudos" => %{
+            "given_by_me" => action == :given,
+            "count" => count
+          }
+        })
     end
   end
 
@@ -95,6 +125,7 @@ defmodule AvelineWeb.Api.DocController do
       ops = params["operations"] || []
       intent = params["intent"]
       resolves = params["resolves_comment_ids"] || []
+      dispositions = params["comment_dispositions"] || []
 
       update_attrs =
         %{
@@ -109,7 +140,8 @@ defmodule AvelineWeb.Api.DocController do
       with {:ok, item} <-
              Docs.apply_ops(current, ops, update_attrs,
                intent: intent,
-               resolves_comment_ids: resolves
+               resolves_comment_ids: resolves,
+               dispositions: dispositions
              ) do
         conn
         |> put_view(json: AvelineWeb.Api.DocJSON)
@@ -174,30 +206,8 @@ defmodule AvelineWeb.Api.DocController do
   defp parse_pinned(false), do: false
   defp parse_pinned(_), do: nil
 
-  defp combined_tags(params, view) do
-    direct =
-      case params["tag"] || params["tags"] do
-        nil -> []
-        list when is_list(list) -> list
-        s when is_binary(s) -> String.split(s, ",", trim: true)
-      end
-
-    view_tags =
-      case view do
-        %Aveline.Views.View{tag_filter: tf} when is_list(tf) -> tf
-        _ -> []
-      end
-
-    Enum.uniq(direct ++ view_tags)
-  end
-
-  defp resolve_view(_ws_id, nil), do: {:ok, nil}
-  defp resolve_view(_ws_id, ""), do: {:ok, nil}
-
-  defp resolve_view(ws_id, slug) do
-    case Views.get_active_by_slug(ws_id, slug) do
-      nil -> {:error, :not_found}
-      v -> {:ok, v}
-    end
-  end
+  defp parse_tag_list(nil), do: []
+  defp parse_tag_list(""), do: []
+  defp parse_tag_list(list) when is_list(list), do: Enum.uniq(list)
+  defp parse_tag_list(s) when is_binary(s), do: String.split(s, ",", trim: true) |> Enum.uniq()
 end

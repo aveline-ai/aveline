@@ -40,6 +40,9 @@
         </div>
       </details>
 
+      <% current_tags = assigns[:selected_tags] || [] %>
+      <% current_set = MapSet.new(current_tags) %>
+
       <div class="sidebar-section">
         <.link
           navigate={~p"/w/#{@workspace.slug}"}
@@ -54,63 +57,62 @@
             <span class="count">{@total_count}</span>
           <% end %>
         </.link>
-        <.link
-          navigate={~p"/w/#{@workspace.slug}?pinned=true"}
-          class={"sidebar-item " <> if assigns[:nav_active] == :pinned, do: "active", else: ""}
-        >
-          <svg class="icon" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 1.33L9.6 6.24h5.13L10.6 9.24l1.55 4.91L8 11.11l-4.15 3.04 1.55-4.91L1.27 6.24H6.4z" />
-          </svg>
-          <span class="label">Pinned</span>
-          <%= if assigns[:pinned_count] do %>
-            <span class="count">{@pinned_count}</span>
-          <% end %>
-        </.link>
       </div>
 
-      <%= if (assigns[:personal_views] || []) != [] do %>
+      <% favorites = assigns[:favorites] || MapSet.new() %>
+
+      <%= if (assigns[:workspace_tags] || []) != [] do %>
         <div class="sidebar-section">
           <div class="sidebar-label">
-            <span>Your views</span>
+            <span>Tags</span>
           </div>
-          <%= for v <- @personal_views do %>
-            <.link
-              navigate={~p"/w/#{@workspace.slug}/v/#{v.slug}"}
-              class={"sidebar-item " <> if assigns[:nav_active] == {:view, v.slug}, do: "active", else: ""}
-            >
-              <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M2.5 4.5h11M4 8h8M6 11.5h4" stroke-linecap="round" />
-              </svg>
-              <span class="label">{v.name}</span>
-            </.link>
+          <% sorted_tags = Aveline.SidebarFavorites.sort_by_favorites(@workspace_tags, favorites) %>
+          <%= for tag <- sorted_tags do %>
+            <% exact_match = current_set == MapSet.new([tag]) %>
+            <% starred? = MapSet.member?(favorites, tag) %>
+            <div class={"sidebar-item-wrap " <> if starred?, do: "is-starred", else: ""}>
+              <.link
+                navigate={~p"/w/#{@workspace.slug}?#{[{"tag", [tag]}]}"}
+                class={"sidebar-item sidebar-item-row " <> if exact_match, do: "active", else: ""}
+              >
+                <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M2 7l5-5h6v6l-5 5z" stroke-linejoin="round" />
+                  <circle cx="9.5" cy="6.5" r="0.9" fill="currentColor" />
+                </svg>
+                <span class="label">{tag}</span>
+              </.link>
+              <button
+                type="button"
+                phx-click="toggle_sidebar_favorite"
+                phx-value-tag={tag}
+                class={"sidebar-star " <> if starred?, do: "is-starred", else: ""}
+                aria-label={if starred?, do: "Unstar #{tag}", else: "Star #{tag}"}
+                title={if starred?, do: "Unstar", else: "Star — bubble to top of your sidebar"}
+              >
+                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+              </button>
+            </div>
           <% end %>
         </div>
       <% end %>
 
-      <div class="sidebar-section">
-        <div class="sidebar-label">
-          <span>Team views</span>
-          <.link navigate={~p"/w/#{@workspace.slug}/views"} style="color:var(--text-muted);font-size:10.5px" title="All views">···</.link>
-        </div>
-        <%= for v <- (assigns[:team_views] || []) do %>
-          <.link
-            navigate={~p"/w/#{@workspace.slug}/v/#{v.slug}"}
-            class={"sidebar-item " <> if assigns[:nav_active] == {:view, v.slug}, do: "active", else: ""}
-          >
-            <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M2.5 4.5h11M4 8h8M6 11.5h4" stroke-linecap="round" />
-            </svg>
-            <span class="label">{v.name}</span>
-          </.link>
-        <% end %>
-        <%= if (assigns[:team_views] || []) == [] do %>
-          <div style="padding:5px 8px;font-size:12px;color:var(--text-muted)">no team views yet</div>
-        <% end %>
-      </div>
 
       <div class="sidebar-spacer"></div>
 
       <div class="sidebar-section sidebar-section-bottom">
+        <.link
+          navigate={~p"/w/#{@workspace.slug}/history"}
+          class={"sidebar-item " <> if assigns[:nav_active] == :history, do: "active", else: ""}
+        >
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/>
+            <path d="M3 3v5h5"/>
+            <path d="M12 7v5l3 2"/>
+          </svg>
+          <span class="label">History</span>
+        </.link>
         <.link
           navigate={~p"/w/#{@workspace.slug}/team"}
           class={"sidebar-item " <> if assigns[:nav_active] == :team, do: "active", else: ""}

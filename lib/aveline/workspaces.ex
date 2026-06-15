@@ -118,7 +118,9 @@ defmodule Aveline.Workspaces do
     * `{:error, :user_not_found}` if no user with that username exists
     * `{:error, changeset}` on validation failure
   """
-  def add_member_by_username(workspace_id, username) when is_binary(username) do
+  def add_member_by_username(workspace_id, username, actor_user_id \\ nil)
+
+  def add_member_by_username(workspace_id, username, actor_user_id) when is_binary(username) do
     username = username |> String.trim() |> String.downcase()
 
     case Accounts.get_user_by_username(username) do
@@ -132,22 +134,45 @@ defmodule Aveline.Workspaces do
             user: user
           })
 
+          Aveline.Events.record(%{
+            workspace_id: workspace_id,
+            actor: actor_user_id || user.id,
+            actor_type: "human",
+            action: "member_joined",
+            target_kind: "user",
+            target_id: user.id,
+            target_label: user.username
+          })
+
           {:ok, membership, user}
         end
     end
   end
 
-  def add_member_by_username(_, _), do: {:error, :user_not_found}
+  def add_member_by_username(_, _, _), do: {:error, :user_not_found}
 
-  def remove_member(workspace_id, user_id) do
+  def remove_member(workspace_id, user_id, actor_user_id \\ nil) do
     case get_membership(workspace_id, user_id) do
       nil ->
         {:error, :not_found}
 
       m ->
+        m = Repo.preload(m, :user)
+
         case Repo.delete(m) do
           {:ok, deleted} ->
             broadcast_member(workspace_id, :member_removed, %{user_id: user_id})
+
+            Aveline.Events.record(%{
+              workspace_id: workspace_id,
+              actor: actor_user_id || user_id,
+              actor_type: "human",
+              action: "member_removed",
+              target_kind: "user",
+              target_id: user_id,
+              target_label: m.user && m.user.username
+            })
+
             {:ok, deleted}
 
           err ->

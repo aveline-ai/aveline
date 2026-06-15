@@ -39,8 +39,8 @@ defmodule AvelineWeb.Router do
     live "/", SignupLive, :index
     live "/w/:slug", WorkspaceShowLive, :index
     live "/w/:slug/d/:doc_slug", DocShowLive, :show
-    live "/w/:slug/views", ViewListLive, :index
-    live "/w/:slug/v/:view_slug", ViewShowLive, :show
+    live "/w/:slug/d/:doc_slug/v/:version", DocShowLive, :show_version
+    live "/w/:slug/history", HistoryLive, :index
     live "/w/:slug/team", TeamLive, :index
     live "/w/:slug/settings", SettingsLive, :index
   end
@@ -73,6 +73,7 @@ defmodule AvelineWeb.Router do
     put "/docs/:doc_slug", DocController, :update
     delete "/docs/:doc_slug", DocController, :delete
     post "/docs/:doc_slug/restore", DocController, :restore
+    post "/docs/:doc_slug/kudos", DocController, :kudos
 
     get "/docs/:doc_slug/comments", CommentController, :index
     post "/docs/:doc_slug/comments", CommentController, :create
@@ -80,12 +81,6 @@ defmodule AvelineWeb.Router do
     put "/docs/:doc_slug/comments/:id", CommentController, :update
     delete "/docs/:doc_slug/comments/:id", CommentController, :delete
 
-    get "/views", ViewController, :index
-    post "/views", ViewController, :create
-    get "/views/:view_slug", ViewController, :show
-    patch "/views/:view_slug", ViewController, :update
-    put "/views/:view_slug", ViewController, :update
-    delete "/views/:view_slug", ViewController, :delete
   end
 
   if Application.compile_env(:aveline, :dev_routes) do

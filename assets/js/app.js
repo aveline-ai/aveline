@@ -7,6 +7,39 @@ const csrfToken = document
   .getAttribute("content")
 
 const Hooks = {
+  // Click on the per-block anchor (¶ icon) next to a heading/paragraph/etc.
+  // Copies the deep link to clipboard, updates the URL hash so the browser
+  // remembers it, smooth-scrolls to the target, and flashes the block.
+  // The hash already round-trips through `/d/:slug` and `/d/:slug/v/:N` —
+  // so the link respects whichever version the reader is currently on.
+  CopyBlockLink: {
+    mounted() {
+      this.el.addEventListener("click", async (e) => {
+        e.preventDefault()
+        const blockId = this.el.dataset.blockId
+        if (!blockId) return
+        const url =
+          window.location.origin +
+          window.location.pathname +
+          window.location.search +
+          "#" + blockId
+        try { await navigator.clipboard.writeText(url) } catch (_) {}
+        history.replaceState(null, "", "#" + blockId)
+        const target = document.getElementById(blockId)
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth", block: "start" })
+          target.classList.remove("blk-target-flash")
+          // force reflow so re-adding the class restarts the animation
+          void target.offsetWidth
+          target.classList.add("blk-target-flash")
+        }
+        this.el.classList.add("copied")
+        clearTimeout(this._t)
+        this._t = setTimeout(() => this.el.classList.remove("copied"), 1200)
+      })
+    },
+  },
+
   // Syntax-highlight a <pre><code> via Prism (loaded globally in root.html.heex).
   // `phx-update="ignore"` on the <pre> keeps LV from clobbering Prism's
   // injected DOM after the initial render.
@@ -200,6 +233,20 @@ const liveSocket = new LiveSocket("/live", Socket, {
 })
 
 liveSocket.connect()
+
+// If the page loaded with a #block hash, flash it once the LV is mounted.
+function flashCurrentHash() {
+  const id = window.location.hash.slice(1)
+  if (!id) return
+  const el = document.getElementById(id)
+  if (!el) return
+  el.classList.remove("blk-target-flash")
+  void el.offsetWidth
+  el.classList.add("blk-target-flash")
+}
+window.addEventListener("load", () => setTimeout(flashCurrentHash, 80))
+window.addEventListener("phx:page-loading-stop", () => setTimeout(flashCurrentHash, 80))
+window.addEventListener("hashchange", flashCurrentHash)
 
 // Expose for debugging in the browser console: window.liveSocket.enableDebug()
 window.liveSocket = liveSocket
