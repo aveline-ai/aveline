@@ -77,6 +77,8 @@ defmodule AvelineWeb do
       import Phoenix.HTML
       import Phoenix.LiveView.Helpers
       import AvelineWeb.UIHelpers
+      # `<.tag text="..." />` and `<.author text="..." />` everywhere.
+      import AvelineWeb.Badges
 
       alias Phoenix.LiveView.JS
 

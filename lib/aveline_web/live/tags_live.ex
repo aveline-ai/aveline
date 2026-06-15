@@ -32,9 +32,8 @@ defmodule AvelineWeb.TagsLive do
            nav_active: :tags,
            min_description: Tag.min_description(),
            max_description: Tag.max_description(),
-           # row-edit state
-           editing_slug_of: nil,
-           editing_desc_of: nil,
+           # row-edit state — one slug is "in edit mode" at a time.
+           editing: nil,
            merging: nil,
            # new-tag form state
            new_slug: "",
@@ -89,50 +88,38 @@ defmodule AvelineWeb.TagsLive do
 
   # ===== Row edits =====
 
-  def handle_event("edit_slug", %{"slug" => slug}, socket),
-    do: {:noreply, assign(socket, editing_slug_of: slug, editing_desc_of: nil, merging: nil)}
-
-  def handle_event("edit_desc", %{"slug" => slug}, socket),
-    do: {:noreply, assign(socket, editing_desc_of: slug, editing_slug_of: nil, merging: nil)}
+  def handle_event("edit", %{"slug" => slug}, socket),
+    do: {:noreply, assign(socket, editing: slug, merging: nil)}
 
   def handle_event("cancel", _, socket),
-    do: {:noreply, assign(socket, editing_slug_of: nil, editing_desc_of: nil, merging: nil)}
+    do: {:noreply, assign(socket, editing: nil, merging: nil)}
 
-  def handle_event("rename", %{"slug" => slug, "new_slug" => new_slug}, socket) do
+  # Single save handler — handles slug rename and/or description edit in
+  # one go. Rename cascades through every doc carrying the old slug.
+  def handle_event("save", %{"slug" => slug, "new_slug" => new_slug, "description" => desc}, socket) do
     %{workspace: ws, current_user: user} = socket.assigns
+    new_slug = new_slug |> to_string() |> String.trim() |> String.downcase()
+    desc = to_string(desc) |> String.trim()
 
     with %Tag{} = tag <- Tags.get(ws.id, slug),
-         {:ok, _} <- Tags.rename(tag, new_slug, user.id) do
-      {:noreply, socket |> assign(editing_slug_of: nil) |> load_tags()}
+         {:ok, tag} <- maybe_rename(tag, new_slug, user.id),
+         {:ok, _} <- Tags.update_description(tag, desc, user.id) do
+      {:noreply, socket |> assign(editing: nil) |> load_tags()}
     else
       {:error, :destination_exists} ->
         {:noreply,
-         socket
-         |> put_flash(:error, "“#{new_slug}” already exists. Use Merge instead.")
-         |> assign(editing_slug_of: nil)}
+         put_flash(socket, :error, "“#{new_slug}” already exists. Use Merge to combine them.")}
 
-      _ ->
-        {:noreply, put_flash(socket, :error, "Couldn't rename — slug must be lowercase letters / digits / hyphens.")}
-    end
-  end
-
-  def handle_event("update_desc", %{"slug" => slug, "description" => desc}, socket) do
-    %{workspace: ws, current_user: user} = socket.assigns
-
-    with %Tag{} = tag <- Tags.get(ws.id, slug),
-         {:ok, _} <- Tags.update_description(tag, desc, user.id) do
-      {:noreply, socket |> assign(editing_desc_of: nil) |> load_tags()}
-    else
       {:error, %Ecto.Changeset{} = cs} ->
         {:noreply, put_flash(socket, :error, format_error(cs))}
 
       _ ->
-        {:noreply, put_flash(socket, :error, "Couldn't update description.")}
+        {:noreply, put_flash(socket, :error, "Couldn't save changes.")}
     end
   end
 
   def handle_event("start_merge", %{"slug" => slug}, socket),
-    do: {:noreply, assign(socket, merging: slug, editing_slug_of: nil, editing_desc_of: nil)}
+    do: {:noreply, assign(socket, merging: slug, editing: nil)}
 
   def handle_event("merge", %{"slug" => slug, "target" => target}, socket) do
     %{workspace: ws, current_user: user} = socket.assigns
@@ -159,6 +146,9 @@ defmodule AvelineWeb.TagsLive do
       _ -> {:noreply, put_flash(socket, :error, "Couldn't delete.")}
     end
   end
+
+  defp maybe_rename(%Tag{slug: same} = tag, same, _user_id), do: {:ok, tag}
+  defp maybe_rename(tag, new_slug, user_id), do: Tags.rename(tag, new_slug, user_id)
 
   defp format_error(%Ecto.Changeset{} = cs) do
     cs
@@ -215,31 +205,24 @@ defmodule AvelineWeb.TagsLive do
         <ol class="tag-list">
           <li :for={row <- @tags} class="tag-row">
             <%= cond do %>
-              <% @editing_slug_of == row.tag.slug -> %>
-                <form phx-submit="rename" phx-value-slug={row.tag.slug} class="tag-row-form">
+              <% @editing == row.tag.slug -> %>
+                <form phx-submit="save" phx-value-slug={row.tag.slug} class="tag-row-form tag-row-form-edit">
                   <input
                     type="text"
                     name="new_slug"
                     value={row.tag.slug}
                     autocomplete="off"
                     autofocus
-                    class="tag-row-input"
+                    class="tag-row-input tag-new-slug"
                   />
-                  <button type="submit" class="tag-row-primary">Save</button>
-                  <button type="button" phx-click="cancel" class="tag-row-secondary">Cancel</button>
-                </form>
-
-              <% @editing_desc_of == row.tag.slug -> %>
-                <form phx-submit="update_desc" phx-value-slug={row.tag.slug} class="tag-row-form">
-                  <span class="tag-row-name"><span class="mono">#{row.tag.slug}</span></span>
                   <input
                     type="text"
                     name="description"
                     value={row.tag.description}
                     autocomplete="off"
-                    autofocus
                     maxlength={@max_description}
                     class="tag-row-input"
+                    placeholder="What's this tag for?"
                   />
                   <button type="submit" class="tag-row-primary">Save</button>
                   <button type="button" phx-click="cancel" class="tag-row-secondary">Cancel</button>
@@ -247,7 +230,9 @@ defmodule AvelineWeb.TagsLive do
 
               <% @merging == row.tag.slug -> %>
                 <form phx-submit="merge" phx-value-slug={row.tag.slug} class="tag-row-form">
-                  <span class="tag-row-prompt">Merge <strong>#{row.tag.slug}</strong> into:</span>
+                  <span class="tag-row-prompt">
+                    Merge <span class="chip chip-tag">{row.tag.slug}</span> into:
+                  </span>
                   <select name="target" class="tag-row-input">
                     <option value="">— pick a tag —</option>
                     <%= for other <- @tags, other.tag.slug != row.tag.slug do %>
@@ -261,8 +246,11 @@ defmodule AvelineWeb.TagsLive do
               <% true -> %>
                 <div class="tag-row-body">
                   <div class="tag-row-head">
-                    <.link navigate={~p"/w/#{@workspace.slug}?#{[{"tag", [row.tag.slug]}]}"} class="tag-row-link">
-                      #{row.tag.slug}
+                    <.link
+                      navigate={~p"/w/#{@workspace.slug}?#{[{"tag", [row.tag.slug]}]}"}
+                      class="chip chip-tag tag-row-chip"
+                    >
+                      {row.tag.slug}
                     </.link>
                     <span class="tag-row-meta">
                       <span>{row.count} {plural("doc", row.count)}</span>
@@ -275,11 +263,8 @@ defmodule AvelineWeb.TagsLive do
                   <p class="tag-row-desc">{row.tag.description}</p>
                 </div>
                 <span class="tag-row-actions">
-                  <button phx-click="edit_desc" phx-value-slug={row.tag.slug} class="tag-row-action">
-                    Edit description
-                  </button>
-                  <button phx-click="edit_slug" phx-value-slug={row.tag.slug} class="tag-row-action">
-                    Rename
+                  <button phx-click="edit" phx-value-slug={row.tag.slug} class="tag-row-action">
+                    Edit
                   </button>
                   <button phx-click="start_merge" phx-value-slug={row.tag.slug} class="tag-row-action">
                     Merge

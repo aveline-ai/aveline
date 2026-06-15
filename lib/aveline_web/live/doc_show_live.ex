@@ -354,10 +354,9 @@ defmodule AvelineWeb.DocShowLive do
 
           <div class="article-meta">
             <span class="article-meta-item">
-              <AvelineWeb.Icons.actor type={@item.actor_type} class="actor-icon" title={@item.actor_type} />
-              <span class="article-meta-val">
-                {if @item.actor_user, do: @item.actor_user.username, else: "?"}
-              </span>
+              <.author text={if @item.actor_user, do: @item.actor_user.username, else: "?"}>
+                <:icon><AvelineWeb.Icons.actor type={@item.actor_type} class="actor-icon" title={@item.actor_type} /></:icon>
+              </.author>
             </span>
             <span class="card-meta-dot">·</span>
             <%= if length(@versions) > 1 do %>
@@ -410,7 +409,7 @@ defmodule AvelineWeb.DocShowLive do
                 <.link
                   :for={tag <- @item.tags}
                   navigate={~p"/w/#{@workspace.slug}?tag=#{tag}"}
-                  class="chip chip-accent"
+                  class="chip chip-tag"
                 >
                   {tag}
                 </.link>

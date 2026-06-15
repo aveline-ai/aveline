@@ -337,14 +337,15 @@ defmodule AvelineWeb.WorkspaceShowLive do
                   phx-click={unless disabled, do: "toggle_tag"}
                   phx-value-tag={tag}
                   disabled={disabled}
-                  class={"chip " <> cond do
+                  class={"chip chip-tag " <> cond do
                     selected -> "chip-active"
                     disabled -> "chip-disabled"
                     true -> ""
                   end}
                   title={if disabled, do: "No overlap with current filter", else: nil}
                 >
-                  {tag} <span class="chip-meta">{if selected, do: "•", else: count}</span>
+                  <span class="chip-text">{tag}</span>
+                  <span class="chip-meta">{if selected, do: "•", else: count}</span>
                 </button>
               <% end %>
             </div>
@@ -368,14 +369,15 @@ defmodule AvelineWeb.WorkspaceShowLive do
                   phx-click={unless disabled, do: "toggle_author"}
                   phx-value-author={u.username}
                   disabled={disabled}
-                  class={"chip " <> cond do
+                  class={"chip chip-author " <> cond do
                     selected -> "chip-active"
                     disabled -> "chip-disabled"
                     true -> ""
                   end}
                   title={if disabled, do: "No overlap with current filter", else: nil}
                 >
-                  {u.username} <span class="chip-meta">{if selected, do: "•", else: count}</span>
+                  <span class="chip-text">{u.username}</span>
+                  <span class="chip-meta">{if selected, do: "•", else: count}</span>
                 </button>
               <% end %>
             </div>
@@ -438,10 +440,9 @@ defmodule AvelineWeb.WorkspaceShowLive do
               <% end %>
               <div class="card-meta">
                 <%= if i.actor_user do %>
-                  <span style="display:inline-flex;align-items:center;gap:5px">
-                    <AvelineWeb.Icons.actor type={i.actor_type} class="actor-icon" title={i.actor_type} />
-                    {i.actor_user.username}
-                  </span>
+                  <.author text={i.actor_user.username}>
+                    <:icon><AvelineWeb.Icons.actor type={i.actor_type} class="actor-icon" title={i.actor_type} /></:icon>
+                  </.author>
                   <span class="card-meta-dot">·</span>
                 <% end %>
                 <span title={absolute_time(i.updated_at)}>{relative_time(i.updated_at)}</span>
@@ -467,7 +468,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
                 <%= if i.tags != [] do %>
                   <span class="card-meta-dot">·</span>
                   <span style="display:flex;gap:4px;flex-wrap:wrap">
-                    <span :for={t <- i.tags} class="chip">{t}</span>
+                    <.tag :for={t <- i.tags} text={t} />
                   </span>
                 <% end %>
               </div>

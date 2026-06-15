@@ -54,6 +54,15 @@
         --accent: #3B82F6;
         --accent-hover: #4F8EF7;
         --accent-dim: rgba(59,130,246,0.14);
+        /* Tag/author chip colors — distinct, subtle tones so each badge
+           category reads as its own thing without competing with the
+           blue CTA accent. */
+        --tag: #E09150;
+        --tag-dim: rgba(224,145,80,0.08);
+        --tag-border: rgba(224,145,80,0.22);
+        --author: #9B87C4;
+        --author-dim: rgba(155,135,196,0.08);
+        --author-border: rgba(155,135,196,0.24);
         /* Pinned reuses text color — no gold (see article-pin-btn / card-pin). */
         --pinned: var(--text);
         --pinned-dim: rgba(255,255,255,0.06);
@@ -514,7 +523,7 @@
 
       /* ===== Chips ===== */
       .chip {
-        display: inline-flex; align-items: center;
+        display: inline-flex; align-items: center; gap: 6px;
         height: 22px; padding: 0 8px;
         border-radius: 4px;
         background: var(--bg-card);
@@ -524,15 +533,43 @@
         letter-spacing: 0.01em;
       }
       .chip:hover { color: var(--text); border-color: var(--border-strong); }
-      .chip-accent {
-        background: var(--accent-dim);
-        border-color: rgba(59,130,246,0.30);
-        color: var(--accent);
+      /* Badge categories — same shape (`.chip` base), different palette.
+         Tag = subtle orange. Author = subtle teal. Distinct from the
+         blue CTA accent so categories scan at a glance. */
+      .chip-tag {
+        background: var(--tag-dim);
+        border-color: var(--tag-border);
+        color: var(--tag);
+        font-family: 'JetBrains Mono', monospace;
       }
-      .chip-active {
-        background: var(--text); color: var(--bg);
-        border-color: var(--text);
+      .chip-tag:hover { color: var(--tag); border-color: var(--tag); }
+      .chip-author {
+        background: var(--author-dim);
+        border-color: var(--author-border);
+        color: var(--author);
       }
+      .chip-author:hover { color: var(--author); border-color: var(--author); }
+      /* Actor glyph inside an author chip inherits the bolder author hue
+         instead of the muted gray it uses elsewhere. */
+      .chip-author .actor-icon { color: var(--author); opacity: 0.95; }
+      /* Active chip = bolder version of the same kind color. We keep the
+         palette (orange for tags, lavender for authors) and just punch up
+         the border + text so the selection reads firm without flipping
+         to a jarring white fill. */
+      .chip-tag.chip-active {
+        background: var(--tag-dim);
+        border-color: var(--tag);
+        color: var(--tag);
+        font-weight: 600;
+      }
+      .chip-tag.chip-active:hover { background: var(--tag-dim); border-color: var(--tag); color: var(--tag); }
+      .chip-author.chip-active {
+        background: var(--author-dim);
+        border-color: var(--author);
+        color: var(--author);
+        font-weight: 600;
+      }
+      .chip-author.chip-active:hover { background: var(--author-dim); border-color: var(--author); color: var(--author); }
       /* Trailing badge on each chip: a tabular-numbers count when
          unselected, a dot when selected. Width is held constant so chips
          don't resize when toggled — the row stays the same length. */
@@ -544,13 +581,7 @@
         font-variant-numeric: tabular-nums;
         display: inline-block;
       }
-      .chip-active .chip-meta { opacity: 0.7; }
-      /* Keep contrast on hover: active chips stay dark-text on light-bg. */
-      .chip-active:hover {
-        color: var(--bg);
-        background: var(--text-secondary);
-        border-color: var(--text-secondary);
-      }
+      .chip-active .chip-meta { opacity: 0.9; }
       /* Disabled chip: tag/author exists but the current filter has no
          docs that also carry it. Same frame as a real chip — just dimmer
          tones — so the row stays visually consistent. */
@@ -630,11 +661,13 @@
       }
       .seg-btn + .seg-btn { border-left: 1px solid var(--border-strong); }
       .seg-btn:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+      /* Active segment is a neutral fill — blue is reserved for the
+         primary CTA so toggles don't compete for attention. */
       .seg-btn-active {
-        background: var(--accent-dim);
-        color: var(--accent);
+        background: rgba(255,255,255,0.07);
+        color: var(--text);
       }
-      .seg-btn-active:hover { background: var(--accent-dim); color: var(--accent); }
+      .seg-btn-active:hover { background: rgba(255,255,255,0.09); color: var(--text); }
       .search-input {
         width: 100%;
         height: 36px; padding: 0 12px;
@@ -1287,8 +1320,10 @@
       .tag-row-action-danger:hover { color: var(--danger); background: rgba(229,72,77,0.08); }
       .tag-row-form {
         display: flex; align-items: center; gap: 6px;
-        flex: 1;
+        flex: 1; flex-wrap: wrap;
       }
+      .tag-row-form-edit .tag-row-input + .tag-row-input { flex: 1; min-width: 220px; }
+      .tag-row-chip { text-decoration: none; }
       .tag-row-prompt { color: var(--text-secondary); font-size: 13px; }
       .tag-row-input {
         font: inherit; font-family: 'JetBrains Mono', monospace;
