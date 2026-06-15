@@ -7,6 +7,51 @@ const csrfToken = document
   .getAttribute("content")
 
 const Hooks = {
+  // Toggle the workspace sidebar between expanded and collapsed. Source
+  // of truth is `html.sidebar-collapsed` (set early by an inline script
+  // in root.html.heex so there's no flash on load). User preference
+  // lives in localStorage; viewport width drives the default when no
+  // preference is set.
+  SidebarCollapse: {
+    mounted() {
+      const root = document.documentElement
+      const KEY = "aveline:sidebarCollapsed"
+
+      const setCollapsed = (val, persist) => {
+        root.classList.toggle("sidebar-collapsed", val)
+        if (persist) localStorage.setItem(KEY, val ? "1" : "0")
+      }
+
+      // Initial sync in case localStorage changed between page loads.
+      const pref = localStorage.getItem(KEY)
+      if (pref === "1") setCollapsed(true, false)
+      else if (pref === "0") setCollapsed(false, false)
+      else setCollapsed(window.innerWidth < 1024, false)
+
+      const btn = this.el.querySelector("[data-sidebar-toggle]")
+      if (btn) {
+        this.onToggle = (e) => {
+          e.preventDefault()
+          setCollapsed(!root.classList.contains("sidebar-collapsed"), true)
+        }
+        btn.addEventListener("click", this.onToggle)
+      }
+
+      // When the user hasn't set a preference, follow the viewport so
+      // resizing across the breakpoint feels right.
+      this.onResize = () => {
+        if (localStorage.getItem(KEY) === null) {
+          setCollapsed(window.innerWidth < 1024, false)
+        }
+      }
+      window.addEventListener("resize", this.onResize)
+    },
+    destroyed() {
+      window.removeEventListener("resize", this.onResize)
+    },
+  },
+
+
   // Click on the per-block anchor (¶ icon) next to a heading/paragraph/etc.
   // Copies the deep link to clipboard, updates the URL hash so the browser
   // remembers it, smooth-scrolls to the target, and flashes the block.

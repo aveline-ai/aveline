@@ -114,11 +114,11 @@ defmodule AvelineWeb.WorkspaceShowLive do
        total_count: length(items),
        pinned_count: Enum.count(items, & &1.pinned),
        has_more?: has_more?,
-       # All Docs lights up only when there are no tag filters. Sorts and
-       # pin-mode are pure ordering — they don't constitute "being on a
-       # different view." Tag and saved-view items in the sidebar do their
-       # own MapSet matching on @selected_tags, so we don't track that here.
-       nav_active: if(selected_tags == [], do: :all, else: nil),
+       # Docs is THE docs tab — stay highlighted regardless of filter state
+       # so it's clear what page you're on. Clicking the sidebar link
+       # navigates to /w/:slug with no query string, which resets filters
+       # naturally via handle_params.
+       nav_active: :all,
        topbar_title:
          case selected_tags do
            [] -> "Docs"

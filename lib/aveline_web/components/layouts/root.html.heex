@@ -25,6 +25,15 @@
     <script>
       window.Prism = window.Prism || {};
       window.Prism.manual = true;
+
+      // Apply the saved sidebar-collapsed state before paint to avoid a
+      // expand-then-collapse flash on load. Falls back to viewport width
+      // when the user hasn't expressed a preference yet.
+      (function () {
+        var pref = localStorage.getItem("aveline:sidebarCollapsed");
+        var collapsed = pref === "1" || (pref === null && window.innerWidth < 1024);
+        if (collapsed) document.documentElement.classList.add("sidebar-collapsed");
+      })();
     </script>
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}></script>
     <style>
@@ -212,6 +221,99 @@
         font-size: 12px; color: var(--text-muted);
       }
       .sidebar-user a:hover { color: var(--text); }
+
+      /* ===== Sidebar collapse toggle =====
+         Floats on the sidebar's right edge as a small circular chevron,
+         half poking out into the main content. Linear/Notion pattern —
+         no full-width sidebar row, just a quiet edge handle. */
+      .shell-sidebar { position: relative; }
+      .sidebar-edge-toggle {
+        position: fixed;
+        top: 50%;
+        left: 220px;     /* sidebar 232 − half of 24px button = 220 */
+        transform: translateY(-50%);
+        z-index: 20;
+        width: 22px; height: 22px;
+        border-radius: 50%;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-strong);
+        display: inline-flex; align-items: center; justify-content: center;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0;
+        opacity: 0;
+        transition: left 0.18s ease, color 0.1s ease, background 0.1s ease, opacity 0.12s ease, border-color 0.1s ease;
+      }
+      .sidebar-edge-toggle svg { width: 13px; height: 13px; }
+      .sidebar-edge-toggle:hover {
+        color: var(--text);
+        background: var(--bg-card-hover);
+        border-color: var(--text-muted);
+      }
+      .shell-sidebar:hover .sidebar-edge-toggle,
+      .sidebar-edge-toggle:focus-visible { opacity: 1; }
+      html.sidebar-collapsed .sidebar-edge-toggle {
+        left: 44px;     /* collapsed sidebar 56 − 12 */
+        opacity: 1;     /* keep it visible when collapsed so users can re-expand */
+      }
+      .sidebar-edge-toggle-expand { display: none; }
+      html.sidebar-collapsed .sidebar-edge-toggle-collapse { display: none; }
+      html.sidebar-collapsed .sidebar-edge-toggle-expand { display: inline-block; }
+
+      /* ===== Collapsed sidebar =====
+         Source of truth: `html.sidebar-collapsed`. CSS shrinks the
+         sidebar to icon width and hides every text element. Tooltips
+         (native `title=`) cover the lost labels. */
+      html.sidebar-collapsed .sidebar {
+        width: 56px;
+        padding: 8px 6px;
+      }
+      html.sidebar-collapsed .sidebar-header {
+        padding: 6px 4px 10px;
+        gap: 0;
+        justify-content: center;
+      }
+      html.sidebar-collapsed .sidebar-workspace,
+      html.sidebar-collapsed .sidebar-header-chev { display: none; }
+      html.sidebar-collapsed .sidebar-item {
+        justify-content: center;
+        padding: 8px 0;
+      }
+      html.sidebar-collapsed .sidebar-item .label,
+      html.sidebar-collapsed .sidebar-item .count { display: none; }
+      html.sidebar-collapsed .sidebar-label,
+      html.sidebar-collapsed .sidebar-user .name { display: none; }
+      html.sidebar-collapsed .sidebar-footer {
+        padding: 4px 0;
+        margin: 8px 0 0;     /* drop the negative side margins so the
+                                 footer doesn't overflow the narrow column */
+      }
+      html.sidebar-collapsed .sidebar-user { justify-content: center; padding: 0; }
+      /* Logout link: text label when expanded, icon when collapsed. */
+      .sidebar-logout-icon { display: none; }
+      .sidebar-logout-icon { width: 16px; height: 16px; }
+      html.sidebar-collapsed .sidebar-logout {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 28px; height: 28px;
+        border-radius: 5px;
+        color: var(--text-muted);
+      }
+      html.sidebar-collapsed .sidebar-logout:hover {
+        color: var(--text); background: rgba(255,255,255,0.04);
+      }
+      html.sidebar-collapsed .sidebar-logout-text { display: none; }
+      html.sidebar-collapsed .sidebar-logout-icon { display: inline-block; }
+      /* When collapsed, the workspace switcher menu would be clipped by
+         the narrow sidebar's overflow. Pop it out as a fixed-position
+         floater anchored to the brand mark's right edge. */
+      html.sidebar-collapsed .switcher-menu {
+        position: fixed;
+        top: 12px;
+        left: 60px;
+        min-width: 220px;
+        width: auto;
+        z-index: 30;
+      }
 
       /* ===== Main area (with sidebar) ===== */
       .main-wrap {

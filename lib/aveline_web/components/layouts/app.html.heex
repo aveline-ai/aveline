@@ -5,7 +5,7 @@
 <% end %>
 
 <%= if assigns[:workspace] do %>
-  <div class="shell-sidebar">
+  <div class="shell-sidebar" id="shell-sidebar" phx-hook="SidebarCollapse">
     <aside class="sidebar">
       <details class="workspace-switcher">
         <summary>
@@ -116,11 +116,33 @@
         <div class="sidebar-footer">
           <div class="sidebar-user">
             <span class="name">{@current_user.username}</span>
-            <a href={~p"/logout"}>log out</a>
+            <a href={~p"/logout"} class="sidebar-logout" title="Log out" aria-label="Log out">
+              <span class="sidebar-logout-text">log out</span>
+              <svg class="sidebar-logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </a>
           </div>
         </div>
       <% end %>
     </aside>
+
+    <button
+      type="button"
+      data-sidebar-toggle
+      class="sidebar-edge-toggle"
+      title="Toggle sidebar"
+      aria-label="Toggle sidebar"
+    >
+      <svg class="sidebar-edge-toggle-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      <svg class="sidebar-edge-toggle-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+    </button>
 
     <div class="main-wrap">
       {@inner_content}
