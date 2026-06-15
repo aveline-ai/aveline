@@ -26,8 +26,6 @@ defmodule AvelineWeb.TeamLive do
            current_user: user,
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
-           favorites: Aveline.SidebarFavorites.list_for_user(ws.id, user.id),
-           workspace_tags: Docs.list_workspace_tags(ws.id),
            total_count: length(items),
            pinned_count: Enum.count(items, & &1.pinned),
            topbar_title: "Team",
@@ -83,10 +81,6 @@ defmodule AvelineWeb.TeamLive do
       _ ->
         {:noreply, socket}
     end
-  end
-
-  def handle_event("toggle_sidebar_favorite", params, socket) do
-    {:noreply, Aveline.SidebarFavorites.handle_toggle(socket, params)}
   end
 
   def handle_event("remove_member", %{"user-id" => uid}, socket) do

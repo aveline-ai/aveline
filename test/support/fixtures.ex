@@ -6,7 +6,6 @@ defmodule Aveline.Fixtures do
   alias Aveline.Accounts
   alias Aveline.Docs
   alias Aveline.Tokens
-  alias Aveline.Views
   alias Aveline.Workspaces
 
   def unique_int, do: System.unique_integer([:positive])
@@ -72,26 +71,6 @@ defmodule Aveline.Fixtures do
       )
 
     item
-  end
-
-  def view_fixture(workspace, user, attrs \\ %{}) do
-    i = unique_int()
-
-    {:ok, view} =
-      Views.create_view(
-        Map.merge(
-          %{
-            "workspace_id" => workspace.id,
-            "created_by_id" => user.id,
-            "slug" => "view-#{i}",
-            "name" => "View #{i}",
-            "tag_filter" => []
-          },
-          stringify(attrs)
-        )
-      )
-
-    view
   end
 
   def token_fixture(user, name \\ "test") do

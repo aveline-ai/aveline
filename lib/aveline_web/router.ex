@@ -41,6 +41,7 @@ defmodule AvelineWeb.Router do
     live "/w/:slug/d/:doc_slug", DocShowLive, :show
     live "/w/:slug/d/:doc_slug/v/:version", DocShowLive, :show_version
     live "/w/:slug/history", HistoryLive, :index
+    live "/w/:slug/tags", TagsLive, :index
     live "/w/:slug/team", TeamLive, :index
     live "/w/:slug/settings", SettingsLive, :index
   end

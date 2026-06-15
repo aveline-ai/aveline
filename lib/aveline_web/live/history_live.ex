@@ -8,7 +8,6 @@ defmodule AvelineWeb.HistoryLive do
   """
   use AvelineWeb, :live_view
 
-  alias Aveline.Docs
   alias Aveline.Events
   alias Aveline.Workspaces
   alias AvelineWeb.LiveSession
@@ -29,8 +28,6 @@ defmodule AvelineWeb.HistoryLive do
            current_user: user,
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
-           favorites: Aveline.SidebarFavorites.list_for_user(ws.id, user.id),
-           workspace_tags: Docs.list_workspace_tags(ws.id),
            topbar_title: "History",
            nav_active: :history,
            events: events,
@@ -46,9 +43,6 @@ defmodule AvelineWeb.HistoryLive do
   end
 
   @impl true
-  def handle_event("toggle_sidebar_favorite", params, socket) do
-    {:noreply, Aveline.SidebarFavorites.handle_toggle(socket, params)}
-  end
 
   def handle_event("load_more", _, socket) do
     %{workspace: ws, events: existing} = socket.assigns
@@ -133,6 +127,9 @@ defmodule AvelineWeb.HistoryLive do
   defp verb("kudos_revoked"), do: "took back kudos from"
   defp verb("member_joined"), do: "joined as"
   defp verb("member_removed"), do: "removed"
+  defp verb("tag_renamed"), do: "renamed tag"
+  defp verb("tag_merged"), do: "merged tag into"
+  defp verb("tag_deleted"), do: "deleted tag"
   defp verb(other), do: String.replace(other, "_", " ")
 
   # Optional one-liner appended after the link, when the action has

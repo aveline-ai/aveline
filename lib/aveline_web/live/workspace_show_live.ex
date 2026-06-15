@@ -20,10 +20,17 @@ defmodule AvelineWeb.WorkspaceShowLive do
            current_user: user,
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
-           favorites: Aveline.SidebarFavorites.list_for_user(ws.id, user.id),
            workspace_tags: Docs.list_workspace_tags(ws.id),
+           # Every workspace member appears as a chip — non-owners just
+           # render disabled (count 0). Mirrors tag chip behaviour.
+           workspace_authors:
+             Workspaces.list_members(ws.id)
+             |> Enum.map(& &1.user)
+             |> Enum.sort_by(& &1.username),
            chip_counts: %{},
+           author_counts: %{},
            selected_tags: [],
+           selected_authors: [],
            pin_mode: :pinned_first,
            sort: :recent,
            search: "",
@@ -53,12 +60,15 @@ defmodule AvelineWeb.WorkspaceShowLive do
   @impl true
   def handle_params(params, _uri, socket) do
     selected_tags = parse_tags(params["tag"])
+    selected_authors =
+      parse_authors(params["author"], socket.assigns.workspace_authors)
     pin_mode = parse_pin_mode(params["pin"])
     sort = parse_sort(params["sort"])
     search = params["q"] || ""
 
     ws = socket.assigns.workspace
     page_size = socket.assigns.page_size
+    owner_ids = author_ids(selected_authors, socket.assigns.workspace_authors)
 
     # Fetch one extra row so we can tell whether more pages exist without
     # a separate COUNT(*).
@@ -67,6 +77,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
         pin_mode: pin_mode,
         sort: sort,
         tags: selected_tags,
+        owner_ids: owner_ids,
         limit: page_size + 1
       )
 
@@ -77,20 +88,26 @@ defmodule AvelineWeb.WorkspaceShowLive do
       end
 
     base_ids = Enum.map(items, & &1.base_doc_id)
-    # Facet-style chip counts: for each tag, how many docs in the CURRENT
-    # filter set also carry it. Selected tags trivially match every doc
-    # in the set; unselected tags with count 0 mean "no overlap — adding
+    # Facet-style chip counts. For each tag/author, how many docs in the
+    # CURRENT filter set also carry it. Selected entries trivially match
+    # every doc; unselected ones with count 0 mean "no overlap — adding
     # this would empty the page," and we render those disabled.
     chip_counts = items |> Enum.flat_map(& &1.tags) |> Enum.frequencies()
+    author_counts =
+      items
+      |> Enum.flat_map(fn i -> if i.owner, do: [i.owner.username], else: [] end)
+      |> Enum.frequencies()
 
     {:noreply,
      assign(socket,
        selected_tags: selected_tags,
+       selected_authors: selected_authors,
        pin_mode: pin_mode,
        sort: sort,
        search: search,
        items: items,
        chip_counts: chip_counts,
+       author_counts: author_counts,
        view_counts: DocViews.counts_by_base(base_ids),
        kudos_counts: Kudos.counts_by_base(base_ids),
        total_count: length(items),
@@ -103,7 +120,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
        nav_active: if(selected_tags == [], do: :all, else: nil),
        topbar_title:
          case selected_tags do
-           [] -> "All docs"
+           [] -> "Docs"
            [one] -> "##{one}"
            many -> Enum.map_join(many, " · ", &"##{&1}")
          end
@@ -114,6 +131,20 @@ defmodule AvelineWeb.WorkspaceShowLive do
   defp parse_tags(""), do: []
   defp parse_tags(s) when is_binary(s), do: [s]
   defp parse_tags(list) when is_list(list), do: list |> Enum.filter(&(is_binary(&1) and &1 != "")) |> Enum.uniq()
+
+  defp parse_authors(nil, _users), do: []
+  defp parse_authors("", _users), do: []
+  defp parse_authors(s, users) when is_binary(s), do: parse_authors([s], users)
+  defp parse_authors(list, users) when is_list(list) do
+    known = MapSet.new(users, & &1.username)
+    list |> Enum.filter(&(is_binary(&1) and &1 != "" and MapSet.member?(known, &1))) |> Enum.uniq()
+  end
+
+  defp author_ids([], _users), do: []
+  defp author_ids(usernames, users) do
+    lookup = Map.new(users, &{&1.username, &1.id})
+    Enum.flat_map(usernames, fn u -> if id = lookup[u], do: [id], else: [] end)
+  end
 
   defp parse_pin_mode("interleave"), do: :interleave
   defp parse_pin_mode(_),             do: :pinned_first
@@ -134,6 +165,17 @@ defmodule AvelineWeb.WorkspaceShowLive do
     {:noreply, push_patch(socket, to: build_path(socket, %{tag: new_tags}))}
   end
 
+  def handle_event("toggle_author", %{"author" => username}, socket) do
+    new_authors =
+      if username in socket.assigns.selected_authors do
+        List.delete(socket.assigns.selected_authors, username)
+      else
+        socket.assigns.selected_authors ++ [username]
+      end
+
+    {:noreply, push_patch(socket, to: build_path(socket, %{author: new_authors}))}
+  end
+
   def handle_event("search", %{"value" => v}, socket) do
     {:noreply, push_patch(socket, to: build_path(socket, %{q: v}))}
   end
@@ -146,14 +188,12 @@ defmodule AvelineWeb.WorkspaceShowLive do
     {:noreply, push_patch(socket, to: build_path(socket, %{sort: sort_to_param(sort)}))}
   end
 
-  def handle_event("toggle_sidebar_favorite", params, socket) do
-    {:noreply, Aveline.SidebarFavorites.handle_toggle(socket, params)}
-  end
-
   def handle_event("load_more", _, socket) do
     %{
       workspace: ws,
       selected_tags: tags,
+      selected_authors: authors,
+      workspace_authors: ws_authors,
       pin_mode: pin_mode,
       sort: sort,
       items: existing,
@@ -165,6 +205,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
         pin_mode: pin_mode,
         sort: sort,
         tags: tags,
+        owner_ids: author_ids(authors, ws_authors),
         limit: page_size + 1,
         offset: length(existing)
       )
@@ -184,6 +225,10 @@ defmodule AvelineWeb.WorkspaceShowLive do
        view_counts: DocViews.counts_by_base(base_ids),
        kudos_counts: Kudos.counts_by_base(base_ids),
        chip_counts: items |> Enum.flat_map(& &1.tags) |> Enum.frequencies(),
+       author_counts:
+         items
+         |> Enum.flat_map(fn i -> if i.owner, do: [i.owner.username], else: [] end)
+         |> Enum.frequencies(),
        has_more?: has_more?
      )}
   end
@@ -196,25 +241,30 @@ defmodule AvelineWeb.WorkspaceShowLive do
   defp build_path(socket, overrides) when is_map(overrides) do
     base = %{
       tag: socket.assigns.selected_tags,
+      author: socket.assigns.selected_authors,
       pin: pin_param(socket.assigns.pin_mode),
       sort: sort_param(socket.assigns.sort),
       q: nz(socket.assigns.search)
     }
 
     merged = Map.merge(base, overrides)
-    tags = Map.get(merged, :tag, [])
 
-    # Phoenix uses Plug.Conn.Query, which does last-wins on repeated keys.
-    # To get a real list back on the receiving end we have to serialize as
-    # `tag[]=a&tag[]=b` — which means encoding the value as a list, not as
-    # repeated `{"tag", v}` pairs.
+    # Phoenix uses Plug.Conn.Query (last-wins on repeated keys). To get
+    # real lists back we serialize as `key[]=a&key[]=b` — pass the value
+    # as a list and Plug handles the [] syntax for us.
+    tags = Map.get(merged, :tag, [])
+    authors = Map.get(merged, :author, [])
+
     scalars =
       merged
-      |> Map.delete(:tag)
+      |> Map.drop([:tag, :author])
       |> Enum.reject(fn {_k, v} -> v in [nil, "", false] end)
       |> Enum.map(fn {k, v} -> {Atom.to_string(k), v} end)
 
-    query = if tags == [], do: scalars, else: scalars ++ [{"tag", tags}]
+    query =
+      scalars
+      |> maybe_append_list("tag", tags)
+      |> maybe_append_list("author", authors)
 
     if query == [] do
       ~p"/w/#{socket.assigns.workspace.slug}"
@@ -222,6 +272,9 @@ defmodule AvelineWeb.WorkspaceShowLive do
       ~p"/w/#{socket.assigns.workspace.slug}?#{query}"
     end
   end
+
+  defp maybe_append_list(query, _key, []), do: query
+  defp maybe_append_list(query, key, list), do: query ++ [{key, list}]
 
   defp nz(""), do: nil
   defp nz(s), do: s
@@ -254,59 +307,116 @@ defmodule AvelineWeb.WorkspaceShowLive do
     ~H"""
     <div class="content">
       <div class="filter-bar">
-        <form phx-change="search">
-          <input
-            type="text"
-            name="value"
-            value={@search}
-            placeholder="Search docs…"
-            class="search-input"
-            autocomplete="off"
-          />
-        </form>
+        <div class="filter-row">
+          <span class="filter-row-icon" title="Search">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="7" cy="7" r="4.5" />
+              <path d="M10.5 10.5L14 14" />
+            </svg>
+          </span>
+          <form phx-change="search" class="filter-row-form">
+            <input
+              type="text"
+              name="value"
+              value={@search}
+              placeholder="Search docs…"
+              class="search-input"
+              autocomplete="off"
+            />
+          </form>
+        </div>
         <%= if @workspace_tags != [] do %>
-          <div class="chip-row">
-            <%= for tag <- @workspace_tags do %>
-              <% selected = tag in @selected_tags %>
-              <% count = Map.get(@chip_counts, tag, 0) %>
-              <% disabled = not selected and count == 0 %>
-              <button
-                phx-click={unless disabled, do: "toggle_tag"}
-                phx-value-tag={tag}
-                disabled={disabled}
-                class={"chip " <> cond do
-                  selected -> "chip-active"
-                  disabled -> "chip-disabled"
-                  true -> ""
-                end}
-                title={if disabled, do: "No overlap with current filter", else: nil}
-              >
-                {tag} <span style="opacity:0.55;margin-left:4px">{count}</span>
-              </button>
-            <% end %>
+          <div class="filter-row">
+            <span class="filter-row-icon" title="Filter by tag">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M2 7l5-5h6v6l-5 5z" stroke-linejoin="round" />
+                <circle cx="9.5" cy="6.5" r="0.9" fill="currentColor" />
+              </svg>
+            </span>
+            <div class="chip-row">
+              <%= for tag <- @workspace_tags do %>
+                <% selected = tag in @selected_tags %>
+                <% count = Map.get(@chip_counts, tag, 0) %>
+                <% disabled = not selected and count == 0 %>
+                <button
+                  phx-click={unless disabled, do: "toggle_tag"}
+                  phx-value-tag={tag}
+                  disabled={disabled}
+                  class={"chip " <> cond do
+                    selected -> "chip-active"
+                    disabled -> "chip-disabled"
+                    true -> ""
+                  end}
+                  title={if disabled, do: "No overlap with current filter", else: nil}
+                >
+                  {tag} <span class="chip-meta">{if selected, do: "•", else: count}</span>
+                </button>
+              <% end %>
+            </div>
           </div>
         <% end %>
 
-        <div class="seg-row">
-          <div class="seg" role="group" aria-label="Pin behaviour">
-            <button
-              :for={{label, mode} <- [{"Pinned first", :pinned_first}, {"Interleave", :interleave}]}
-              phx-click="set_pin_mode"
-              phx-value-mode={Atom.to_string(mode)}
-              class={"seg-btn " <> if @pin_mode == mode, do: "seg-btn-active", else: ""}
-            >
-              {label}
-            </button>
+        <%= if @workspace_authors != [] do %>
+          <div class="filter-row">
+            <span class="filter-row-icon" title="Filter by author">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="8" cy="6" r="2.6" />
+                <path d="M3 13.5c0-2.2 2.2-3.5 5-3.5s5 1.3 5 3.5" stroke-linecap="round" />
+              </svg>
+            </span>
+            <div class="chip-row">
+              <%= for u <- @workspace_authors do %>
+                <% selected = u.username in @selected_authors %>
+                <% count = Map.get(@author_counts, u.username, 0) %>
+                <% disabled = not selected and count == 0 %>
+                <button
+                  phx-click={unless disabled, do: "toggle_author"}
+                  phx-value-author={u.username}
+                  disabled={disabled}
+                  class={"chip " <> cond do
+                    selected -> "chip-active"
+                    disabled -> "chip-disabled"
+                    true -> ""
+                  end}
+                  title={if disabled, do: "No overlap with current filter", else: nil}
+                >
+                  {u.username} <span class="chip-meta">{if selected, do: "•", else: count}</span>
+                </button>
+              <% end %>
+            </div>
           </div>
-          <div class="seg" role="group" aria-label="Sort">
-            <button
-              :for={{label, s} <- [{"Recent", :recent}, {"Kudos", :kudos}, {"Views", :views}]}
-              phx-click="set_sort"
-              phx-value-sort={Atom.to_string(s)}
-              class={"seg-btn " <> if @sort == s, do: "seg-btn-active", else: ""}
-            >
-              {label}
-            </button>
+        <% end %>
+
+        <div class="filter-row">
+          <span class="filter-row-icon" title="Sort and pin behavior">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 3v10" />
+              <path d="M2 11l2 2 2-2" />
+              <path d="M12 13V3" />
+              <path d="M10 5l2-2 2 2" />
+            </svg>
+          </span>
+          <div class="seg-row">
+            <div class="seg" role="group" aria-label="Pin behaviour">
+              <button
+                :for={{label, mode} <- [{"Pinned first", :pinned_first}, {"Interleave", :interleave}]}
+                phx-click="set_pin_mode"
+                phx-value-mode={Atom.to_string(mode)}
+                class={"seg-btn " <> if @pin_mode == mode, do: "seg-btn-active", else: ""}
+              >
+                {label}
+              </button>
+            </div>
+            <div class="seg" role="group" aria-label="Sort">
+              <button
+                :for={{label, s} <- [{"Recent", :recent}, {"Kudos", :kudos}, {"Views", :views}]}
+                phx-click="set_sort"
+                phx-value-sort={Atom.to_string(s)}
+                class={"seg-btn " <> if @sort == s, do: "seg-btn-active", else: ""}
+              >
+                {label}
+              </button>
+            </div>
           </div>
         </div>
       </div>

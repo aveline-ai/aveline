@@ -58,8 +58,6 @@ defmodule AvelineWeb.DocShowLive do
                current_user: user,
                workspace: ws,
                sidebar_workspaces: Workspaces.list_for_user(user.id),
-           favorites: Aveline.SidebarFavorites.list_for_user(ws.id, user.id),
-               workspace_tags: Docs.list_workspace_tags(ws.id),
                total_count: length(all_items),
                pinned_count: Enum.count(all_items, & &1.pinned),
                topbar_title: current_doc.title,
@@ -212,10 +210,6 @@ defmodule AvelineWeb.DocShowLive do
     else
       _ -> {:noreply, put_flash(socket, :error, "Could not delete.")}
     end
-  end
-
-  def handle_event("toggle_sidebar_favorite", params, socket) do
-    {:noreply, Aveline.SidebarFavorites.handle_toggle(socket, params)}
   end
 
   defp nil_if_blank(nil), do: nil
