@@ -6,7 +6,7 @@
 # Deterministic. Three users, one workspace, hardcoded tokens, agent-authored
 # docs (each with multiple versions to demonstrate the changelog), mixed
 # human + agent comments, plus a sprinkle of kudos / views / pin toggles /
-# resolves so the History tab has interesting traffic on first load.
+# resolves so the Activity tab has interesting traffic on first load.
 #
 # Every mutation flows through the standard contexts, so the events table
 # captures all of it automatically — we don't synthesize events here.
@@ -577,7 +577,7 @@ end)
 # ===== Demo activity =====
 # A handful of kudos, reads, pin toggles, and a resolve so the History
 # tab has something to show on first load. Each goes through the normal
-# context fn → emits an event → renders in /history.
+# context fn → emits an event → renders in /activity.
 
 # Kudos: everyone gives kudos to a doc someone else wrote.
 kudos_specs = [
@@ -662,5 +662,5 @@ IO.puts("")
 IO.puts("Docs: #{length(doc_specs)} (stack-overview at v2, oncall-runbook at v3)")
 IO.puts("Comments: #{length(thread_specs)} (mixed human + agent)")
 events_count = Repo.aggregate(Aveline.Events.Event, :count, :id)
-IO.puts("History events: #{events_count} (all action types covered)")
+IO.puts("Activity events: #{events_count} (all action types covered)")
 IO.puts("")

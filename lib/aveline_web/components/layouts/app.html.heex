@@ -65,15 +65,24 @@
           <span class="label">Tags</span>
         </.link>
         <.link
-          navigate={~p"/w/#{@workspace.slug}/history"}
-          class={"sidebar-item " <> if assigns[:nav_active] == :history, do: "active", else: ""}
+          navigate={~p"/w/#{@workspace.slug}/activity"}
+          class={"sidebar-item " <> if assigns[:nav_active] == :activity, do: "active", else: ""}
         >
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/>
-            <path d="M3 3v5h5"/>
-            <path d="M12 7v5l3 2"/>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
           </svg>
-          <span class="label">History</span>
+          <span class="label">Activity</span>
+        </.link>
+        <.link
+          navigate={~p"/w/#{@workspace.slug}/usage"}
+          class={"sidebar-item " <> if assigns[:nav_active] == :usage, do: "active", else: ""}
+        >
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+          <span class="label">Usage</span>
         </.link>
         <.link
           navigate={~p"/w/#{@workspace.slug}/team"}

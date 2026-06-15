@@ -1,4 +1,4 @@
-defmodule AvelineWeb.HistoryLive do
+defmodule AvelineWeb.ActivityLive do
   @moduledoc """
   Workspace audit timeline. Renders the unified `events` feed with one
   compact row per action: who, what, when, link to the target if any.
@@ -24,12 +24,12 @@ defmodule AvelineWeb.HistoryLive do
 
         {:ok,
          assign(socket,
-           page_title: "Aveline · History · #{ws.name}",
+           page_title: "Aveline · Activity · #{ws.name}",
            current_user: user,
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
-           topbar_title: "History",
-           nav_active: :history,
+           topbar_title: "Activity",
+           nav_active: :activity,
            events: events,
            has_more?: has_more?
          )}
@@ -69,7 +69,7 @@ defmodule AvelineWeb.HistoryLive do
   def render(assigns) do
     ~H"""
     <div class="content">
-      <h1 class="page-title">History</h1>
+      <h1 class="page-title">Activity</h1>
       <p class="page-subtitle">
         Everything that's happened in <span class="mono">{@workspace.slug}</span> — most recent first.
       </p>
