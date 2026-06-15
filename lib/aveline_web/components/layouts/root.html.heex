@@ -959,11 +959,14 @@
       .thread-resolved { color: #4ADE80; }
       .thread-content-resolved { opacity: 0.55; text-decoration: line-through; }
 
-      /* ===== Doc detail layout (single column, inline comments) ===== */
+      /* ===== Doc detail layout (single column, inline comments) =====
+         Outer container shares width with `.content` so the chrome on the
+         doc page matches every other tab. */
       .doc-layout {
-        max-width: 880px;
+        max-width: 1200px;
         margin: 0 auto;
-        padding: 20px 28px 80px;
+        padding: 24px 28px 80px;
+        width: 100%;
       }
       .doc-article { min-width: 0; }
 

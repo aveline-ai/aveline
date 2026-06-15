@@ -78,6 +78,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
         sort: sort,
         tags: selected_tags,
         owner_ids: owner_ids,
+        search: search,
         limit: page_size + 1
       )
 
@@ -206,6 +207,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
         sort: sort,
         tags: tags,
         owner_ids: author_ids(authors, ws_authors),
+        search: socket.assigns.search,
         limit: page_size + 1,
         offset: length(existing)
       )
@@ -286,26 +288,19 @@ defmodule AvelineWeb.WorkspaceShowLive do
   defp sort_param(:views), do: "views"
   defp sort_param(_), do: nil
 
-  # Tag + pin filtering already happened in SQL via Docs.list_current/2;
-  # the only remaining client-side filter is the search box.
-  defp filtered(items, search) do
-    case String.trim(search || "") do
-      "" ->
-        items
-
-      s ->
-        ds = String.downcase(s)
-        Enum.filter(items, fn i -> String.contains?(String.downcase(i.title), ds) end)
-    end
-  end
-
   @impl true
   def render(assigns) do
-    shown = filtered(assigns.items, assigns.search)
-    assigns = assign(assigns, shown_items: shown)
+    # All filtering — tags, authors, search (Postgres FTS), pin — happens
+    # in SQL via Docs.list_current/2. The render just paints @items.
+    assigns = assign(assigns, shown_items: assigns.items)
 
     ~H"""
     <div class="content">
+      <h1 class="page-title">Docs</h1>
+      <p class="page-subtitle">
+        Everything written in <span class="mono">{@workspace.slug}</span> — filter by tag or author, search title and content.
+      </p>
+
       <div class="filter-bar">
         <div class="filter-row">
           <span class="filter-row-icon" title="Search">
@@ -314,12 +309,12 @@ defmodule AvelineWeb.WorkspaceShowLive do
               <path d="M10.5 10.5L14 14" />
             </svg>
           </span>
-          <form phx-change="search" class="filter-row-form">
+          <form phx-submit="search" class="filter-row-form">
             <input
               type="text"
               name="value"
               value={@search}
-              placeholder="Search docs…"
+              placeholder="Search docs by title & content"
               class="search-input"
               autocomplete="off"
             />

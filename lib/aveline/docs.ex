@@ -38,6 +38,7 @@ defmodule Aveline.Docs do
     sort = Keyword.get(opts, :sort, :recent)
     tags = Keyword.get(opts, :tags, []) || []
     owner_ids = Keyword.get(opts, :owner_ids, []) || []
+    search = (Keyword.get(opts, :search) || "") |> to_string() |> String.trim()
     limit = Keyword.get(opts, :limit)
     offset = Keyword.get(opts, :offset, 0)
 
@@ -49,10 +50,26 @@ defmodule Aveline.Docs do
     |> apply_pin_filter(pinned)
     |> maybe_filter_tags(tags)
     |> maybe_filter_owners(owner_ids)
+    |> maybe_filter_search(search)
     |> apply_sort(sort, pin_mode)
     |> maybe_paginate(limit, offset)
     |> Repo.all()
     |> Repo.preload([:owner, :actor_user])
+  end
+
+  # Postgres full-text: websearch_to_tsquery handles the user-facing syntax
+  # (phrase in quotes, -word to exclude, OR for either). Matches against
+  # the `search_text` column via the GIN index.
+  defp maybe_filter_search(query, ""), do: query
+
+  defp maybe_filter_search(query, q) do
+    from d in query,
+      where:
+        fragment(
+          "to_tsvector('english', ?) @@ websearch_to_tsquery('english', ?)",
+          d.search_text,
+          ^q
+        )
   end
 
   defp maybe_filter_owners(query, []), do: query
@@ -371,6 +388,7 @@ defmodule Aveline.Docs do
       |> Map.put(:intent, intent)
       |> Map.put(:resolves_comment_ids, resolves)
       |> Map.put(:comment_dispositions, Disposition.to_json(dispositions))
+      |> put_v1_search_text(new_blocks)
 
     Multi.new()
     |> Multi.insert(:doc, Doc.changeset(%Doc{}, new_attrs))
@@ -404,7 +422,13 @@ defmodule Aveline.Docs do
         operations: ops,
         intent: intent,
         resolves_comment_ids: resolves,
-        comment_dispositions: Disposition.to_json(dispositions)
+        comment_dispositions: Disposition.to_json(dispositions),
+        search_text:
+          build_search_text(
+            Map.get(update_attrs, :title, current.title),
+            Map.get(update_attrs, :summary, current.summary),
+            new_blocks
+          )
       }
 
       Multi.new()
@@ -536,6 +560,70 @@ defmodule Aveline.Docs do
   defp maybe_put_intent(data, nil), do: data
   defp maybe_put_intent(data, ""), do: data
   defp maybe_put_intent(data, intent), do: Map.put(data, "intent", intent)
+
+  # ===== Search-text build =====
+  # Pre-flatten everything searchable into a single string at write time.
+  # The GIN index then indexes `to_tsvector('english', search_text)` so
+  # query time is constant regardless of doc length.
+
+  defp put_v1_search_text(attrs, blocks) do
+    text =
+      build_search_text(
+        Map.get(attrs, :title, ""),
+        Map.get(attrs, :summary),
+        blocks
+      )
+
+    Map.put(attrs, :search_text, text)
+  end
+
+  # Tags + author already have their own filter rows; the search bar is
+  # for finding words inside the doc itself — title, summary, blocks.
+  defp build_search_text(title, summary, blocks) do
+    [
+      to_string(title || ""),
+      to_string(summary || ""),
+      blocks_to_text(blocks || [])
+    ]
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n")
+  end
+
+  defp blocks_to_text(blocks) when is_list(blocks) do
+    blocks |> Enum.map_join(" ", &block_to_text/1) |> String.trim()
+  end
+
+  defp block_to_text(%{"type" => "heading", "text" => text}), do: to_string(text || "")
+  defp block_to_text(%{"type" => "code", "content" => content}), do: to_string(content || "")
+  defp block_to_text(%{"type" => "paragraph", "content" => spans}), do: spans_to_text(spans)
+
+  defp block_to_text(%{"type" => "list", "items" => items}) when is_list(items) do
+    Enum.map_join(items, " ", fn item -> spans_to_text(item["content"]) end)
+  end
+
+  defp block_to_text(%{"type" => "table", "headers" => headers, "rows" => rows}) do
+    head = headers |> List.wrap() |> Enum.join(" ")
+
+    body =
+      rows
+      |> List.wrap()
+      |> Enum.map_join(" ", fn row ->
+        row |> List.wrap() |> Enum.map_join(" ", &spans_to_text/1)
+      end)
+
+    [head, body] |> Enum.reject(&(&1 == "")) |> Enum.join(" ")
+  end
+
+  defp block_to_text(_), do: ""
+
+  defp spans_to_text(spans) when is_list(spans) do
+    Enum.map_join(spans, "", fn
+      %{"text" => t} when is_binary(t) -> t
+      _ -> ""
+    end)
+  end
+
+  defp spans_to_text(_), do: ""
 
   # Pin / unpin updates `pinned` on the current version in place. Pin
   # state is workspace-navigation metadata, not content, so we don't mint

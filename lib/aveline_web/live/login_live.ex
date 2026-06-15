@@ -7,10 +7,12 @@ defmodule AvelineWeb.LoginLive do
 
   @impl true
   def mount(_params, session, socket) do
-    if session["user_id"] do
-      {:ok, push_navigate(socket, to: ~p"/")}
-    else
-      {:ok, assign(socket, page_title: "Aveline · Log in")}
+    # Use LiveSession.current_user (not session["user_id"]) so a stale
+    # cookie pointing at a deleted user falls through to the login form
+    # instead of bouncing through /.
+    case AvelineWeb.LiveSession.current_user(session) do
+      nil -> {:ok, assign(socket, page_title: "Aveline · Log in")}
+      _user -> {:ok, push_navigate(socket, to: ~p"/")}
     end
   end
 

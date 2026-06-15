@@ -53,6 +53,10 @@ defmodule Aveline.Docs.Doc do
     # Each entry: %{"comment_id", "action" ("resolve"|"reanchor"|"leave"),
     #               "new_block_id"?, "note"?}. See Aveline.Comments.Disposition.
     field :comment_dispositions, {:array, :map}, default: []
+    # Pre-flattened title + summary + tags + block text; populated in
+    # Docs.apply_ops. The English tsvector is built from this column via
+    # the docs_search_idx GIN index.
+    field :search_text, :string, default: ""
     field :deleted_at, :utc_datetime_usec
 
     belongs_to :workspace, Workspace, type: :binary_id
@@ -84,7 +88,8 @@ defmodule Aveline.Docs.Doc do
       :operations,
       :intent,
       :resolves_comment_ids,
-      :comment_dispositions
+      :comment_dispositions,
+      :search_text
     ])
     |> validate_required([
       :base_doc_id,

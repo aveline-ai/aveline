@@ -18,11 +18,13 @@ defmodule AvelineWeb.SignupLive do
 
   @impl true
   def mount(_params, session, socket) do
-    case session["user_id"] do
+    # Resolve through LiveSession so a stale cookie (user_id pointing at
+    # a deleted account) drops back to the signup form instead of looping.
+    case AvelineWeb.LiveSession.current_user(session) do
       nil ->
         do_mount(socket)
 
-      user_id ->
+      %{id: user_id} ->
         # Already signed in — bounce them into a workspace (or to the
         # new-workspace flow if they don't have one).
         target =
