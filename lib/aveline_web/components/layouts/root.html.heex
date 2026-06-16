@@ -683,10 +683,10 @@
       .search-input:focus { border-color: var(--accent); }
 
       /* ===== Article (doc detail) ===== */
-      .article-header { margin-bottom: 10px; }
+      .article-header { margin-bottom: 0; }
       .article-title-row {
         display: flex; align-items: flex-start; gap: 12px;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
       }
       .article-title {
         flex: 1; min-width: 0;
@@ -751,7 +751,7 @@
       .article-kudos-btn.is-static { cursor: default; }
       .article-kudos-btn.is-static:hover { background: transparent; color: var(--text-muted); }
       .article-kudos-count { font-weight: 500; }
-      .article-summary { color: var(--text-secondary); font-size: 15px; margin-bottom: 10px; }
+      .article-summary { color: var(--text-secondary); font-size: 15px; margin-bottom: 4px; }
       .article-meta {
         display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
         font-size: 12.5px; color: var(--text-muted);
@@ -1105,11 +1105,13 @@
       }
       .doc-article { min-width: 0; }
 
-      /* Per-block inline comments zone — sits under each block. */
+      /* Per-block inline comments zone — sits under each block. Flat
+         layout (no left line / indent) so block comments read the same
+         as doc-level comments. */
       .block-comments {
         margin: 12px 0 0;
-        padding-left: 12px;
-        border-left: 2px solid var(--accent-dim);
+        padding-left: 0;
+        border-left: none;
       }
 
       /* General discussion. Notion-style: at the top of the doc body,
@@ -1398,8 +1400,20 @@
         color: var(--text);
       }
 
-      .doc-discussion-top { margin: 0 0 10px; }
-      .doc-discussion-top:not(:has(.comment-card)) { margin-bottom: 4px; }
+      /* The TOP discussion sits flush against the article header — the
+         `.doc-discussion` defaults (56px top margin, 24px top padding)
+         are meant for the BOTTOM placement. Compound selector to win
+         source-order over the base rule below. */
+      .doc-discussion.doc-discussion-top {
+        margin: 0 0 4px;
+        padding-top: 14px;
+      }
+      .doc-discussion.doc-discussion-top:not(:has(.comment-card)) {
+        margin-bottom: 0;
+      }
+      /* First child sits flush against the header — no extra margin-top
+         on the composer when the discussion is open right under the title. */
+      .doc-discussion-top > .comment-composer:first-child { margin-top: 0; }
       .doc-discussion { margin-top: 56px; padding-top: 24px; }
       .doc-discussion-header {
         display: flex; align-items: center; gap: 8px;
@@ -1463,32 +1477,49 @@
       }
 
       /* ===== Comment cards (one per thread, inline or in discussion) ===== */
-      .comment-card-list {
+      /* `ol` selector beats `.prose ol`'s 22px padding-left (specificity
+         tie + source order) so block-comments lists sit flush. */
+      ol.comment-card-list {
         list-style: none; padding: 0; margin: 0;
         display: flex; flex-direction: column; gap: 10px;
       }
       .comment-card-wrap { padding: 0; }
+      /* One smooth shell — parent comment + replies + composer all live
+         inside the same rounded card with hairline dividers between
+         sections instead of nested boxes. Sections manage their own
+         padding; the card just clips the corners. */
       .comment-card {
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 12px 14px;
+        /* Significantly lighter "raised paper" surface so comments
+           clearly pop off the doc body. Reads as a distinct discussion
+           surface, not another card in the dark stack. */
+        background: #272A3A;
+        border: 1px solid rgba(255,255,255,0.14);
+        border-radius: 10px;
+        padding: 0;
+        overflow: hidden;
         transition: border-color 0.08s ease, opacity 0.15s ease;
       }
-      .comment-card:hover { border-color: var(--border-strong); }
+      .comment-card:hover { border-color: rgba(255,255,255,0.22); }
       .comment-card-wrap-resolved .comment-card {
         opacity: 0.7;
         background: transparent;
       }
       .comment-card-wrap-resolved .comment-card:hover { opacity: 1; }
+      /* The parent comment row gets explicit padding now that the card
+         itself has none. */
+      .comment-card > .thread-body { padding: 12px 14px; }
+      /* Replies = continuation rows with hairlines. No inner indent / no
+         nested box — they read as part of the same shell. */
       .comment-card-replies {
         list-style: none;
-        margin: 10px 0 0;
-        padding: 10px 0 0 12px;
-        display: flex; flex-direction: column; gap: 10px;
-        border-top: 1px solid var(--border);
+        margin: 0;
+        padding: 0;
+        display: block;
       }
-      .comment-card-replies > li { padding: 0; }
+      .comment-card-replies > li {
+        padding: 12px 14px;
+        border-top: 1px solid rgba(255,255,255,0.08);
+      }
 
       .thread-body { min-width: 0; }
       .thread-meta {
@@ -1551,10 +1582,32 @@
         margin-top: 10px;
       }
       .comment-composer:focus-within { border-color: var(--accent); }
-      .comment-composer-inline { background: var(--bg-card); }
+      /* Block-level "Add a comment" composer — match the comment-card
+         surface so a new thread reads as a member of the same family
+         the moment you start typing. */
+      .comment-composer-inline {
+        background: #272A3A;
+        border-color: rgba(255,255,255,0.14);
+        border-radius: 10px;
+      }
+      .comment-composer-inline:focus-within { border-color: rgba(255,255,255,0.22); }
       .comment-composer-reply {
         margin-top: 10px;
         background: var(--bg-card);
+      }
+      /* Reply composer living inside a comment-card: drop the nested box
+         look (own border / radius / margin) so it reads as the card's
+         bottom "input" section, separated only by a hairline. */
+      .comment-card > .comment-composer-reply {
+        margin: 0;
+        border: none;
+        border-top: 1px solid rgba(255,255,255,0.08);
+        border-radius: 0;
+        background: rgba(0,0,0,0.18);
+        padding: 10px 14px;
+      }
+      .comment-card > .comment-composer-reply:focus-within {
+        background: rgba(0,0,0,0.28);
       }
       .comment-composer-input {
         width: 100%; border: none; outline: none;
@@ -1601,30 +1654,9 @@
         color: var(--text);
       }
 
-      /* Compact doc-level composer at the top: a single quiet input that
-         expands on focus. Avoids dominating the article header. */
-      .doc-discussion-top > .comment-composer {
-        margin-top: 0;
-        padding: 6px 10px;
-        background: transparent;
-        border: 1px solid transparent;
-        border-radius: 6px;
-        transition: background 0.1s ease, border-color 0.1s ease, padding 0.1s ease;
-      }
-      .doc-discussion-top > .comment-composer:hover {
-        background: var(--bg-card);
-      }
-      .doc-discussion-top > .comment-composer:focus-within {
-        background: var(--bg-input);
-        border-color: var(--border-strong);
-        padding: 10px 12px;
-      }
-      .doc-discussion-top > .comment-composer .comment-composer-input {
-        min-height: 22px;
-        font-size: 13px;
-      }
-      .doc-discussion-top > .comment-composer .comment-composer-footer { display: none; }
-      .doc-discussion-top > .comment-composer:focus-within .comment-composer-footer { display: flex; }
+      /* Doc-level composer opens via the title's comment button — same
+         inline composer shell as block-level comments, no special-case
+         shrink-on-blur treatment. */
 
       /* ===== Auth (signup / login / show token) ===== */
       .auth-shell {

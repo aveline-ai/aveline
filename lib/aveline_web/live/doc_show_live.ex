@@ -147,17 +147,6 @@ defmodule AvelineWeb.DocShowLive do
     {:noreply, assign(socket, :commenting_on_block_id, nil)}
   end
 
-  def handle_event("resolve_comment", %{"id" => id}, socket) do
-    %{current_user: user} = socket.assigns
-
-    with %_{} = msg <- Comments.get_comment(id),
-         {:ok, _} <- Comments.resolve_comment(msg, user && user.id) do
-      {:noreply, socket}
-    else
-      _ -> {:noreply, put_flash(socket, :error, "Could not resolve.")}
-    end
-  end
-
   def handle_event("unresolve_comment", %{"id" => id}, socket) do
     with %_{} = msg <- Comments.get_comment(id),
          {:ok, _} <- Comments.unresolve_comment(msg) do
@@ -289,7 +278,36 @@ defmodule AvelineWeb.DocShowLive do
         />
 
         <header class="article-header">
-          <div class="article-title-row">
+          <div class="article-title-row blk-anchored">
+            <span class="block-gutter" contenteditable="false">
+              <a
+                href="#"
+                class="block-anchor"
+                phx-hook="CopyBlockLink"
+                id="anchor-doc"
+                data-block-id=""
+                title="Copy link to this doc"
+                aria-label="Copy link to this doc"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+              </a>
+              <button
+                :if={@current_user}
+                type="button"
+                class="block-comment-btn"
+                phx-click="start_block_comment"
+                phx-value-block-id="__doc__"
+                title="Add a doc-level comment"
+                aria-label="Add a doc-level comment"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+              </button>
+            </span>
             <h1 class="article-title">{@item.title}</h1>
             <% own_doc? = @current_user && @current_user.id == @current_doc.owner_id %>
             <%= if @current_user && not own_doc? do %>
@@ -419,7 +437,7 @@ defmodule AvelineWeb.DocShowLive do
         </header>
 
         <section
-          :if={@doc_level_threads != [] or @orphan_threads != [] or @current_user}
+          :if={@doc_level_threads != [] or @orphan_threads != [] or @commenting_on_block_id == "__doc__"}
           class="doc-discussion doc-discussion-top"
           id="discussion"
         >
@@ -466,24 +484,27 @@ defmodule AvelineWeb.DocShowLive do
             </ol>
           <% end %>
 
-          <%= if @current_user do %>
+          <%= if @current_user && @commenting_on_block_id == "__doc__" do %>
             <form
               phx-submit="post_comment"
               id="doc-comment-form"
               phx-hook="ResetOnEvent"
               data-reset-event="reset-form"
-              class="comment-composer"
+              class="comment-composer comment-composer-inline"
             >
               <input type="hidden" name="form_id" value="doc-comment-form" />
               <textarea
+                id="doc-comment-input"
+                phx-hook="AutoFocus"
                 name="body"
                 class="comment-composer-input"
-                placeholder="Add a comment…"
+                placeholder="Add a doc-level comment…"
                 rows="2"
               ></textarea>
               <div class="comment-composer-footer">
                 <span class="comment-composer-hint">Cmd+Enter to post</span>
-                <button type="submit" class="comment-composer-submit">Post</button>
+                <button type="button" phx-click="cancel_block_comment" class="comment-composer-cancel">Cancel</button>
+                <button type="submit" class="comment-composer-submit">Comment</button>
               </div>
             </form>
           <% end %>
@@ -676,11 +697,12 @@ defmodule AvelineWeb.DocShowLive do
           <input type="hidden" name="block_id" value={@block_id} />
           <input type="hidden" name="form_id" value={"block-comment-form-" <> @block_id} />
           <textarea
+            id={"block-comment-input-" <> @block_id}
+            phx-hook="AutoFocus"
             name="body"
             class="comment-composer-input"
             placeholder="Ask a question about this block…"
             rows="2"
-            autofocus
           ></textarea>
           <div class="comment-composer-footer">
             <span class="comment-composer-hint">Cmd+Enter to post</span>
@@ -824,16 +846,10 @@ defmodule AvelineWeb.DocShowLive do
           </.link>
         <% end %>
         <span class="thread-actions">
-          <%= if @current_user && not @is_reply do %>
-            <%= if @message.resolved_at do %>
-              <button phx-click="unresolve_comment" phx-value-id={@message.id} class="thread-action-btn">
-                unresolve
-              </button>
-            <% else %>
-              <button phx-click="resolve_comment" phx-value-id={@message.id} class="thread-action-btn">
-                resolve
-              </button>
-            <% end %>
+          <%= if @current_user && not @is_reply && @message.resolved_at do %>
+            <button phx-click="unresolve_comment" phx-value-id={@message.id} class="thread-action-btn">
+              unresolve
+            </button>
           <% end %>
           <%= if @current_user && message_actor(@message) && message_actor(@message).id == @current_user.id do %>
             <button

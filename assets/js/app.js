@@ -62,21 +62,22 @@ const Hooks = {
       this.el.addEventListener("click", async (e) => {
         e.preventDefault()
         const blockId = this.el.dataset.blockId
-        if (!blockId) return
-        const url =
+        const base =
           window.location.origin +
           window.location.pathname +
-          window.location.search +
-          "#" + blockId
+          window.location.search
+        // No block id = title-level anchor: copy the doc URL itself.
+        const url = blockId ? base + "#" + blockId : base
         try { await navigator.clipboard.writeText(url) } catch (_) {}
-        history.replaceState(null, "", "#" + blockId)
-        const target = document.getElementById(blockId)
-        if (target) {
-          target.scrollIntoView({ behavior: "smooth", block: "start" })
-          target.classList.remove("blk-target-flash")
-          // force reflow so re-adding the class restarts the animation
-          void target.offsetWidth
-          target.classList.add("blk-target-flash")
+        if (blockId) {
+          history.replaceState(null, "", "#" + blockId)
+          const target = document.getElementById(blockId)
+          if (target) {
+            target.scrollIntoView({ behavior: "smooth", block: "start" })
+            target.classList.remove("blk-target-flash")
+            void target.offsetWidth
+            target.classList.add("blk-target-flash")
+          }
         }
         this.el.classList.add("copied")
         clearTimeout(this._t)
@@ -94,6 +95,16 @@ const Hooks = {
       if (code && window.Prism) {
         window.Prism.highlightElement(code)
       }
+    },
+  },
+
+  // Focus an element as soon as it mounts. Use on inline composers that
+  // are conditionally rendered — the HTML `autofocus` attribute fires
+  // only on initial page load, not on subsequent LV patches.
+  AutoFocus: {
+    mounted() {
+      // Defer one tick so any layout/transition completes first.
+      requestAnimationFrame(() => this.el.focus())
     },
   },
 
