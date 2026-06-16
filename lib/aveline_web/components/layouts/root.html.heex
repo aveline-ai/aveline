@@ -1092,7 +1092,7 @@
       /* ===== Actor badge in threads ===== */
       .actor-badge { font-size: 11px; }
       .thread-resolved { color: #4ADE80; }
-      .thread-content-resolved { opacity: 0.55; text-decoration: line-through; }
+      .thread-content-resolved { opacity: 0.7; }
 
       /* ===== Doc detail layout (single column, inline comments) =====
          Outer container shares width with `.content` so the chrome on the
@@ -1500,11 +1500,15 @@
         transition: border-color 0.08s ease, opacity 0.15s ease;
       }
       .comment-card:hover { border-color: rgba(255,255,255,0.22); }
+      /* Resolved thread: keep the same surface (no dim wash, no
+         transparent flip) — just a slightly subtler border so the
+         "resolved" tag in the meta carries the cue. */
       .comment-card-wrap-resolved .comment-card {
-        opacity: 0.7;
-        background: transparent;
+        border-color: rgba(255,255,255,0.08);
       }
-      .comment-card-wrap-resolved .comment-card:hover { opacity: 1; }
+      .comment-card-wrap-resolved .comment-card:hover {
+        border-color: rgba(255,255,255,0.14);
+      }
       /* The parent comment row gets explicit padding now that the card
          itself has none. */
       .comment-card > .thread-body { padding: 12px 14px; }
@@ -1519,6 +1523,24 @@
       .comment-card-replies > li {
         padding: 12px 14px;
         border-top: 1px solid rgba(255,255,255,0.08);
+      }
+      /* Collapsed-middle marker on a resolved thread: a thin row with a
+         centered "Show N hidden replies" toggle. Sits between the original
+         question and the resolving reply. */
+      .comment-card-collapsed {
+        padding: 6px 14px !important;
+        display: flex; justify-content: center;
+      }
+      .comment-card-expand-btn {
+        font-size: 11px;
+        color: var(--text-muted);
+        background: transparent;
+        padding: 3px 8px;
+        border-radius: 4px;
+      }
+      .comment-card-expand-btn:hover {
+        color: var(--text-secondary);
+        background: rgba(255,255,255,0.05);
       }
 
       .thread-body { min-width: 0; }
@@ -1542,7 +1564,7 @@
       .thread-action-btn[phx-click="delete_message"]:hover { color: var(--danger); background: rgba(229,72,77,0.08); }
       .thread-actions { display: flex; gap: 4px; }
 
-      .comment-card-wrap-resolved .thread-content { text-decoration: line-through; }
+      /* No strikethrough on resolved comments — the meta tag is enough. */
       .thread-version-badge {
         font-size: 10.5px;
         padding: 1px 6px; border-radius: 3px;

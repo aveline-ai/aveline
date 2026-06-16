@@ -70,6 +70,9 @@ defmodule AvelineWeb.DocShowLive do
                messages: messages,
                versions: versions,
                commenting_on_block_id: nil,
+               # Resolved threads collapse their middle replies by default;
+               # this set tracks which threads the reader has expanded.
+               expanded_threads: MapSet.new(),
                kudos_count: Kudos.count_for_base(current_doc.base_doc_id),
                kudos_given?: user && Kudos.given_by?(current_doc.base_doc_id, user.id),
                view_count: DocViews.count_for_base(current_doc.base_doc_id)
@@ -145,6 +148,17 @@ defmodule AvelineWeb.DocShowLive do
 
   def handle_event("cancel_block_comment", _, socket) do
     {:noreply, assign(socket, :commenting_on_block_id, nil)}
+  end
+
+  def handle_event("toggle_thread_expansion", %{"id" => id}, socket) do
+    expanded = socket.assigns.expanded_threads
+
+    next =
+      if MapSet.member?(expanded, id),
+        do: MapSet.delete(expanded, id),
+        else: MapSet.put(expanded, id)
+
+    {:noreply, assign(socket, :expanded_threads, next)}
   end
 
   def handle_event("unresolve_comment", %{"id" => id}, socket) do
@@ -452,6 +466,7 @@ defmodule AvelineWeb.DocShowLive do
                 current_user={@current_user}
                 workspace={@workspace}
                 current_doc={@current_doc}
+                expanded?={MapSet.member?(@expanded_threads, thread.parent.id)}
               />
             </li>
           </ol>
@@ -479,6 +494,7 @@ defmodule AvelineWeb.DocShowLive do
                   current_user={@current_user}
                   workspace={@workspace}
                   current_doc={@current_doc}
+                  expanded?={MapSet.member?(@expanded_threads, thread.parent.id)}
                 />
               </li>
             </ol>
@@ -521,6 +537,7 @@ defmodule AvelineWeb.DocShowLive do
                 current_user={@current_user}
                 workspace={@workspace}
                 current_doc={@current_doc}
+                expanded_threads={@expanded_threads}
               />
             <% end %>
           </div>
@@ -586,6 +603,26 @@ defmodule AvelineWeb.DocShowLive do
   #     so the conversation isn't lost.
   #
   # A "thread" is %{parent: comment, replies: [comment, ...]}.
+  # For a resolved thread, collapse all replies between the question and the
+  # reply that actually resolved it. `tail` is the reply that landed with the
+  # resolving version (or the last reply, as fallback). `hidden` is everything
+  # else, hidden behind an expand toggle. Open threads keep all replies
+  # visible (`hidden: []`, `tail: replies`).
+  defp partition_replies(%{parent: parent, replies: replies}) do
+    cond do
+      is_nil(parent.resolved_at) or replies == [] ->
+        %{hidden: [], tail: replies}
+
+      true ->
+        resolving =
+          Enum.find(replies, fn r -> r.doc_id == parent.resolved_by_doc_id end) ||
+            List.last(replies)
+
+        hidden = Enum.reject(replies, &(&1.id == resolving.id))
+        %{hidden: hidden, tail: [resolving]}
+    end
+  end
+
   defp group_threads(messages, current_block_ids) do
     block_set = MapSet.new(current_block_ids)
 
@@ -667,6 +704,7 @@ defmodule AvelineWeb.DocShowLive do
   attr :current_user, :map, required: true
   attr :workspace, :map, required: true
   attr :current_doc, :map, required: true
+  attr :expanded_threads, :any, required: true
 
   defp block_comment_zone(assigns) do
     ~H"""
@@ -682,6 +720,7 @@ defmodule AvelineWeb.DocShowLive do
             current_user={@current_user}
             workspace={@workspace}
             current_doc={@current_doc}
+            expanded?={MapSet.member?(@expanded_threads, thread.parent.id)}
           />
         </li>
       </ol>
@@ -722,8 +761,11 @@ defmodule AvelineWeb.DocShowLive do
   attr :current_user, :map, required: true
   attr :workspace, :map, required: true
   attr :current_doc, :map, required: true
+  attr :expanded?, :boolean, default: false
 
   defp comment_card(assigns) do
+    assigns = assign(assigns, partitioned: partition_replies(assigns.thread))
+
     ~H"""
     <article class="comment-card">
       <.comment_row
@@ -735,15 +777,50 @@ defmodule AvelineWeb.DocShowLive do
       />
 
       <ol :if={@thread.replies != []} class="comment-card-replies">
-        <li :for={r <- @thread.replies} id={"m-#{r.id}"}>
-          <.comment_row
-            message={r}
-            is_reply={true}
-            workspace={@workspace}
-            current_doc={@current_doc}
-            current_user={@current_user}
-          />
-        </li>
+        <%= cond do %>
+          <% @partitioned.hidden != [] and not @expanded? -> %>
+            <li class="comment-card-collapsed">
+              <button
+                type="button"
+                phx-click="toggle_thread_expansion"
+                phx-value-id={@thread.parent.id}
+                class="comment-card-expand-btn"
+                title="Show all replies in this thread"
+              >
+                Show {length(@partitioned.hidden)} hidden {if length(@partitioned.hidden) == 1, do: "reply", else: "replies"}
+              </button>
+            </li>
+            <li :for={r <- @partitioned.tail} id={"m-#{r.id}"}>
+              <.comment_row
+                message={r}
+                is_reply={true}
+                workspace={@workspace}
+                current_doc={@current_doc}
+                current_user={@current_user}
+              />
+            </li>
+          <% true -> %>
+            <li :if={@partitioned.hidden != []} class="comment-card-collapsed">
+              <button
+                type="button"
+                phx-click="toggle_thread_expansion"
+                phx-value-id={@thread.parent.id}
+                class="comment-card-expand-btn"
+                title="Hide middle replies again"
+              >
+                Hide {length(@partitioned.hidden)} {if length(@partitioned.hidden) == 1, do: "reply", else: "replies"}
+              </button>
+            </li>
+            <li :for={r <- @thread.replies} id={"m-#{r.id}"}>
+              <.comment_row
+                message={r}
+                is_reply={true}
+                workspace={@workspace}
+                current_doc={@current_doc}
+                current_user={@current_user}
+              />
+            </li>
+        <% end %>
       </ol>
 
       <%= if @current_user && is_nil(@thread.parent.resolved_at) do %>
