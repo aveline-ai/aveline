@@ -58,14 +58,25 @@ defmodule AvelineWeb.Api.FallbackController do
   end
 
   # Comment-disposition errors raised from Aveline.Comments.Disposition.
-  def call(conn, {:error, {:disposition_coverage_mismatch, %{missing: missing, extra: extra}}}) do
+  def call(conn, {:error, {:disposition_missing, missing}}) do
     render_error(
       conn,
       422,
-      "disposition_coverage_mismatch",
-      "Every open comment thread must be dispositioned exactly once.",
+      "disposition_missing",
+      "Open comments anchored to a touched block must be dispositioned (resolve / reanchor / leave).",
       field: "comment_dispositions",
-      context: %{missing: missing, extra: extra}
+      context: %{missing: missing}
+    )
+  end
+
+  def call(conn, {:error, {:leave_on_deleted_block, comment_id}}) do
+    render_error(
+      conn,
+      422,
+      "leave_on_deleted_block",
+      "A comment whose block was deleted cannot be left open — resolve it (with a reply) or reanchor it.",
+      field: "comment_dispositions",
+      context: %{comment_id: comment_id}
     )
   end
 

@@ -1,62 +1,71 @@
 defmodule Aveline.Comments.Disposition do
   @moduledoc """
-  When an agent submits a new doc version, every currently-open top-level
-  comment thread on that base doc MUST be dispositioned. A disposition is
-  the agent's explicit decision about what this edit means for each thread.
+  When an agent submits a new doc version, every **open** comment thread
+  anchored to a block that this op set *touches* (delete or modify) MUST
+  be dispositioned. Doc-level threads and threads on untouched blocks are
+  optional — the agent may resolve them opportunistically but isn't
+  forced to. The goal is the lever over Notion: edits cannot silently
+  leave stale comments hanging off blocks they changed.
 
   Three actions:
 
-    * `"resolve"`  — the new version addresses the comment. The thread is
-      closed and tagged as resolved-by-version (not by a human click).
+    * `"resolve"`  — the new version addresses the comment. The agent
+      MUST include a non-empty `reply` body; the server posts it as a
+      child comment under the resolved thread (authored by the agent,
+      anchored on the same block as the parent) and *then* marks the
+      parent resolved. Result reads in the UI as a normal thread reply
+      with a "resolved in v3" tag.
     * `"reanchor"` — the comment is still open, but the block it pointed
-      at has changed shape (split, merged, renamed). The agent picks a new
-      `new_block_id` in the new version's blocks to point the thread at.
+      at has changed shape (split, merged, renamed). The agent picks a
+      new `new_block_id` in the new version's blocks. Optional `note`.
     * `"leave"`    — open, no anchor change. The agent acknowledges the
-      thread but isn't addressing it in this edit. A short `note` is
-      strongly encouraged ("will handle in a follow-up", "out of scope").
+      thread but isn't addressing it in this edit. Illegal on a comment
+      whose block was deleted (the anchor is gone).
 
   An entry looks like:
 
       %{
         "comment_id" => "uuid",
         "action" => "resolve" | "reanchor" | "leave",
+        "reply" => "...",            # required iff action == "resolve"
         "new_block_id" => "b_xyz",   # required iff action == "reanchor"
-        "note" => "..."              # optional human-readable reasoning
+        "note" => "..."              # optional metadata for reanchor/leave
       }
-
-  Humans editing through the UI are not required to file dispositions —
-  only `actor_type == "agent"` versions are. Humans manually resolving
-  threads still use `Aveline.Comments.resolve_comment/2`.
   """
 
   alias Aveline.Comments.Comment
 
   @actions ~w(resolve reanchor leave)
 
-  defstruct [:comment_id, :action, :new_block_id, :note]
+  defstruct [:comment_id, :action, :new_block_id, :reply, :note]
 
   @type t :: %__MODULE__{
           comment_id: binary,
           action: String.t(),
           new_block_id: String.t() | nil,
+          reply: String.t() | nil,
           note: String.t() | nil
         }
 
   def actions, do: @actions
 
   @doc """
-  Normalize a single raw disposition map (from API params or stored JSON)
-  into a `%Disposition{}`. Returns `{:ok, struct}` or `{:error, reason}`.
+  Normalize a single raw disposition map into a `%Disposition{}`. Per-action
+  shape rules (resolve → reply required, reanchor → new_block_id required)
+  are enforced here so the validator below only worries about coverage and
+  deleted-block constraints.
   """
   def cast(%{} = raw) do
     with {:ok, id}     <- fetch_string(raw, "comment_id"),
          {:ok, action} <- fetch_action(raw),
-         {:ok, anchor} <- fetch_anchor(action, raw) do
+         {:ok, anchor} <- fetch_anchor(action, raw),
+         {:ok, reply}  <- fetch_reply(action, raw) do
       {:ok,
        %__MODULE__{
          comment_id: id,
          action: action,
          new_block_id: anchor,
+         reply: reply,
          note: raw["note"] |> to_string_or_nil()
        }}
     end
@@ -65,35 +74,51 @@ defmodule Aveline.Comments.Disposition do
   def cast(_), do: {:error, :invalid_disposition}
 
   @doc """
-  Validate a list of dispositions against the set of currently-open
-  top-level threads and the new version's blocks.
+  Validate a list of dispositions against the *required* open comment ids
+  (those anchored to a touched block in this op set), the comments whose
+  block was deleted (where `leave` is illegal), and the new version's
+  block ids (for reanchor target checking).
 
-  Returns `:ok` or `{:error, reason}` where reason captures what failed.
-
-  ## Required coverage
-
-  Every comment in `open_thread_ids` must appear exactly once in `dispositions`.
-  Reanchor targets must exist in `new_block_ids`.
+  Extra dispositions (covering optional comments) are allowed and pass
+  through; their per-action shape was already enforced by `cast/1`. The
+  reanchor target check applies to *all* dispositions, required or not.
   """
-  def validate(dispositions, open_thread_ids, new_block_ids)
-      when is_list(dispositions) and is_list(open_thread_ids) and is_list(new_block_ids) do
+  def validate(dispositions, required_ids, deleted_anchor_ids, new_block_ids)
+      when is_list(dispositions) and is_list(required_ids) and
+             is_list(deleted_anchor_ids) and is_list(new_block_ids) do
     dispo_ids = Enum.map(dispositions, & &1.comment_id)
-    open_set = MapSet.new(open_thread_ids)
+    required_set = MapSet.new(required_ids)
     dispo_set = MapSet.new(dispo_ids)
+    deleted_set = MapSet.new(deleted_anchor_ids)
 
     cond do
       length(dispo_ids) != MapSet.size(dispo_set) ->
         {:error, {:duplicate_dispositions, dispo_ids -- Enum.uniq(dispo_ids)}}
 
-      not MapSet.equal?(open_set, dispo_set) ->
-        missing = MapSet.difference(open_set, dispo_set) |> MapSet.to_list()
-        extra = MapSet.difference(dispo_set, open_set) |> MapSet.to_list()
-        {:error, {:disposition_coverage_mismatch, %{missing: missing, extra: extra}}}
+      not MapSet.subset?(required_set, dispo_set) ->
+        missing = MapSet.difference(required_set, dispo_set) |> MapSet.to_list()
+        {:error, {:disposition_missing, missing}}
 
       true ->
-        validate_reanchors(dispositions, MapSet.new(new_block_ids))
+        with :ok <- validate_deleted_block_actions(dispositions, deleted_set) do
+          validate_reanchors(dispositions, MapSet.new(new_block_ids))
+        end
     end
   end
+
+  defp validate_deleted_block_actions([], _deleted), do: :ok
+
+  defp validate_deleted_block_actions(
+         [%__MODULE__{action: "leave", comment_id: id} | rest],
+         deleted
+       ) do
+    if MapSet.member?(deleted, id),
+      do: {:error, {:leave_on_deleted_block, id}},
+      else: validate_deleted_block_actions(rest, deleted)
+  end
+
+  defp validate_deleted_block_actions([_ | rest], deleted),
+    do: validate_deleted_block_actions(rest, deleted)
 
   defp validate_reanchors([], _block_set), do: :ok
 
@@ -106,17 +131,16 @@ defmodule Aveline.Comments.Disposition do
   defp validate_reanchors([_ | rest], blocks), do: validate_reanchors(rest, blocks)
 
   @doc """
-  Apply a dispositions list to comments inside an Ecto.Multi step.
-
-  `now` and `actor_user_id` parameterize the resolve timestamp + the
-  user credited for the resolve. `new_doc_id` is the just-inserted Doc
-  version's id — set as `resolved_by_doc_id` on resolves so we can show
-  "resolved in v3" badges.
+  Apply a dispositions list inside an Ecto.Multi step. `resolve` posts a
+  child reply comment on the resolved thread (authored by `agent_user_id`
+  on the just-inserted doc version `new_doc_id`, inheriting the parent's
+  block anchor) before marking the parent resolved. `reanchor` rewrites
+  the parent's block_id. `leave` is a no-op.
   """
-  def apply(repo, dispositions, now, actor_user_id, new_doc_id)
+  def apply(repo, dispositions, now, agent_user_id, new_doc_id)
       when is_list(dispositions) do
     Enum.reduce_while(dispositions, {:ok, 0}, fn d, {:ok, n} ->
-      case do_apply(repo, d, now, actor_user_id, new_doc_id) do
+      case do_apply(repo, d, now, agent_user_id, new_doc_id) do
         {:ok, _} -> {:cont, {:ok, n + 1}}
         :ok      -> {:cont, {:ok, n + 1}}
         {:error, e} -> {:halt, {:error, e}}
@@ -124,24 +148,51 @@ defmodule Aveline.Comments.Disposition do
     end)
   end
 
-  defp do_apply(repo, %__MODULE__{action: "resolve", comment_id: id}, now, uid, doc_id) do
-    repo.get(Comment, id)
-    |> case do
-      nil -> {:error, {:comment_not_found, id}}
-      c ->
-        c
-        |> Ecto.Changeset.change(%{
-          resolved_at: now,
-          resolved_by_id: uid,
-          resolved_by_doc_id: doc_id
-        })
-        |> repo.update()
+  defp do_apply(
+         repo,
+         %__MODULE__{action: "resolve", comment_id: id, reply: reply},
+         now,
+         uid,
+         doc_id
+       ) do
+    case repo.get(Comment, id) do
+      nil ->
+        {:error, {:comment_not_found, id}}
+
+      %Comment{} = parent ->
+        # Post the agent's reply first so the thread reads chronologically
+        # (original → reply → resolved). Inherit the parent's block anchor
+        # so the reply lives on the same block in the UI.
+        reply_attrs = %{
+          "doc_id" => doc_id,
+          "parent_comment_id" => parent.id,
+          "block_id" => parent.block_id,
+          "body" => reply,
+          "actor_user_id" => uid,
+          "actor_type" => "agent"
+        }
+
+        with {:ok, _reply} <-
+               repo.insert(Comment.create_changeset(%Comment{}, reply_attrs)) do
+          parent
+          |> Ecto.Changeset.change(%{
+            resolved_at: now,
+            resolved_by_id: uid,
+            resolved_by_doc_id: doc_id
+          })
+          |> repo.update()
+        end
     end
   end
 
-  defp do_apply(repo, %__MODULE__{action: "reanchor", comment_id: id, new_block_id: bid}, _now, _uid, _doc_id) do
-    repo.get(Comment, id)
-    |> case do
+  defp do_apply(
+         repo,
+         %__MODULE__{action: "reanchor", comment_id: id, new_block_id: bid},
+         _now,
+         _uid,
+         _doc_id
+       ) do
+    case repo.get(Comment, id) do
       nil -> {:error, {:comment_not_found, id}}
       c -> c |> Ecto.Changeset.change(%{block_id: bid}) |> repo.update()
     end
@@ -156,6 +207,7 @@ defmodule Aveline.Comments.Disposition do
         "comment_id" => d.comment_id,
         "action" => d.action,
         "new_block_id" => d.new_block_id,
+        "reply" => d.reply,
         "note" => d.note
       }
       |> Enum.reject(fn {_, v} -> is_nil(v) end)
@@ -187,6 +239,21 @@ defmodule Aveline.Comments.Disposition do
   end
 
   defp fetch_anchor(_action, _map), do: {:ok, nil}
+
+  defp fetch_reply("resolve", map) do
+    case map["reply"] do
+      s when is_binary(s) ->
+        case String.trim(s) do
+          "" -> {:error, {:missing_field, "reply"}}
+          trimmed -> {:ok, trimmed}
+        end
+
+      _ ->
+        {:error, {:missing_field, "reply"}}
+    end
+  end
+
+  defp fetch_reply(_action, _map), do: {:ok, nil}
 
   defp to_string_or_nil(nil), do: nil
   defp to_string_or_nil(""), do: nil

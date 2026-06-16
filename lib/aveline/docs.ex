@@ -287,7 +287,7 @@ defmodule Aveline.Docs do
     actor_type = Map.fetch!(update_attrs, :actor_type)
 
     with {:ok, dispositions} <-
-           resolve_dispositions(current, new_blocks, actor_type, opts) do
+           resolve_dispositions(current, new_blocks, ops, actor_type, opts) do
       now = DateTime.utc_now()
       resolves = derive_resolves(dispositions, opts)
 
@@ -331,19 +331,33 @@ defmodule Aveline.Docs do
     end
   end
 
-  # Validate dispositions against currently-open threads + new blocks.
-  # Agents MUST cover every open thread. Humans may submit partial / no
-  # dispositions; their fallback is `resolves_comment_ids` for back-compat.
-  defp resolve_dispositions(%Doc{} = current, new_blocks, actor_type, opts) do
+  # Validate dispositions. The agent MUST cover every open comment thread
+  # whose anchor block was touched by this op set (deleted or modified);
+  # threads on untouched blocks and doc-level threads are optional. Humans
+  # may submit any subset (or none) and skip the coverage check entirely.
+  defp resolve_dispositions(%Doc{} = current, new_blocks, ops, actor_type, opts) do
     raw = Keyword.get(opts, :dispositions, []) || []
 
     with {:ok, structs} <- cast_all(raw) do
-      open_ids = open_thread_ids(current.base_doc_id)
+      touched = touched_block_ids(ops)
+      deleted = deleted_block_ids(ops)
+      open_threads = open_threads_for_base(current.base_doc_id)
+
+      required_ids =
+        open_threads
+        |> Enum.filter(fn %{block_id: bid} -> bid && MapSet.member?(touched, bid) end)
+        |> Enum.map(& &1.id)
+
+      deleted_anchor_ids =
+        open_threads
+        |> Enum.filter(fn %{block_id: bid} -> bid && MapSet.member?(deleted, bid) end)
+        |> Enum.map(& &1.id)
+
       block_ids = collect_block_ids(new_blocks)
 
       cond do
         actor_type == "agent" ->
-          case Disposition.validate(structs, open_ids, block_ids) do
+          case Disposition.validate(structs, required_ids, deleted_anchor_ids, block_ids) do
             :ok -> {:ok, structs}
             err -> err
           end
@@ -352,13 +366,36 @@ defmodule Aveline.Docs do
           {:ok, []}
 
         true ->
-          case Disposition.validate(structs, open_ids, block_ids) do
+          # Humans can dispo partially; only enforce the shape rules (extra
+          # dispositions still have to be well-formed reanchors / resolves).
+          case Disposition.validate(structs, [], deleted_anchor_ids, block_ids) do
             :ok -> {:ok, structs}
-            {:error, {:disposition_coverage_mismatch, _}} -> {:ok, structs}
             err -> err
           end
       end
     end
+  end
+
+  # Block ids targeted by `delete_block` or `modify_block` in this op set.
+  # `append_block` / `insert_block` add new ids; `move_block` only reorders
+  # — neither requires the agent to reckon with existing comments.
+  defp touched_block_ids(ops) do
+    ops
+    |> Enum.flat_map(fn
+      %{"op" => "delete_block", "id" => id} -> [id]
+      %{"op" => "modify_block", "id" => id} -> [id]
+      _ -> []
+    end)
+    |> MapSet.new()
+  end
+
+  defp deleted_block_ids(ops) do
+    ops
+    |> Enum.flat_map(fn
+      %{"op" => "delete_block", "id" => id} -> [id]
+      _ -> []
+    end)
+    |> MapSet.new()
   end
 
   defp cast_all(raw_list) do
@@ -374,7 +411,10 @@ defmodule Aveline.Docs do
     end
   end
 
-  defp open_thread_ids(base_doc_id) do
+  # Open (unresolved, not deleted) top-level threads on this base doc with
+  # their current block anchor. Used to figure out which comments the
+  # current op set is required to disposition.
+  defp open_threads_for_base(base_doc_id) do
     from(c in Comment,
       join: d in Doc,
       on: d.id == c.doc_id,
@@ -383,7 +423,7 @@ defmodule Aveline.Docs do
           is_nil(c.parent_comment_id) and
           is_nil(c.resolved_at) and
           is_nil(c.deleted_at),
-      select: c.id
+      select: %{id: c.id, block_id: c.block_id}
     )
     |> Repo.all()
   end

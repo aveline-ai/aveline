@@ -105,13 +105,21 @@ defmodule AvelineWeb.Api.DocController do
   end
 
   @doc """
-  Apply an ops batch to an existing item. Body:
+  Apply an ops batch to an existing doc. Body:
     {
       "intent": "...",
       "operations": [...],
-      "resolves_comment_ids": [...] (optional),
       "actor": "human" | "agent",
-      "title": "...",     (optional overrides)
+      "comment_dispositions": [
+        # Required for agent calls: every open comment anchored to a
+        # block this op set deletes or modifies must appear. Optional
+        # dispositions on doc-level / untouched-block comments are fine.
+        {"comment_id": "...", "action": "resolve",  "reply": "..."},
+        {"comment_id": "...", "action": "reanchor", "new_block_id": "b_xyz"},
+        {"comment_id": "...", "action": "leave",    "note": "..."}
+      ],
+      "resolves_comment_ids": [...]  # legacy fallback, optional
+      "title": "...",                # optional overrides
       "summary": "...",
       "tags": [...],
       "pinned": false
