@@ -150,22 +150,27 @@ defmodule Aveline.Comments.Disposition do
 
   defp do_apply(
          repo,
-         %__MODULE__{action: "resolve", comment_id: id, reply: reply},
+         %__MODULE__{action: "resolve", comment_id: base_id, reply: reply},
          now,
          uid,
          doc_id
        ) do
-    case repo.get(Comment, id) do
+    case fetch_current(repo, base_id) do
       nil ->
-        {:error, {:comment_not_found, id}}
+        {:error, {:comment_not_found, base_id}}
 
       %Comment{} = parent ->
         # Post the agent's reply first so the thread reads chronologically
         # (original → reply → resolved). Inherit the parent's block anchor
-        # so the reply lives on the same block in the UI.
+        # so the reply lives on the same block in the UI. New base id is
+        # minted up front so the inserted row carries `base_comment_id == id`.
+        reply_id = Ecto.UUID.generate()
+
         reply_attrs = %{
+          "base_comment_id" => reply_id,
+          "version_number" => 1,
           "doc_id" => doc_id,
-          "parent_comment_id" => parent.id,
+          "parent_comment_id" => parent.base_comment_id,
           "block_id" => parent.block_id,
           "body" => reply,
           "actor_user_id" => uid,
@@ -173,7 +178,7 @@ defmodule Aveline.Comments.Disposition do
         }
 
         with {:ok, _reply} <-
-               repo.insert(Comment.create_changeset(%Comment{}, reply_attrs)) do
+               repo.insert(Comment.create_changeset(%Comment{id: reply_id}, reply_attrs)) do
           parent
           |> Ecto.Changeset.change(%{
             resolved_at: now,
@@ -187,18 +192,30 @@ defmodule Aveline.Comments.Disposition do
 
   defp do_apply(
          repo,
-         %__MODULE__{action: "reanchor", comment_id: id, new_block_id: bid},
+         %__MODULE__{action: "reanchor", comment_id: base_id, new_block_id: bid},
          _now,
          _uid,
          _doc_id
        ) do
-    case repo.get(Comment, id) do
-      nil -> {:error, {:comment_not_found, id}}
+    case fetch_current(repo, base_id) do
+      nil -> {:error, {:comment_not_found, base_id}}
       c -> c |> Ecto.Changeset.change(%{block_id: bid}) |> repo.update()
     end
   end
 
   defp do_apply(_repo, %__MODULE__{action: "leave"}, _now, _uid, _doc_id), do: :ok
+
+  # Dispositions reference comments by their LOGICAL (base) id — the
+  # current version is whichever row matches that base with deleted_at
+  # IS NULL.
+  defp fetch_current(repo, base_id) do
+    import Ecto.Query
+
+    repo.one(
+      from c in Comment,
+        where: c.base_comment_id == ^base_id and is_nil(c.deleted_at)
+    )
+  end
 
   @doc "Strip a list of structs back to plain maps for JSON storage on the Doc row."
   def to_json(dispositions) when is_list(dispositions) do

@@ -1514,7 +1514,9 @@
       .comment-card > .thread-body { padding: 12px 14px; }
       /* Replies = continuation rows with hairlines. No inner indent / no
          nested box — they read as part of the same shell. */
-      .comment-card-replies {
+      /* `ol` selector to beat `.prose ol`'s 22px padding-left when the
+         thread lives inside a block-level comment zone (inside .prose). */
+      ol.comment-card-replies {
         list-style: none;
         margin: 0;
         padding: 0;

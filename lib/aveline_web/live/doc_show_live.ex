@@ -70,6 +70,9 @@ defmodule AvelineWeb.DocShowLive do
                messages: messages,
                versions: versions,
                commenting_on_block_id: nil,
+               # base_comment_id of the comment currently in inline-edit
+               # mode (nil if no one is editing). One at a time.
+               editing_comment_id: nil,
                # Resolved threads collapse their middle replies by default;
                # this set tracks which threads the reader has expanded.
                expanded_threads: MapSet.new(),
@@ -150,6 +153,39 @@ defmodule AvelineWeb.DocShowLive do
     {:noreply, assign(socket, :commenting_on_block_id, nil)}
   end
 
+  def handle_event("start_edit_comment", %{"id" => base_id}, socket) do
+    {:noreply, assign(socket, :editing_comment_id, base_id)}
+  end
+
+  def handle_event("cancel_edit_comment", _, socket) do
+    {:noreply, assign(socket, :editing_comment_id, nil)}
+  end
+
+  def handle_event("save_edit_comment", %{"_id" => base_id, "body" => body}, socket) do
+    %{current_user: user} = socket.assigns
+    new_body = String.trim(body || "")
+
+    cond do
+      user == nil ->
+        {:noreply, put_flash(socket, :error, "Sign in to edit.")}
+
+      new_body == "" ->
+        {:noreply, socket}
+
+      true ->
+        with %_{} = current <- Comments.get_current_by_base(base_id),
+             {:ok, _new_v} <- Comments.edit_comment_body(current, new_body, user.id) do
+          {:noreply, assign(socket, :editing_comment_id, nil)}
+        else
+          {:error, :forbidden} ->
+            {:noreply, put_flash(socket, :error, "You can only edit your own comments.")}
+
+          _ ->
+            {:noreply, put_flash(socket, :error, "Could not save edit.")}
+        end
+    end
+  end
+
   def handle_event("toggle_thread_expansion", %{"id" => id}, socket) do
     expanded = socket.assigns.expanded_threads
 
@@ -161,8 +197,8 @@ defmodule AvelineWeb.DocShowLive do
     {:noreply, assign(socket, :expanded_threads, next)}
   end
 
-  def handle_event("unresolve_comment", %{"id" => id}, socket) do
-    with %_{} = msg <- Comments.get_comment(id),
+  def handle_event("unresolve_comment", %{"id" => base_id}, socket) do
+    with %_{} = msg <- Comments.get_current_by_base(base_id),
          {:ok, _} <- Comments.unresolve_comment(msg) do
       {:noreply, socket}
     else
@@ -204,13 +240,15 @@ defmodule AvelineWeb.DocShowLive do
     end
   end
 
-  def handle_event("delete_message", %{"id" => id}, socket) do
+  def handle_event("delete_message", %{"id" => base_id}, socket) do
     %{current_user: user} = socket.assigns
 
-    with %_{} = msg <- Comments.get_comment(id),
-         {:ok, _} <- Comments.soft_delete_comment(msg, user && user.id) do
+    with %_{} = msg <- Comments.get_current_by_base(base_id),
+         true <- user && msg.actor_user_id == user.id,
+         {:ok, _} <- Comments.soft_delete_comment(msg, user.id) do
       {:noreply, socket}
     else
+      false -> {:noreply, put_flash(socket, :error, "You can only delete your own comments.")}
       _ -> {:noreply, put_flash(socket, :error, "Could not delete.")}
     end
   end
@@ -219,8 +257,10 @@ defmodule AvelineWeb.DocShowLive do
   defp nil_if_blank(""), do: nil
   defp nil_if_blank(s) when is_binary(s), do: s
 
-  defp maybe_resolve_parent(parent_id, true, user_id) when is_binary(parent_id) do
-    with %_{} = c <- Comments.get_comment(parent_id),
+  defp maybe_resolve_parent(parent_base_id, true, user_id) when is_binary(parent_base_id) do
+    # parent_base_id is the parent thread's logical (base) id — look up
+    # the current version row and resolve it.
+    with %_{} = c <- Comments.get_current_by_base(parent_base_id),
          {:ok, _} <- Comments.resolve_comment(c, user_id) do
       :ok
     else
@@ -233,11 +273,22 @@ defmodule AvelineWeb.DocShowLive do
   @impl true
   def handle_info({event, msg}, socket)
       when event in [:comment_created, :comment_updated, :comment_deleted] do
+    # Match by `base_comment_id` so edits (new version row, new `id`)
+    # still replace the prior row in the live list.
     msgs =
       case event do
-        :comment_created -> socket.assigns.messages ++ [msg]
-        :comment_updated -> Enum.map(socket.assigns.messages, fn m -> if m.id == msg.id, do: msg, else: m end)
-        :comment_deleted -> Enum.reject(socket.assigns.messages, fn m -> m.id == msg.id end)
+        :comment_created ->
+          socket.assigns.messages ++ [msg]
+
+        :comment_updated ->
+          Enum.map(socket.assigns.messages, fn m ->
+            if m.base_comment_id == msg.base_comment_id, do: msg, else: m
+          end)
+
+        :comment_deleted ->
+          Enum.reject(socket.assigns.messages, fn m ->
+            m.base_comment_id == msg.base_comment_id
+          end)
       end
 
     {:noreply, assign(socket, :messages, msgs)}
@@ -458,7 +509,7 @@ defmodule AvelineWeb.DocShowLive do
           <ol :if={@doc_level_threads != []} class="comment-card-list">
             <li
               :for={thread <- @doc_level_threads}
-              id={"thread-#{thread.parent.id}"}
+              id={"thread-#{thread.parent.base_comment_id}"}
               class={"comment-card-wrap " <> if thread.parent.resolved_at, do: "comment-card-wrap-resolved", else: ""}
             >
               <.comment_card
@@ -466,7 +517,8 @@ defmodule AvelineWeb.DocShowLive do
                 current_user={@current_user}
                 workspace={@workspace}
                 current_doc={@current_doc}
-                expanded?={MapSet.member?(@expanded_threads, thread.parent.id)}
+                expanded?={MapSet.member?(@expanded_threads, thread.parent.base_comment_id)}
+                editing_comment_id={@editing_comment_id}
               />
             </li>
           </ol>
@@ -482,7 +534,7 @@ defmodule AvelineWeb.DocShowLive do
             <ol class="comment-card-list">
               <li
                 :for={thread <- @orphan_threads}
-                id={"thread-#{thread.parent.id}"}
+                id={"thread-#{thread.parent.base_comment_id}"}
                 class={"comment-card-wrap comment-card-wrap-orphan " <> if thread.parent.resolved_at, do: "comment-card-wrap-resolved", else: ""}
               >
                 <div :if={caption = orphan_caption(thread.parent)} class="orphan-snippet">
@@ -494,7 +546,7 @@ defmodule AvelineWeb.DocShowLive do
                   current_user={@current_user}
                   workspace={@workspace}
                   current_doc={@current_doc}
-                  expanded?={MapSet.member?(@expanded_threads, thread.parent.id)}
+                  expanded?={MapSet.member?(@expanded_threads, thread.parent.base_comment_id)}
                 />
               </li>
             </ol>
@@ -538,6 +590,7 @@ defmodule AvelineWeb.DocShowLive do
                 workspace={@workspace}
                 current_doc={@current_doc}
                 expanded_threads={@expanded_threads}
+                editing_comment_id={@editing_comment_id}
               />
             <% end %>
           </div>
@@ -635,7 +688,7 @@ defmodule AvelineWeb.DocShowLive do
 
     threads =
       Enum.map(top_levels, fn parent ->
-        %{parent: parent, replies: Map.get(replies, parent.id, [])}
+        %{parent: parent, replies: Map.get(replies, parent.base_comment_id, [])}
       end)
 
     Enum.reduce(threads, {%{}, [], []}, fn t, {by_block, doc_level, orphans} ->
@@ -705,6 +758,7 @@ defmodule AvelineWeb.DocShowLive do
   attr :workspace, :map, required: true
   attr :current_doc, :map, required: true
   attr :expanded_threads, :any, required: true
+  attr :editing_comment_id, :any, default: nil
 
   defp block_comment_zone(assigns) do
     ~H"""
@@ -712,7 +766,7 @@ defmodule AvelineWeb.DocShowLive do
       <ol :if={@threads != []} class="comment-card-list">
         <li
           :for={thread <- @threads}
-          id={"thread-#{thread.parent.id}"}
+          id={"thread-#{thread.parent.base_comment_id}"}
           class={"comment-card-wrap " <> if thread.parent.resolved_at, do: "comment-card-wrap-resolved", else: ""}
         >
           <.comment_card
@@ -720,7 +774,7 @@ defmodule AvelineWeb.DocShowLive do
             current_user={@current_user}
             workspace={@workspace}
             current_doc={@current_doc}
-            expanded?={MapSet.member?(@expanded_threads, thread.parent.id)}
+            expanded?={MapSet.member?(@expanded_threads, thread.parent.base_comment_id)}
           />
         </li>
       </ol>
@@ -762,6 +816,7 @@ defmodule AvelineWeb.DocShowLive do
   attr :workspace, :map, required: true
   attr :current_doc, :map, required: true
   attr :expanded?, :boolean, default: false
+  attr :editing_comment_id, :any, default: nil
 
   defp comment_card(assigns) do
     assigns = assign(assigns, partitioned: partition_replies(assigns.thread))
@@ -774,6 +829,7 @@ defmodule AvelineWeb.DocShowLive do
         workspace={@workspace}
         current_doc={@current_doc}
         current_user={@current_user}
+        editing?={@editing_comment_id == @thread.parent.base_comment_id}
       />
 
       <ol :if={@thread.replies != []} class="comment-card-replies">
@@ -783,7 +839,7 @@ defmodule AvelineWeb.DocShowLive do
               <button
                 type="button"
                 phx-click="toggle_thread_expansion"
-                phx-value-id={@thread.parent.id}
+                phx-value-id={@thread.parent.base_comment_id}
                 class="comment-card-expand-btn"
                 title="Show all replies in this thread"
               >
@@ -797,6 +853,7 @@ defmodule AvelineWeb.DocShowLive do
                 workspace={@workspace}
                 current_doc={@current_doc}
                 current_user={@current_user}
+                editing?={@editing_comment_id == r.base_comment_id}
               />
             </li>
           <% true -> %>
@@ -804,7 +861,7 @@ defmodule AvelineWeb.DocShowLive do
               <button
                 type="button"
                 phx-click="toggle_thread_expansion"
-                phx-value-id={@thread.parent.id}
+                phx-value-id={@thread.parent.base_comment_id}
                 class="comment-card-expand-btn"
                 title="Hide middle replies again"
               >
@@ -818,6 +875,7 @@ defmodule AvelineWeb.DocShowLive do
                 workspace={@workspace}
                 current_doc={@current_doc}
                 current_user={@current_user}
+                editing?={@editing_comment_id == r.base_comment_id}
               />
             </li>
         <% end %>
@@ -826,13 +884,13 @@ defmodule AvelineWeb.DocShowLive do
       <%= if @current_user && is_nil(@thread.parent.resolved_at) do %>
         <form
           phx-submit="post_comment"
-          id={"reply-form-" <> @thread.parent.id}
+          id={"reply-form-" <> @thread.parent.base_comment_id}
           phx-hook="ResetOnEvent"
           data-reset-event="reset-form"
           class="comment-composer comment-composer-reply"
         >
-          <input type="hidden" name="parent_comment_id" value={@thread.parent.id} />
-          <input type="hidden" name="form_id" value={"reply-form-" <> @thread.parent.id} />
+          <input type="hidden" name="parent_comment_id" value={@thread.parent.base_comment_id} />
+          <input type="hidden" name="form_id" value={"reply-form-" <> @thread.parent.base_comment_id} />
           <textarea
             name="body"
             class="comment-composer-input"
@@ -872,6 +930,7 @@ defmodule AvelineWeb.DocShowLive do
   attr :workspace, :map, required: true
   attr :current_doc, :map, required: true
   attr :is_reply, :boolean, default: false
+  attr :editing?, :boolean, default: false
 
   defp comment_row(assigns) do
     ~H"""
@@ -924,14 +983,23 @@ defmodule AvelineWeb.DocShowLive do
         <% end %>
         <span class="thread-actions">
           <%= if @current_user && not @is_reply && @message.resolved_at do %>
-            <button phx-click="unresolve_comment" phx-value-id={@message.id} class="thread-action-btn">
+            <button type="button" phx-click="unresolve_comment" phx-value-id={@message.base_comment_id} class="thread-action-btn">
               unresolve
             </button>
           <% end %>
-          <%= if @current_user && message_actor(@message) && message_actor(@message).id == @current_user.id do %>
+          <%= if @current_user && @message.actor_user_id == @current_user.id do %>
             <button
+              type="button"
+              phx-click="start_edit_comment"
+              phx-value-id={@message.base_comment_id}
+              class="thread-action-btn"
+            >
+              edit
+            </button>
+            <button
+              type="button"
               phx-click="delete_message"
-              phx-value-id={@message.id}
+              phx-value-id={@message.base_comment_id}
               data-confirm="Delete this?"
               class="thread-action-btn"
             >
@@ -940,9 +1008,31 @@ defmodule AvelineWeb.DocShowLive do
           <% end %>
         </span>
       </div>
-      <div class={"thread-content " <> if @message.resolved_at, do: "thread-content-resolved", else: ""}>
-        {plain_text_to_html(@message.body)}
-      </div>
+      <%= if @editing? do %>
+        <form
+          phx-submit="save_edit_comment"
+          id={"edit-form-" <> @message.base_comment_id}
+          class="comment-edit-form"
+        >
+          <input type="hidden" name="_id" value={@message.base_comment_id} />
+          <textarea
+            id={"edit-input-" <> @message.base_comment_id}
+            phx-hook="AutoFocus"
+            name="body"
+            class="comment-composer-input"
+            rows="2"
+          >{@message.body}</textarea>
+          <div class="comment-composer-footer">
+            <span class="comment-composer-hint">Cmd+Enter to save</span>
+            <button type="button" phx-click="cancel_edit_comment" class="comment-composer-cancel">Cancel</button>
+            <button type="submit" class="comment-composer-submit">Save</button>
+          </div>
+        </form>
+      <% else %>
+        <div class={"thread-content " <> if @message.resolved_at, do: "thread-content-resolved", else: ""}>
+          {plain_text_to_html(@message.body)}
+        </div>
+      <% end %>
     </div>
     """
   end

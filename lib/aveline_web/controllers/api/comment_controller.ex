@@ -35,20 +35,26 @@ defmodule AvelineWeb.Api.CommentController do
     end
   end
 
-  def update(conn, %{"id" => id} = params) do
-    with %_{} = msg <- Comments.get_comment(id) || {:error, :not_found},
-         true <- is_nil(msg.deleted_at) || {:error, :not_found},
-         {:ok, updated} <- Comments.update_comment(msg, Map.take(params, ["body"])) do
+  # `id` here is the LOGICAL (base) comment id. Edits insert a new
+  # version and supersede the prior — author-only.
+  def update(conn, %{"id" => base_id, "body" => body}) do
+    user = conn.assigns.current_user
+
+    with %_{} = current <- Comments.get_current_by_base(base_id) || {:error, :not_found},
+         {:ok, new_v} <- Comments.edit_comment_body(current, body, user.id) do
       conn
       |> put_view(json: AvelineWeb.Api.CommentJSON)
-      |> render(:show, %{message: updated})
+      |> render(:show, %{message: new_v})
+    else
+      {:error, :forbidden} -> {:error, :forbidden}
+      err -> err
     end
   end
 
-  def delete(conn, %{"id" => id}) do
+  def delete(conn, %{"id" => base_id}) do
     user = conn.assigns.current_user
 
-    with %_{} = msg <- Comments.get_comment(id) || {:error, :not_found},
+    with %_{} = msg <- Comments.get_current_by_base(base_id) || {:error, :not_found},
          {:ok, deleted} <- Comments.soft_delete_comment(msg, user.id) do
       conn
       |> put_view(json: AvelineWeb.Api.CommentJSON)

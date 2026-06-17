@@ -1,8 +1,18 @@
 defmodule Aveline.Comments do
   @moduledoc """
-  Doc comments, anchored to a specific doc version. Optionally pinned to a
-  block. Every mutation publishes a PubSub event on the
-  `doc:<base_doc_id>:comments` topic so subscribed LVs update live.
+  Doc comments. Versioned the same way docs are: each comment has a
+  stable `base_comment_id` (logical thread node) and a per-version row;
+  the CURRENT version of a comment is the one with `deleted_at IS NULL`
+  for that base.
+
+  - `create_comment/1`  — inserts v1; `base_comment_id` is auto-set to
+    the new row's id.
+  - `edit_comment_body/3` — inserts a new version row (v+1) carrying all
+    prior state, then marks the previous row's `deleted_at` (superseded).
+    Author-only.
+  - `resolve_comment` / `unresolve_comment` / `soft_delete_comment` —
+    update the current row in place. Resolve is a state change, not a
+    new version of the comment's content.
   """
 
   import Ecto.Query
@@ -11,15 +21,17 @@ defmodule Aveline.Comments do
   alias Aveline.Docs.Doc
   alias Aveline.Events
   alias Aveline.Repo
+  alias Ecto.Multi
 
   def base_query do
     from c in Comment, where: is_nil(c.deleted_at)
   end
 
   @doc """
-  All non-deleted comments on a logical doc across ALL versions, oldest
-  first. JOINs docs by base_doc_id so a comment posted on v3 still shows
-  up on v4's page.
+  All CURRENT-version comments on a logical doc across ALL doc versions,
+  oldest first. `deleted_at IS NULL` naturally selects only the live row
+  for each `base_comment_id` — older versions are superseded with
+  `deleted_at` set.
   """
   def list_for_base_doc(base_doc_id) when is_binary(base_doc_id) do
     from(c in base_query(),
@@ -32,8 +44,25 @@ defmodule Aveline.Comments do
     |> Repo.all()
   end
 
+  @doc "Fetch by row id (a specific version). Mostly for callers that already hold a row id."
   def get_comment(id) when is_binary(id) do
     Repo.get(Comment, id) |> Repo.preload([:actor_user, :resolved_by, :resolved_by_doc])
+  end
+
+  @doc """
+  Fetch the CURRENT version of a comment by its logical (base) id.
+  This is what most external callers should use — disposition handlers,
+  edit/delete flows, etc. — so they always operate on the live row.
+  """
+  def get_current_by_base(base_id) when is_binary(base_id) do
+    from(c in Comment,
+      where: c.base_comment_id == ^base_id and is_nil(c.deleted_at)
+    )
+    |> Repo.one()
+    |> case do
+      nil -> nil
+      c -> Repo.preload(c, [:actor_user, :resolved_by, :resolved_by_doc])
+    end
   end
 
   def resolve_comment(%Comment{} = c, resolver_id) do
@@ -54,17 +83,69 @@ defmodule Aveline.Comments do
   end
 
   def create_comment(attrs) do
-    %Comment{}
+    # v1: base_comment_id == id, version_number == 1. We pre-set the id
+    # on the struct (Ecto skips autogenerate when it's already set) so
+    # base_comment_id can match it without a second update.
+    id = Ecto.UUID.generate()
+
+    attrs =
+      attrs
+      |> stringify()
+      |> Map.put("base_comment_id", id)
+      |> Map.put("version_number", 1)
+
+    %Comment{id: id}
     |> Comment.create_changeset(attrs)
     |> Repo.insert()
     |> preload_and_broadcast(:comment_created)
   end
 
-  def update_comment(%Comment{} = c, attrs) do
-    c
-    |> Comment.update_changeset(attrs)
-    |> Repo.update()
-    |> preload_and_broadcast(:comment_updated)
+  @doc """
+  Edit a comment's body — author-only. Inserts a new version row
+  (v+1) carrying every other field forward (block_id, parent ref,
+  resolved_at / resolved_by_doc_id, etc. — so a resolved comment stays
+  resolved across an edit) and supersedes the prior row in the same
+  transaction.
+  """
+  def edit_comment_body(%Comment{} = current, new_body, editor_id) do
+    cond do
+      current.actor_user_id != editor_id ->
+        {:error, :forbidden}
+
+      not is_nil(current.deleted_at) ->
+        {:error, :stale_version}
+
+      true ->
+        now = DateTime.utc_now()
+        new_id = Ecto.UUID.generate()
+
+        new_attrs = %{
+          "base_comment_id" => current.base_comment_id,
+          "version_number" => current.version_number + 1,
+          "doc_id" => current.doc_id,
+          "block_id" => current.block_id,
+          "parent_comment_id" => current.parent_comment_id,
+          "body" => new_body,
+          "actor_user_id" => current.actor_user_id,
+          "actor_type" => current.actor_type,
+          "resolved_at" => current.resolved_at,
+          "resolved_by_id" => current.resolved_by_id,
+          "resolved_by_doc_id" => current.resolved_by_doc_id,
+          "edited_at" => now
+        }
+
+        Multi.new()
+        |> Multi.insert(:new_version, Comment.create_changeset(%Comment{id: new_id}, new_attrs))
+        |> Multi.update(
+          :supersede,
+          Ecto.Changeset.change(current, deleted_at: now)
+        )
+        |> Repo.transaction()
+        |> case do
+          {:ok, %{new_version: new_v}} -> preload_and_broadcast({:ok, new_v}, :comment_updated)
+          {:error, _, err, _} -> {:error, err}
+        end
+    end
   end
 
   def soft_delete_comment(%Comment{} = c, deleted_by_id) do
@@ -101,12 +182,16 @@ defmodule Aveline.Comments do
         :comment_created ->
           {c.actor_user_id, c.actor_type, %{}}
 
-        :comment_updated when not is_nil(c.resolved_at) ->
+        :comment_updated when not is_nil(c.resolved_at) and c.version_number == 1 ->
           {c.resolved_by_id, "human",
            %{"resolved_by_doc_id" => c.resolved_by_doc_id}}
 
+        :comment_updated when c.version_number > 1 ->
+          # Edit — author rewrote the body. Credit to the comment's actor.
+          {c.actor_user_id, c.actor_type, %{"version_number" => c.version_number}}
+
         :comment_updated ->
-          # Reopen / edit body — credit to the comment's actor for now.
+          # Resolve / unresolve via in-place update.
           {c.actor_user_id, c.actor_type, %{}}
 
         :comment_deleted ->
@@ -116,6 +201,7 @@ defmodule Aveline.Comments do
     action =
       case event do
         :comment_created -> "comment_created"
+        :comment_updated when c.version_number > 1 -> "comment_edited"
         :comment_updated when not is_nil(c.resolved_at) -> "comment_resolved"
         :comment_updated -> "comment_unresolved"
         :comment_deleted -> "comment_deleted"
@@ -129,10 +215,17 @@ defmodule Aveline.Comments do
       actor_type: actor_type,
       action: action,
       target_kind: "comment",
-      target_id: c.id,
+      target_id: c.base_comment_id,
       target_slug: doc && doc.slug,
       target_label: doc && doc.title,
       data: Map.put(action_data, "doc_base_id", base_doc_id)
     })
+  end
+
+  defp stringify(attrs) when is_map(attrs) do
+    Enum.into(attrs, %{}, fn
+      {k, v} when is_atom(k) -> {Atom.to_string(k), v}
+      {k, v} -> {k, v}
+    end)
   end
 end

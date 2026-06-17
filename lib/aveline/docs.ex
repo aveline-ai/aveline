@@ -411,9 +411,10 @@ defmodule Aveline.Docs do
     end
   end
 
-  # Open (unresolved, not deleted) top-level threads on this base doc with
-  # their current block anchor. Used to figure out which comments the
-  # current op set is required to disposition.
+  # Open (unresolved, not superseded/deleted) top-level threads on this
+  # base doc with their current block anchor. Returns LOGICAL ids
+  # (`base_comment_id`) since dispositions reference comments by their
+  # base id, not a per-version row id.
   defp open_threads_for_base(base_doc_id) do
     from(c in Comment,
       join: d in Doc,
@@ -423,7 +424,7 @@ defmodule Aveline.Docs do
           is_nil(c.parent_comment_id) and
           is_nil(c.resolved_at) and
           is_nil(c.deleted_at),
-      select: %{id: c.id, block_id: c.block_id}
+      select: %{id: c.base_comment_id, block_id: c.block_id}
     )
     |> Repo.all()
   end
@@ -450,7 +451,9 @@ defmodule Aveline.Docs do
 
       {count, _} =
         from(c in Comment,
-          where: c.id in ^leftover and is_nil(c.resolved_at) and is_nil(c.deleted_at)
+          where:
+            c.base_comment_id in ^leftover and is_nil(c.resolved_at) and
+              is_nil(c.deleted_at)
         )
         |> repo.update_all(set: [resolved_at: now, resolved_by_id: uid, resolved_by_doc_id: doc_id])
 
