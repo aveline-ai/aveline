@@ -857,17 +857,6 @@ defmodule AvelineWeb.DocShowLive do
               />
             </li>
           <% true -> %>
-            <li :if={@partitioned.hidden != []} class="comment-card-collapsed">
-              <button
-                type="button"
-                phx-click="toggle_thread_expansion"
-                phx-value-id={@thread.parent.base_comment_id}
-                class="comment-card-expand-btn"
-                title="Hide middle replies again"
-              >
-                Hide {length(@partitioned.hidden)} {if length(@partitioned.hidden) == 1, do: "reply", else: "replies"}
-              </button>
-            </li>
             <li :for={r <- @thread.replies} id={"m-#{r.id}"}>
               <.comment_row
                 message={r}
