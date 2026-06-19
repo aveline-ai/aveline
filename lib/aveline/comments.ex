@@ -24,7 +24,7 @@ defmodule Aveline.Comments do
   alias Ecto.Multi
 
   def base_query do
-    from c in Comment, where: is_nil(c.deleted_at)
+    from c in Comment, where: is_nil(c.deleted_at) and is_nil(c.superseded_at)
   end
 
   @doc """
@@ -53,10 +53,13 @@ defmodule Aveline.Comments do
   Fetch the CURRENT version of a comment by its logical (base) id.
   This is what most external callers should use — disposition handlers,
   edit/delete flows, etc. — so they always operate on the live row.
+  The live row = neither superseded nor deleted.
   """
   def get_current_by_base(base_id) when is_binary(base_id) do
     from(c in Comment,
-      where: c.base_comment_id == ^base_id and is_nil(c.deleted_at)
+      where:
+        c.base_comment_id == ^base_id and is_nil(c.superseded_at) and
+          is_nil(c.deleted_at)
     )
     |> Repo.one()
     |> case do
@@ -104,15 +107,21 @@ defmodule Aveline.Comments do
   Edit a comment's body — author-only. Inserts a new version row
   (v+1) carrying every other field forward (block_id, parent ref,
   resolved_at / resolved_by_doc_id, etc. — so a resolved comment stays
-  resolved across an edit) and supersedes the prior row in the same
-  transaction.
+  resolved across an edit). The prior row gets `superseded_at` set
+  (not `deleted_at`) in the same transaction; that's a mechanism flag,
+  not a user-delete.
+
+  `doc_id` carry-over note: today this preserves the prior row's
+  doc_id. After the auto-forward refactor lands (Phase 2 of the
+  current build), edits will pin to the current doc-version at edit
+  time so time-travel renders correctly.
   """
   def edit_comment_body(%Comment{} = current, new_body, editor_id) do
     cond do
       current.actor_user_id != editor_id ->
         {:error, :forbidden}
 
-      not is_nil(current.deleted_at) ->
+      not is_nil(current.deleted_at) or not is_nil(current.superseded_at) ->
         {:error, :stale_version}
 
       true ->
@@ -138,7 +147,7 @@ defmodule Aveline.Comments do
         |> Multi.insert(:new_version, Comment.create_changeset(%Comment{id: new_id}, new_attrs))
         |> Multi.update(
           :supersede,
-          Ecto.Changeset.change(current, deleted_at: now)
+          Ecto.Changeset.change(current, superseded_at: now)
         )
         |> Repo.transaction()
         |> case do

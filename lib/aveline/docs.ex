@@ -423,7 +423,8 @@ defmodule Aveline.Docs do
         d.base_doc_id == ^base_doc_id and
           is_nil(c.parent_comment_id) and
           is_nil(c.resolved_at) and
-          is_nil(c.deleted_at),
+          is_nil(c.deleted_at) and
+          is_nil(c.superseded_at),
       select: %{id: c.base_comment_id, block_id: c.block_id}
     )
     |> Repo.all()
@@ -453,7 +454,7 @@ defmodule Aveline.Docs do
         from(c in Comment,
           where:
             c.base_comment_id in ^leftover and is_nil(c.resolved_at) and
-              is_nil(c.deleted_at)
+              is_nil(c.deleted_at) and is_nil(c.superseded_at)
         )
         |> repo.update_all(set: [resolved_at: now, resolved_by_id: uid, resolved_by_doc_id: doc_id])
 

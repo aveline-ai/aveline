@@ -560,7 +560,8 @@ Enum.each(thread_specs, fn spec ->
           m.doc_id == ^doc.id and
             m.actor_user_id == ^author.id and
             m.body == ^spec.body and
-            is_nil(m.deleted_at)
+            is_nil(m.deleted_at) and
+            is_nil(m.superseded_at)
     )
 
   unless exists? do
@@ -639,7 +640,7 @@ case Repo.one(
          where:
            d.slug == "stack-overview" and
              c.body == "Worth noting: the Session pooler limit on Supabase free tier is 200 connections — we'll hit it before we hit Fly's process limit." and
-             is_nil(c.resolved_at) and is_nil(c.deleted_at),
+             is_nil(c.resolved_at) and is_nil(c.deleted_at) and is_nil(c.superseded_at),
          limit: 1
      ) do
   nil -> :ok

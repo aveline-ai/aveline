@@ -31,7 +31,8 @@ defmodule Aveline.Comments.Comment do
              :edited_at,
              :inserted_at,
              :updated_at,
-             :deleted_at
+             :deleted_at,
+             :superseded_at
            ]}
   schema "doc_comments" do
     field :base_comment_id, :binary_id
@@ -43,6 +44,11 @@ defmodule Aveline.Comments.Comment do
     field :resolved_at, :utc_datetime_usec
     field :edited_at, :utc_datetime_usec
     field :deleted_at, :utc_datetime_usec
+    # superseded_at = "mechanism" — an edit or reanchor inserted a newer
+    # version of this base_comment_id; this row is no longer the live one.
+    # deleted_at = "intent" — user/agent intentionally deleted the thread.
+    # Mutually exclusive. The current/live row of a base = both NULL.
+    field :superseded_at, :utc_datetime_usec
     # parent_comment_id is a plain UUID (the parent's base_comment_id),
     # NOT a FK — multiple versions of the parent share that value.
     field :parent_comment_id, :binary_id
@@ -72,7 +78,10 @@ defmodule Aveline.Comments.Comment do
       :resolved_at,
       :resolved_by_id,
       :resolved_by_doc_id,
-      :edited_at
+      :edited_at,
+      :deleted_at,
+      :deleted_by_id,
+      :superseded_at
     ])
     |> validate_required([:doc_id, :body, :actor_user_id, :actor_type])
     |> validate_inclusion(:actor_type, @actor_types)

@@ -44,9 +44,11 @@ defmodule Aveline.CommentsEditTest do
       assert v2.edited_at != nil
       assert v2.actor_user_id == c.actor_user_id
 
-      # Prior row is marked superseded (deleted_at set).
+      # Prior row marked as superseded (mechanism flag), NOT deleted
+      # (which is reserved for user-intent delete).
       reloaded_v1 = Repo.get!(Comment, c.id)
-      assert reloaded_v1.deleted_at != nil
+      assert reloaded_v1.superseded_at != nil
+      assert reloaded_v1.deleted_at == nil
     end
 
     test "resolved state carries forward across an edit" do
