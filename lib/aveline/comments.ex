@@ -58,15 +58,22 @@ defmodule Aveline.Comments do
   Instead we use DISTINCT ON to pick the latest comment-version row per
   base within this doc-version (handles same-doc-version body edits).
   """
-  def list_for_doc_version(doc_version_id) when is_binary(doc_version_id) do
-    from(c in Comment,
-      distinct: c.base_comment_id,
-      where: c.doc_id == ^doc_version_id and is_nil(c.deleted_at),
-      order_by: [asc: c.base_comment_id, desc: c.version_number]
-    )
+  def list_for_doc_version(doc_version_id, opts \\ []) when is_binary(doc_version_id) do
+    include_deleted = Keyword.get(opts, :include_deleted, false)
+
+    base =
+      from c in Comment,
+        distinct: c.base_comment_id,
+        where: c.doc_id == ^doc_version_id,
+        order_by: [asc: c.base_comment_id, desc: c.version_number]
+
+    query =
+      if include_deleted, do: base, else: from(c in base, where: is_nil(c.deleted_at))
+
+    query
     |> Repo.all()
     |> Enum.sort_by(& &1.inserted_at)
-    |> Repo.preload([:actor_user, :resolved_by, :resolved_by_doc, :doc])
+    |> Repo.preload([:actor_user, :resolved_by, :resolved_by_doc, :doc, :deleted_by])
   end
 
   @doc "Fetch by row id (a specific version). Mostly for callers that already hold a row id."

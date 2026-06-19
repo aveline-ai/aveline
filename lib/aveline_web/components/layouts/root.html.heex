@@ -1114,6 +1114,30 @@
       .doc-readonly .comment-edit-form { display: none !important; }
       .doc-readonly .article-kudos-btn,
       .doc-readonly .article-pin-btn { pointer-events: none; opacity: 0.5; }
+      /* Hide-comments mode: drop the per-block "comment on this block"
+         buttons too so the reader gets a clean canvas. Comment cards
+         already aren't rendered server-side in this mode. */
+      .doc-comments-hidden .block-comment-btn { display: none !important; }
+      /* Comment view filter — single 3-segment control (Hide / Open /
+         All) using the same .seg / .seg-btn pattern as the doc-page sort
+         control, so it reads as the same kind of toggle. */
+      .comment-filter-row {
+        display: flex;
+        margin: 10px 0 0;
+      }
+      /* Deleted-comment indicator. The body still renders normally
+         (readable), but a small "deleted by X" tag in the meta row
+         signals that the thread was removed by its author. No strike-
+         through — kept easy to scan. */
+      .thread-deleted-tag {
+        display: inline-flex; align-items: center; gap: 4px;
+        color: var(--text-muted);
+        font-style: italic;
+      }
+      .thread-deleted-tag svg {
+        width: 11px; height: 11px;
+        opacity: 0.8;
+      }
 
       /* Per-block inline comments zone — sits under each block. Flat
          layout (no left line / indent) so block comments read the same

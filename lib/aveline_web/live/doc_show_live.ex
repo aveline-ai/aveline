@@ -52,7 +52,20 @@ defmodule AvelineWeb.DocShowLive do
                   {current_doc, false}
               end
 
-            messages = Comments.list_for_doc_version(showing.id)
+            # Comment view — single 3-state toggle:
+            #   :open → open + non-deleted (default, working view)
+            #   :all  → everything in the DB, including resolved + deleted
+            #   :hide → nothing rendered (clean reading mode)
+            comment_view = parse_comment_view(params["comments"])
+
+            messages =
+              if comment_view == :hide do
+                []
+              else
+                Comments.list_for_doc_version(showing.id,
+                  include_deleted: comment_view == :all
+                )
+              end
 
             {:ok,
              assign(socket,
@@ -75,6 +88,8 @@ defmodule AvelineWeb.DocShowLive do
                # base_comment_id of the comment currently in inline-edit
                # mode (nil if no one is editing). One at a time.
                editing_comment_id: nil,
+               # Comment view (:open | :all | :hide).
+               comment_view: comment_view,
                # Resolved threads collapse their middle replies by default;
                # this set tracks which threads the reader has expanded.
                expanded_threads: MapSet.new(),
@@ -109,6 +124,51 @@ defmodule AvelineWeb.DocShowLive do
   end
 
   defp resolve_version(_, _, _), do: :error
+
+  defp parse_comment_view("all"), do: :all
+  defp parse_comment_view("hide"), do: :hide
+  defp parse_comment_view(_), do: :open
+
+  # Build the URL for the current view with the new comment_view set.
+  # `version` param is preserved when we're on a historical view.
+  defp comments_path(socket, view) do
+    ws = socket.assigns.workspace
+    doc = socket.assigns.current_doc
+
+    base_path =
+      if socket.assigns.historical?,
+        do: ~p"/w/#{ws.slug}/d/#{doc.slug}/v/#{socket.assigns.item.version_number}",
+        else: ~p"/w/#{ws.slug}/d/#{doc.slug}"
+
+    case view do
+      # :open is the default; omit the param.
+      :open -> base_path
+      v -> base_path <> "?" <> URI.encode_query(comments: Atom.to_string(v))
+    end
+  end
+
+  @impl true
+  def handle_params(params, _uri, socket) do
+    view = parse_comment_view(params["comments"])
+
+    socket =
+      if socket.assigns[:comment_view] == view do
+        socket
+      else
+        messages =
+          if view == :hide do
+            []
+          else
+            Comments.list_for_doc_version(socket.assigns.item.id,
+              include_deleted: view == :all
+            )
+          end
+
+        assign(socket, comment_view: view, messages: messages)
+      end
+
+    {:noreply, socket}
+  end
 
   # Time-travel views are READ-ONLY. Every comment-mutation handler
   # short-circuits when historical?, even though the UI buttons are
@@ -198,6 +258,11 @@ defmodule AvelineWeb.DocShowLive do
             {:noreply, put_flash(socket, :error, "Could not save edit.")}
         end
     end
+  end
+
+  def handle_event("set_comment_view", %{"view" => name}, socket) do
+    view = parse_comment_view(name)
+    {:noreply, push_patch(socket, to: comments_path(socket, view))}
   end
 
   def handle_event("toggle_thread_expansion", %{"id" => id}, socket) do
@@ -337,7 +402,14 @@ defmodule AvelineWeb.DocShowLive do
   @impl true
   def render(assigns) do
     block_ids = collect_block_ids(assigns.item.blocks || [])
-    {by_block, doc_level, orphans} = group_threads(assigns.messages, block_ids)
+
+    # Apply view filters BEFORE grouping into threads — that way a hidden
+    # resolved parent also hides its replies (because the parent isn't in
+    # top_levels, replies attach to nothing). list_for_doc_version already
+    # excluded deleted rows when comment_view != :all; here we just need
+    # to drop resolved top-level threads in :open view.
+    filtered = filter_messages_for_view(assigns.messages, assigns.comment_view)
+    {by_block, doc_level, orphans} = group_threads(filtered, block_ids)
 
     assigns =
       assign(assigns,
@@ -348,7 +420,11 @@ defmodule AvelineWeb.DocShowLive do
 
     ~H"""
     <div class="doc-layout">
-      <div class={"doc-article " <> if @historical?, do: "doc-readonly", else: ""}>
+      <div class={[
+        "doc-article",
+        @historical? && "doc-readonly",
+        @comment_view == :hide && "doc-comments-hidden"
+      ] |> Enum.filter(& &1) |> Enum.join(" ")}>
         <.doc_state_banner
           item={@item}
           current_doc={@current_doc}
@@ -374,7 +450,7 @@ defmodule AvelineWeb.DocShowLive do
                 </svg>
               </a>
               <button
-                :if={@current_user and not @historical?}
+                :if={@current_user && not @historical?}
                 type="button"
                 class="block-comment-btn"
                 phx-click="start_block_comment"
@@ -514,6 +590,35 @@ defmodule AvelineWeb.DocShowLive do
             <% end %>
           </div>
         </header>
+
+        <div class="comment-filter-row">
+          <div class="seg">
+            <button
+              type="button"
+              phx-click="set_comment_view"
+              phx-value-view="open"
+              class={"seg-btn " <> if @comment_view == :open, do: "seg-btn-active", else: ""}
+            >
+              Open comments
+            </button>
+            <button
+              type="button"
+              phx-click="set_comment_view"
+              phx-value-view="all"
+              class={"seg-btn " <> if @comment_view == :all, do: "seg-btn-active", else: ""}
+            >
+              All comments
+            </button>
+            <button
+              type="button"
+              phx-click="set_comment_view"
+              phx-value-view="hide"
+              class={"seg-btn " <> if @comment_view == :hide, do: "seg-btn-active", else: ""}
+            >
+              Hide comments
+            </button>
+          </div>
+        </div>
 
         <section
           :if={@doc_level_threads != [] or @orphan_threads != [] or @commenting_on_block_id == "__doc__"}
@@ -689,6 +794,29 @@ defmodule AvelineWeb.DocShowLive do
         %{hidden: hidden, tail: [resolving]}
     end
   end
+
+  # In :open view we drop resolved top-level threads (and their replies).
+  # In :all and :hide views we pass through (hide already gives [] so no
+  # filtering is needed there). Deleted comments are filtered at the DB
+  # level by list_for_doc_version when not in :all view.
+  defp filter_messages_for_view(messages, :open) do
+    resolved_top_bases =
+      for m <- messages,
+          is_nil(m.parent_comment_id),
+          not is_nil(m.resolved_at),
+          into: MapSet.new(),
+          do: m.base_comment_id
+
+    Enum.reject(messages, fn m ->
+      if is_nil(m.parent_comment_id) do
+        MapSet.member?(resolved_top_bases, m.base_comment_id)
+      else
+        MapSet.member?(resolved_top_bases, m.parent_comment_id)
+      end
+    end)
+  end
+
+  defp filter_messages_for_view(messages, _other), do: messages
 
   defp group_threads(messages, current_block_ids) do
     block_set = MapSet.new(current_block_ids)
@@ -949,20 +1077,6 @@ defmodule AvelineWeb.DocShowLive do
           <span class="card-meta-dot">·</span>
           <span class="thread-edited" title={absolute_time(@message.edited_at)}>edited</span>
         <% end %>
-        <%= if version_badge_visible?(@message, @current_doc) do %>
-          <span class="card-meta-dot">·</span>
-          <.link
-            navigate={
-              if @message.doc.version_number == @current_doc.version_number,
-                do: ~p"/w/#{@workspace.slug}/d/#{@current_doc.slug}",
-                else: ~p"/w/#{@workspace.slug}/d/#{@current_doc.slug}/v/#{@message.doc.version_number}"
-            }
-            class="thread-version-badge"
-            title={"Posted on v#{@message.doc.version_number}"}
-          >
-            on v{@message.doc.version_number}
-          </.link>
-        <% end %>
         <%= if not @is_reply && @message.resolved_at do %>
           <span class="card-meta-dot">·</span>
           <span class="thread-resolved" title={absolute_time(@message.resolved_at)}>
@@ -983,6 +1097,16 @@ defmodule AvelineWeb.DocShowLive do
           >
             see v{resolver_doc(@message).version_number}
           </.link>
+        <% end %>
+        <%= if @message.deleted_at do %>
+          <span class="card-meta-dot">·</span>
+          <span class="thread-deleted-tag" title={absolute_time(@message.deleted_at)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            </svg>
+            <span>deleted<%= if @message.deleted_by, do: " by #{@message.deleted_by.username}", else: "" %></span>
+          </span>
         <% end %>
         <span class="thread-actions">
           <%= if @current_user && not @is_reply && @message.resolved_at do %>
@@ -1068,12 +1192,6 @@ defmodule AvelineWeb.DocShowLive do
       do: ~p"/w/#{workspace.slug}/d/#{current_doc.slug}",
       else: ~p"/w/#{workspace.slug}/d/#{current_doc.slug}/v/#{d.version_number}"
   end
-
-  defp version_badge_visible?(%{doc: %{version_number: n}}, %{version_number: m})
-       when is_integer(n) and is_integer(m),
-       do: true
-
-  defp version_badge_visible?(_, _), do: false
 
   # Plain-text thread bodies (no markdown): escape HTML, newlines → <br>.
   defp plain_text_to_html(nil), do: ""
