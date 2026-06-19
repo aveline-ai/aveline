@@ -65,6 +65,17 @@ defmodule AvelineWeb.InviteLive do
                username: "",
                error: nil,
                result: nil,
+               # has_token? toggles the modal between "create new account"
+               # (default — username + API key preview) and "paste an
+               # existing token" (single API key input). Keeps the invite
+               # subtitle visible in both modes.
+               has_token?: false,
+               # When true, the form fires a real HTML POST to /login
+               # next render (via phx-trigger-action). We flip this on
+               # AFTER a successful signup so the freshly-minted token
+               # gets sent to /login, which sets the session cookie and
+               # redirects to the workspace.
+               trigger_submit: false,
                # Pre-generate the real plaintext token so it can be shown
                # directly in the form (matches signup's pattern). Only
                # persisted (hashed) once they submit.
@@ -83,6 +94,14 @@ defmodule AvelineWeb.InviteLive do
      socket
      |> put_flash(:info, "Joined #{ws.name}.")
      |> push_navigate(to: ~p"/w/#{ws.slug}")}
+  end
+
+  def handle_event("toggle_has_token", _, socket) do
+    {:noreply,
+     assign(socket,
+       has_token?: not socket.assigns.has_token?,
+       error: nil
+     )}
   end
 
   def handle_event("validate", params, socket) do
@@ -111,20 +130,12 @@ defmodule AvelineWeb.InviteLive do
                "invite_code" => socket.assigns.code,
                "plaintext_token" => socket.assigns.preview_token
              }) do
-          {:ok, %{user: user, joined_workspace: ws, token: plaintext}} when ws != nil ->
-            {:noreply,
-             assign(socket,
-               state: :show_token,
-               result: %{user: user, workspace: ws, token: plaintext}
-             )}
-
-          {:ok, %{user: user, workspace: ws, token: plaintext}} ->
-            # Shouldn't happen (we passed an invite_code), but fall back safely.
-            {:noreply,
-             assign(socket,
-               state: :show_token,
-               result: %{user: user, workspace: ws, token: plaintext}
-             )}
+          {:ok, _} ->
+            # Account exists and the token is in the DB. Trigger the
+            # form's regular HTML POST to /login on the next render —
+            # /login verifies the token, sets the session cookie, and
+            # redirects to the workspace (via next param).
+            {:noreply, assign(socket, trigger_submit: true)}
 
           {:error, %Ecto.Changeset{} = cs} ->
             {:noreply, assign(socket, error: format_changeset(cs))}
@@ -220,140 +231,128 @@ defmodule AvelineWeb.InviteLive do
         </div>
 
         <p class="auth-subtitle" style="text-align:center;margin-bottom:24px">
-          You've been invited to <strong>{@workspace.name}</strong>. Pick a username and you're in.
+          You've been invited to <strong>{@workspace.name}</strong>.
+          <%= if @has_token? do %>
+            Sign in with your API key to accept.
+          <% else %>
+            Pick a username and you're in.
+          <% end %>
         </p>
 
-        <form
-          phx-change="validate"
-          phx-submit="submit"
-          class="auth-form"
-          id="invite-signup-form"
-          phx-hook="TrackCopy"
-          data-target="#preview-token-value"
-          data-flag="#copied-flag"
-        >
-          <input type="hidden" name="copied" id="copied-flag" value="false" />
-          <label class="auth-label" for="username">Username</label>
-          <input
-            type="text"
-            name="username"
-            id="username"
-            value={@username}
-            autocomplete="off"
-            autocapitalize="none"
-            autocorrect="off"
-            spellcheck="false"
-            placeholder="arie"
-            class="auth-input auth-input-hero"
-            phx-debounce="250"
-            autofocus
-          />
-
-          <label class="auth-label" style="margin-top:18px">Your API key</label>
-          <div class="token-field">
+        <%= if @has_token? do %>
+          <form
+            action={~p"/login?next=#{"/invite/#{@code}"}"}
+            method="post"
+            class="auth-form"
+            id="invite-login-form"
+          >
+            <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+            <label class="auth-label" for="token">Your API key</label>
             <input
-              type="text"
-              id="preview-token-value"
-              class="token-field-input"
-              value={@preview_token}
-              readonly
-              onfocus="this.select()"
+              type="password"
+              name="token"
+              id="token"
+              autocomplete="off"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              placeholder="avl_…"
+              class="auth-input auth-input-hero"
+              autofocus
             />
-            <button
-              type="button"
-              id="preview-copy-btn"
-              class="token-field-copy"
-              phx-hook="CopyToken"
-              data-target="#preview-token-value"
-              title="Copy"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="9" width="12" height="12" rx="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-              <span class="token-field-copy-label">Copy</span>
+            <div class="auth-hint">Paste the token you saved when you signed up.</div>
+
+            <button type="submit" class="auth-submit">
+              Sign in and join {@workspace.name}
+            </button>
+          </form>
+
+          <div class="auth-footer">
+            New to Aveline?
+            <button type="button" phx-click="toggle_has_token" class="auth-link">
+              Create an account
             </button>
           </div>
-          <div class="auth-hint">
-            Copy this now. You will not be able to see it again.
-          </div>
-
-          <button type="submit" class="auth-submit" disabled={not @can_submit}>
-            Join {@workspace.name}
-          </button>
-
-          <%= if @error do %>
-            <div class="auth-error" style="margin-top:14px;text-align:center">{@error}</div>
-          <% end %>
-        </form>
-
-        <div class="auth-footer">
-          Already have a token?
-          <.link navigate={~p"/login"} class="auth-link">Log in</.link>
-        </div>
-      </div>
-    </div>
-    """
-  end
-
-  def render(%{state: :show_token, result: %{user: user, workspace: ws, token: plaintext}} = assigns) do
-    assigns =
-      assign(assigns,
-        user: user,
-        workspace: ws,
-        plaintext: plaintext,
-        next_path: "/w/" <> ws.slug
-      )
-
-    ~H"""
-    <div class="auth-shell" id="show-token-shell" phx-hook="UnsavedTokenGuard">
-      <AvelineWeb.AuthBg.split />
-      <div class="auth-card auth-card-wide">
-        <div class="auth-brand">
-          <span class="nav-brand-mark">A</span>
-          <span class="auth-brand-name">aveline</span>
-        </div>
-        <h1 class="auth-title">Save your API key</h1>
-        <p class="auth-subtitle">
-          You're signed up as <strong>{@user.username}</strong> and have been added to
-          <strong>{@workspace.name}</strong>. This is the only time you'll see your
-          token. Stash it in 1Password now.
-        </p>
-
-        <div class="token-field">
-          <input
-            type="text"
-            id="token-value"
-            class="token-field-input"
-            value={@plaintext}
-            readonly
-            onfocus="this.select()"
-          />
-          <button
-            type="button"
-            id="copy-token-btn"
-            class="token-field-copy"
-            phx-hook="CopyToken"
-            data-target="#token-value"
-            title="Copy"
+        <% else %>
+          <form
+            action={~p"/login?next=#{"/w/#{@workspace.slug}"}"}
+            method="post"
+            phx-change="validate"
+            phx-submit="submit"
+            phx-trigger-action={@trigger_submit}
+            class="auth-form"
+            id="invite-signup-form"
+            phx-hook="TrackCopy"
+            data-target="#preview-token-value"
+            data-flag="#copied-flag"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="9" y="9" width="12" height="12" rx="2" />
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-            </svg>
-            <span class="token-field-copy-label">Copy</span>
-          </button>
-        </div>
+            <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+            <input type="hidden" name="token" value={@preview_token} />
+            <input type="hidden" name="copied" id="copied-flag" value="false" />
+            <label class="auth-label" for="username">Username</label>
+            <input
+              type="text"
+              name="username"
+              id="username"
+              value={@username}
+              autocomplete="off"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              placeholder="arie"
+              class="auth-input auth-input-hero"
+              phx-debounce="250"
+              autofocus
+            />
 
-        <form action={~p"/login?next=#{@next_path}"} method="post" id="continue-form" style="margin-top:16px">
-          <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
-          <input type="hidden" name="token" value={@plaintext} />
-          <button id="continue-btn" type="submit" class="auth-submit" disabled>
-            I saved it, go to {@workspace.name}
-          </button>
-        </form>
+            <label class="auth-label" style="margin-top:18px">Your API key</label>
+            <div class="token-field">
+              <input
+                type="text"
+                id="preview-token-value"
+                class="token-field-input"
+                value={@preview_token}
+                readonly
+                onfocus="this.select()"
+              />
+              <button
+                type="button"
+                id="preview-copy-btn"
+                class="token-field-copy"
+                phx-hook="CopyToken"
+                data-target="#preview-token-value"
+                title="Copy"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="12" height="12" rx="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                <span class="token-field-copy-label">Copy</span>
+              </button>
+            </div>
+            <div class="auth-hint">
+              Copy this now. You will not be able to see it again.
+            </div>
+
+            <button type="submit" class="auth-submit" disabled={not @can_submit}>
+              Join {@workspace.name}
+            </button>
+
+            <%= if @error do %>
+              <div class="auth-error" style="margin-top:14px;text-align:center">{@error}</div>
+            <% end %>
+          </form>
+
+          <div class="auth-footer">
+            Already have a token?
+            <button type="button" phx-click="toggle_has_token" class="auth-link">
+              Sign in instead
+            </button>
+          </div>
+        <% end %>
       </div>
     </div>
     """
   end
+
 end
