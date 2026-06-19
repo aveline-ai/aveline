@@ -1104,6 +1104,16 @@
         width: 100%;
       }
       .doc-article { min-width: 0; }
+      /* Time-travel mode: hide every action surface that would mutate a
+         historical snapshot. The anchor button still works (copying a
+         link is read-only), but comment buttons, action menus, and
+         composers all disappear. */
+      .doc-readonly .block-comment-btn { display: none !important; }
+      .doc-readonly .thread-actions { display: none !important; }
+      .doc-readonly .comment-composer { display: none !important; }
+      .doc-readonly .comment-edit-form { display: none !important; }
+      .doc-readonly .article-kudos-btn,
+      .doc-readonly .article-pin-btn { pointer-events: none; opacity: 0.5; }
 
       /* Per-block inline comments zone — sits under each block. Flat
          layout (no left line / indent) so block comments read the same

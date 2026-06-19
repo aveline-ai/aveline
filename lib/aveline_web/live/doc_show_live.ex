@@ -110,7 +110,19 @@ defmodule AvelineWeb.DocShowLive do
 
   defp resolve_version(_, _, _), do: :error
 
+  # Time-travel views are READ-ONLY. Every comment-mutation handler
+  # short-circuits when historical?, even though the UI buttons are
+  # gone in that mode — belt-and-suspenders against scripted/replayed
+  # events.
+  @comment_write_events ~w(post_comment start_block_comment start_edit_comment
+                           save_edit_comment unresolve_comment delete_message)
+
   @impl true
+  def handle_event(event, _params, %{assigns: %{historical?: true}} = socket)
+      when event in @comment_write_events do
+    {:noreply, socket}
+  end
+
   def handle_event("post_comment", params, socket) do
     %{current_user: user, item: item} = socket.assigns
     body = String.trim(params["body"] || "")
@@ -336,7 +348,7 @@ defmodule AvelineWeb.DocShowLive do
 
     ~H"""
     <div class="doc-layout">
-      <div class="doc-article">
+      <div class={"doc-article " <> if @historical?, do: "doc-readonly", else: ""}>
         <.doc_state_banner
           item={@item}
           current_doc={@current_doc}
@@ -362,7 +374,7 @@ defmodule AvelineWeb.DocShowLive do
                 </svg>
               </a>
               <button
-                :if={@current_user}
+                :if={@current_user and not @historical?}
                 type="button"
                 class="block-comment-btn"
                 phx-click="start_block_comment"
