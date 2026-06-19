@@ -1435,6 +1435,53 @@
       .tag-row-action-danger:hover { color: var(--danger); background: rgba(229,72,77,0.08); }
       .tag-row-chip { text-decoration: none; }
 
+      /* ===== Modal (used by tag delete confirm — generic enough to reuse) ===== */
+      .modal-backdrop {
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.6);
+        z-index: 100;
+        display: flex; align-items: center; justify-content: center;
+        padding: 24px;
+        animation: modal-fade 0.12s ease-out;
+      }
+      @keyframes modal-fade {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+      }
+      .modal-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        padding: 24px;
+        width: 100%; max-width: 480px;
+        box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+      }
+      .modal-title {
+        font-size: 17px; font-weight: 600;
+        color: var(--text);
+        margin: 0 0 12px;
+      }
+      .modal-body {
+        color: var(--text-secondary);
+        font-size: 13.5px; line-height: 1.55;
+        margin: 0 0 20px;
+      }
+      .modal-body strong { color: var(--text); font-weight: 600; }
+      .modal-actions {
+        display: flex; justify-content: flex-end; gap: 8px;
+      }
+      .modal-btn-danger {
+        background: var(--danger); color: white;
+        padding: 7px 14px; border-radius: 6px;
+        font-size: 13px; font-weight: 500;
+      }
+      .modal-btn-danger:hover { background: #C7373B; }
+      .modal-btn-danger:disabled {
+        background: rgba(229,72,77,0.18);
+        color: rgba(255,255,255,0.5);
+        cursor: not-allowed;
+      }
+
       /* ===== History timeline ===== */
       .event-list {
         list-style: none; padding: 0; margin: 0;

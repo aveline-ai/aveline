@@ -172,25 +172,50 @@ defmodule Aveline.Tags do
 
   @doc """
   Delete a tag. Strips it from every doc that carries it and removes the
-  Tag row. Audit event records the affected count.
+  Tag row. Refuses (`{:error, {:would_orphan_docs, count}}`) if any doc's
+  only tag is this one — we keep the "every doc has ≥1 tag" invariant
+  intact instead of orphaning docs as a side effect of a tag cleanup.
+  Audit event records the affected count.
   """
   def delete(%Tag{workspace_id: ws_id, slug: slug} = tag, actor_user_id) do
-    Repo.transaction(fn ->
-      affected = strip_from_docs(ws_id, slug)
-      Repo.delete!(tag)
+    case docs_with_only_this_tag_count(ws_id, slug) do
+      0 ->
+        Repo.transaction(fn ->
+          affected = strip_from_docs(ws_id, slug)
+          Repo.delete!(tag)
 
-      Events.record(%{
-        workspace_id: ws_id,
-        actor: actor_user_id,
-        actor_type: "human",
-        action: "tag_deleted",
-        target_kind: "tag",
-        target_label: slug,
-        data: %{"affected" => affected}
-      })
+          Events.record(%{
+            workspace_id: ws_id,
+            actor: actor_user_id,
+            actor_type: "human",
+            action: "tag_deleted",
+            target_kind: "tag",
+            target_label: slug,
+            data: %{"affected" => affected}
+          })
 
-      :ok
-    end)
+          :ok
+        end)
+
+      n when n > 0 ->
+        {:error, {:would_orphan_docs, n}}
+    end
+  end
+
+  @doc """
+  Count of (non-deleted) docs in this workspace whose only tag is `slug`.
+  Used by the delete flow to surface a blocking message in the UI before
+  the user even tries to confirm.
+  """
+  def docs_with_only_this_tag_count(workspace_id, slug) do
+    Repo.one(
+      from d in Doc,
+        where:
+          d.workspace_id == ^workspace_id and
+            is_nil(d.deleted_at) and
+            d.tags == ^[slug],
+        select: count(d.id)
+    ) || 0
   end
 
   # ===== Validation hook called from Docs.apply_ops =====

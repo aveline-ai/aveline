@@ -36,6 +36,9 @@ defmodule AvelineWeb.TagsLive do
            editing: nil,
            # creating? toggles the new-tag form on/off (collapsed by default).
            creating?: false,
+           # delete-confirm modal state.
+           # %{slug, count, blocking_count} when open, nil when closed.
+           deleting: nil,
            # new-tag form state
            new_slug: "",
            new_description: "",
@@ -127,14 +130,39 @@ defmodule AvelineWeb.TagsLive do
     end
   end
 
-  def handle_event("delete", %{"slug" => slug}, socket) do
+  def handle_event("start_delete", %{"slug" => slug}, socket) do
+    %{workspace: ws} = socket.assigns
+    row = Enum.find(socket.assigns.tags, fn r -> r.tag.slug == slug end)
+    count = (row && row.count) || 0
+    blocking_count = Tags.docs_with_only_this_tag_count(ws.id, slug)
+
+    {:noreply,
+     assign(socket,
+       deleting: %{slug: slug, count: count, blocking_count: blocking_count}
+     )}
+  end
+
+  def handle_event("cancel_delete", _, socket) do
+    {:noreply, assign(socket, deleting: nil)}
+  end
+
+  def handle_event("confirm_delete", %{"slug" => slug}, socket) do
     %{workspace: ws, current_user: user} = socket.assigns
 
     with %Tag{} = tag <- Tags.get(ws.id, slug),
          {:ok, _} <- Tags.delete(tag, user.id) do
-      {:noreply, load_tags(socket)}
+      {:noreply, socket |> assign(deleting: nil) |> load_tags()}
     else
-      _ -> {:noreply, put_flash(socket, :error, "Couldn't delete.")}
+      {:error, {:would_orphan_docs, n}} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "Can't delete — #{n} #{plural("doc", n)} would be left with no tags. Add another tag to those docs first."
+         )}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Couldn't delete.")}
     end
   end
 
@@ -274,7 +302,7 @@ defmodule AvelineWeb.TagsLive do
                     Edit
                   </button>
                   <button
-                    phx-click="delete"
+                    phx-click="start_delete"
                     phx-value-slug={row.tag.slug}
                     class="tag-row-action tag-row-action-danger"
                   >
@@ -284,6 +312,47 @@ defmodule AvelineWeb.TagsLive do
             <% end %>
           </li>
         </ol>
+      <% end %>
+
+      <%= if @deleting do %>
+        <div class="modal-backdrop">
+          <div class="modal-card" phx-click-away="cancel_delete">
+            <h2 class="modal-title">Delete tag “{@deleting.slug}”?</h2>
+            <%= if @deleting.blocking_count > 0 do %>
+              <p class="modal-body">
+                <strong>{@deleting.blocking_count}</strong>
+                {plural("doc", @deleting.blocking_count)} use
+                <strong>“{@deleting.slug}”</strong> as their only tag.
+                Add another tag to {if @deleting.blocking_count == 1, do: "that doc", else: "those docs"}
+                first — Aveline keeps every doc tagged so it stays
+                discoverable.
+              </p>
+            <% else %>
+              <p class="modal-body">
+                This will remove
+                <strong>“{@deleting.slug}”</strong>
+                from
+                <strong>{@deleting.count}</strong>
+                {plural("doc", @deleting.count)}
+                and delete the tag from the workspace. <strong>This can't be undone.</strong>
+              </p>
+            <% end %>
+            <div class="modal-actions">
+              <button type="button" phx-click="cancel_delete" class="tag-btn-ghost">
+                Cancel
+              </button>
+              <button
+                type="button"
+                phx-click="confirm_delete"
+                phx-value-slug={@deleting.slug}
+                class="modal-btn-danger"
+                disabled={@deleting.blocking_count > 0}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       <% end %>
     </div>
     """
