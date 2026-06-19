@@ -8,9 +8,9 @@
   <g clip-path="url(#mark)">
     <rect x="0" y="0" width="28" height="56" fill="#ffffff" />
     <rect x="28" y="0" width="28" height="56" fill="#08080a" />
-    <rect x="26.9" y="0" width="2.2" height="56" fill="#6ee7b7" opacity="0.9" />
+    <rect x="26.9" y="0" width="2.2" height="56" fill="#3B82F6" opacity="0.9" />
     <circle cx="15" cy="28" r="6" fill="#1a1410" />
-    <rect x="38.5" y="17" width="6" height="22" rx="3" fill="#6ee7b7" />
+    <rect x="38.5" y="17" width="6" height="22" rx="3" fill="#3B82F6" />
   </g>
   <rect x="4" y="4" width="48" height="48" rx="12" fill="none" stroke="#1a1410" stroke-opacity="0.12" />
   <!-- wordmark -->
