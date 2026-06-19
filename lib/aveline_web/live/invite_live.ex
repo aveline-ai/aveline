@@ -153,7 +153,7 @@ defmodule AvelineWeb.InviteLive do
   @impl true
   def render(%{state: :invalid} = assigns) do
     ~H"""
-    <div class="auth-shell">
+    <div class="auth-shell"><AvelineWeb.AuthBg.split />
       <div class="auth-card">
         <div class="auth-brand">
           <span class="nav-brand-mark">A</span>
@@ -170,7 +170,7 @@ defmodule AvelineWeb.InviteLive do
 
   def render(%{state: :signed_in} = assigns) do
     ~H"""
-    <div class="auth-shell">
+    <div class="auth-shell"><AvelineWeb.AuthBg.split />
       <div class="auth-card">
         <div class="auth-brand">
           <span class="nav-brand-mark">A</span>
@@ -190,7 +190,7 @@ defmodule AvelineWeb.InviteLive do
 
   def render(%{state: :signup} = assigns) do
     ~H"""
-    <div class="auth-shell">
+    <div class="auth-shell"><AvelineWeb.AuthBg.split />
       <div class="auth-card">
         <div class="auth-brand">
           <span class="nav-brand-mark">A</span>
@@ -243,6 +243,7 @@ defmodule AvelineWeb.InviteLive do
 
     ~H"""
     <div class="auth-shell" id="show-token-shell" phx-hook="UnsavedTokenGuard">
+      <AvelineWeb.AuthBg.split />
       <div class="auth-card auth-card-wide">
         <div class="auth-brand">
           <span class="nav-brand-mark">A</span>
@@ -252,7 +253,7 @@ defmodule AvelineWeb.InviteLive do
         <p class="auth-subtitle">
           You're signed up as <strong>{@user.username}</strong> and have been added to
           <strong>{@workspace.name}</strong>. This is the only time you'll see your
-          token — stash it in 1Password now.
+          token. Stash it in 1Password now.
         </p>
 
         <div class="token-field">
@@ -284,7 +285,7 @@ defmodule AvelineWeb.InviteLive do
           <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
           <input type="hidden" name="token" value={@plaintext} />
           <button id="continue-btn" type="submit" class="auth-submit" disabled>
-            I saved it — go to {@workspace.name}
+            I saved it, go to {@workspace.name}
           </button>
         </form>
       </div>

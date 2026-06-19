@@ -19,7 +19,7 @@ defmodule AvelineWeb.LoginLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="auth-shell">
+    <div class="auth-shell"><AvelineWeb.AuthBg.split />
       <div class="auth-card auth-card-spare">
         <div class="auth-brand auth-brand-hero">
           <span class="nav-brand-mark" style="width:36px;height:36px">A</span>

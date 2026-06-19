@@ -1808,22 +1808,87 @@
          inline composer shell as block-level comments, no special-case
          shrink-on-blur treatment. */
 
-      /* ===== Auth (signup / login / show token) ===== */
+      /* ===== Auth (signup / login / show token) =====
+         Mirrors the landing page's split-screen frame so the transition
+         from landing → signup feels seamless. Warm parchment left,
+         deep dark with vignette right, signup card floating centered on
+         the seam. Card is wider here than the doc-page modals so the
+         API key fits without clipping. */
       .auth-shell {
+        position: relative;
         min-height: 100vh;
+        min-height: 100dvh;
         display: flex; align-items: center; justify-content: center;
         padding: 24px;
         background: var(--bg);
+        overflow: hidden;
+      }
+      /* Real div panes (not pseudo-elements) so each can host its own
+         animated <canvas>. Hooks `OrganicCanvas` / `MatrixCanvas` in
+         app.js drive the animations and respect prefers-reduced-motion. */
+      .auth-pane {
+        position: absolute; top: 0; bottom: 0;
+        width: 50%; z-index: 0;
+        overflow: hidden;
+      }
+      .auth-pane-human {
+        left: 0;
+        background: #efe8d6;
+      }
+      .auth-pane-human::before {
+        /* Paper grain — sits over the canvas with multiply blend. */
+        content: "";
+        position: absolute; inset: 0;
+        z-index: 1;
+        pointer-events: none;
+        opacity: 0.06;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        background-repeat: repeat;
+        mix-blend-mode: multiply;
+      }
+      .auth-pane-agent {
+        right: 0;
+        background: #08080a;
+      }
+      .auth-pane-agent::after {
+        /* Radial vignette over the matrix cascade — softens the edges
+           so the card sits cleanly on top. */
+        content: "";
+        position: absolute; inset: 0;
+        z-index: 1;
+        pointer-events: none;
+        background: radial-gradient(
+          ellipse at center,
+          rgba(8, 8, 10, 0.55) 0%,
+          rgba(8, 8, 10, 0.8) 55%,
+          rgba(8, 8, 10, 0.95) 100%
+        );
+      }
+      .canvas-organic,
+      .canvas-matrix {
+        position: absolute; inset: 0;
+        z-index: 0;
+        display: block;
       }
       .auth-card {
-        width: 100%; max-width: 420px;
+        position: relative;
+        z-index: 1;
+        width: 100%; max-width: 460px;
         background: var(--bg-card);
-        border: 1px solid var(--border);
+        border: 1px solid var(--border-strong);
         border-radius: var(--radius-lg);
-        padding: 32px 28px;
+        padding: 36px 32px;
+        box-shadow:
+          0 20px 60px rgba(0, 0, 0, 0.55),
+          0 4px 12px rgba(0, 0, 0, 0.3);
       }
-      .auth-card-wide { max-width: 540px; }
-      .auth-card-spare { padding: 36px 28px; }
+      .auth-card-wide { max-width: 560px; }
+      .auth-card-spare { padding: 40px 32px; }
+      /* Single-pane fallback on narrow screens — drop the split. */
+      @media (max-width: 720px) {
+        .auth-pane { display: none; }
+        .auth-shell { background: #08080a; }
+      }
       .auth-brand-hero {
         justify-content: center;
         gap: 12px;
@@ -1944,13 +2009,19 @@
       }
       .token-field-input {
         flex: 1; min-width: 0;
+        width: 100%;
         background: transparent;
         border: none; outline: none;
         padding: 12px 14px;
         font-family: 'JetBrains Mono', monospace;
-        font-size: 14px;
+        font-size: 13px;
         color: var(--accent);
-        letter-spacing: 0.02em;
+        letter-spacing: 0.01em;
+        /* Token is long; allow the input to scroll horizontally inside
+           the field so the user can see every character on demand
+           without breaking the card width. */
+        overflow-x: auto;
+        text-overflow: clip;
       }
       .token-field-input::selection { background: var(--accent-dim); }
       .token-field-copy {

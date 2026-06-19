@@ -82,7 +82,7 @@ defmodule AvelineWeb.SignupLive do
     copy_err =
       if copied,
         do: nil,
-        else: "Copy the API key first — you won't be able to see it again after sign up."
+        else: "Copy the API key first. You will not be able to see it again."
 
     # Priority: username → workspace → copy. Show at most one.
     first_error = username_err || workspace_err || copy_err
@@ -161,6 +161,7 @@ defmodule AvelineWeb.SignupLive do
 
     ~H"""
     <div class="auth-shell">
+      <AvelineWeb.AuthBg.split />
       <div class="auth-card auth-card-spare">
         <div class="auth-brand auth-brand-hero">
           <span class="nav-brand-mark" style="width:36px;height:36px">A</span>
@@ -231,7 +232,7 @@ defmodule AvelineWeb.SignupLive do
             </button>
           </div>
           <div class="auth-hint">
-            Copy this now — we only store its hash, so you won't be able to see it again.
+            Copy this now. You will not be able to see it again.
           </div>
 
           <button type="submit" class="auth-submit" disabled={not @can_submit}>
@@ -257,6 +258,7 @@ defmodule AvelineWeb.SignupLive do
 
     ~H"""
     <div class="auth-shell">
+      <AvelineWeb.AuthBg.split />
       <div class="auth-card auth-card-wide">
         <div class="auth-brand auth-brand-hero">
           <span class="nav-brand-mark" style="width:36px;height:36px">A</span>
@@ -299,7 +301,7 @@ defmodule AvelineWeb.SignupLive do
               know to read + write from the wiki via the CLI.
             </p>
             <div class="snippet">
-              <pre><code id="claude-snippet">Our team uses Aveline as a shared wiki for team knowledge — a Notion replacement designed to be read and written by AI agents. Use the `aveline` CLI to interact with it (`aveline --help` for the full verb set; common verbs: `list`, `get`, `save`, `edit`, `reply`).</code></pre>
+              <pre><code id="claude-snippet">Our team uses Aveline as a shared wiki for team knowledge, a Notion replacement designed to be read and written by AI agents. Use the `aveline` CLI to interact with it (`aveline --help` for the full verb set; common verbs: `list`, `get`, `save`, `edit`, `reply`).</code></pre>
               <button
                 type="button"
                 id="claude-snippet-copy"
