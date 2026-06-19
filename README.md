@@ -8,7 +8,7 @@ Currently v0: hello-world LiveView + a heartbeat endpoint. The real product is b
 
 - Elixir 1.18+, OTP 27+
 - Phoenix 1.8, Phoenix LiveView 1.0
-- PostgreSQL (via Supabase or local)
+- PostgreSQL (any provider — connection from `DATABASE_URL`)
 - Oban for background jobs
 - Sentry for errors + logs
 - Deployed on Fly.io

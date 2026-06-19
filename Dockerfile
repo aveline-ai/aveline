@@ -21,15 +21,32 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 FROM ${BUILDER_IMAGE} as builder
 
 # install build dependencies
-RUN apt-get update -y && apt-get install -y build-essential git \
+RUN apt-get update -y && apt-get install -y build-essential git curl \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # prepare build dir
 WORKDIR /app
 
-# install hex + rebar
-RUN mix local.hex --force && \
-  mix local.rebar --force
+# Install Hex + Rebar.
+#
+# Both `mix local.hex` and `mix local.rebar` download from
+# builds.hex.pm, whose TLS certificate trips Erlang's strict validation
+# as of mid-2026 (the cert claims both keyCertSign and serverAuth EKUs
+# which Erlang considers a key_usage_mismatch).
+#
+# Hex: Mix's own error message suggests `mix archive.install github`
+# which clones via git (no TLS to builds.hex.pm) and compiles locally.
+#
+# Rebar3: download the prebuilt escript from S3 (rebar3's official
+# redirect-to-latest-stable URL) and point `mix local.rebar` at it.
+#
+# Once Erlang 27.3+ ships in our base image (more lenient cert
+# validation), both workarounds can come out.
+RUN mix archive.install github hexpm/hex branch latest --force && \
+  curl -fsSL -o /tmp/rebar3 https://s3.amazonaws.com/rebar3/rebar3 && \
+  chmod +x /tmp/rebar3 && \
+  mix local.rebar rebar3 /tmp/rebar3 --force && \
+  rm /tmp/rebar3
 
 # set build ENV
 ENV MIX_ENV="prod"

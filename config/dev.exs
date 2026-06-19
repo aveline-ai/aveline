@@ -1,7 +1,9 @@
 import Config
 
-# Database — pulled from DATABASE_URL if set (point at Supabase or any Postgres),
-# otherwise falls back to localhost defaults. Set DATABASE_URL in your .env.
+# Database. Pulled from DATABASE_URL if set, otherwise falls back to
+# localhost defaults. Provider-agnostic — anything that speaks Postgres
+# works (managed services, RDS, local docker, etc.). Set DATABASE_URL
+# in your .env to point at a remote DB.
 config :aveline, Aveline.Repo,
   username: System.get_env("PGUSER") || "postgres",
   password: System.get_env("PGPASSWORD") || "postgres",

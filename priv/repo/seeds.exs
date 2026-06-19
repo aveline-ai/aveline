@@ -200,9 +200,9 @@ doc_specs = [
       para.([
         t.("Aveline runs as a Phoenix 1.8 app on "),
         b.("Fly.io", ["bold"]),
-        t.(", with Postgres on "),
-        b.("Supabase", ["bold"]),
-        t.(" reached through the Session pooler.")
+        t.(", backed by Postgres reached via "),
+        b.("DATABASE_URL", ["code"]),
+        t.(" (provider-agnostic).")
       ]),
       heading.(2, "Where things live"),
       ul.([
@@ -250,7 +250,7 @@ doc_specs = [
       ol.([
         [b.("API", ["bold"]), t.(" ("), b.("app.aveline.ai", ["code"]), t.("): check Fly logs.")],
         [b.("Landing", ["bold"]), t.(": Cloudflare Pages — almost certainly a deploy regression, roll back.")],
-        [b.("Database", ["bold"]), t.(": Supabase pool utilization graph.")]
+        [b.("Database", ["bold"]), t.(": pool + slow-query graphs in the managed PG dashboard.")]
       ]),
       heading.(2, "3. Mitigate, then root-cause"),
       para.([
@@ -536,7 +536,7 @@ end
 
 thread_specs = [
   %{doc: "stack-overview", author: "bob", actor: "human",
-    body: "Worth noting: the Session pooler limit on Supabase free tier is 200 connections — we'll hit it before we hit Fly's process limit."},
+    body: "Worth noting: keep an eye on pool utilization in the managed PG dashboard. If we ever start sitting near the cap during peak, that's the upgrade signal."},
   %{doc: "stack-overview", author: "alice", actor: "agent",
     body: "Good call. Worth adding to architecture-decisions when we make the call to upgrade."},
   %{doc: "stack-overview", author: "carol", actor: "human",
@@ -639,7 +639,7 @@ case Repo.one(
          on: d.id == c.doc_id,
          where:
            d.slug == "stack-overview" and
-             c.body == "Worth noting: the Session pooler limit on Supabase free tier is 200 connections — we'll hit it before we hit Fly's process limit." and
+             c.body == "Worth noting: keep an eye on pool utilization in the managed PG dashboard. If we ever start sitting near the cap during peak, that's the upgrade signal." and
              is_nil(c.resolved_at) and is_nil(c.deleted_at) and is_nil(c.superseded_at),
          limit: 1
      ) do

@@ -272,7 +272,7 @@ share API tokens via 1Password. Build proper signup when a third pod adopts.
 
 - Elixir 1.18+, Erlang/OTP 27+
 - Phoenix 1.8, Phoenix LiveView 1.0, Bandit, Phoenix.PubSub
-- PostgreSQL via Supabase (Session pooler — not direct, not transaction pooler)
+- PostgreSQL (provider-agnostic; connection from `DATABASE_URL`)
 - Oban (queues empty for v0; supervised, ready when needed)
 - Sentry 12 with `enable_logs: true` (Logger → Sentry Logs). DSN from env var.
 - esbuild for JS bundling (no Tailwind yet — inline styles in v0)
