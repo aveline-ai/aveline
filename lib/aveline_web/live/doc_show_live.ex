@@ -500,13 +500,12 @@ defmodule AvelineWeb.DocShowLive do
               </button>
             </span>
             <h1 class="article-title">{@item.title}</h1>
-            <% own_doc? = @current_user && @current_user.id == @current_doc.owner_id %>
-            <%= if @current_user && not own_doc? do %>
+            <%= if @current_user && @current_user.id != @current_doc.owner_id do %>
               <button
                 type="button"
                 phx-click="toggle_kudos"
                 class={"article-kudos-btn " <> if @kudos_given?, do: "is-given", else: ""}
-                title={if @kudos_given?, do: "You gave kudos — click to take it back", else: "Give kudos"}
+                title={if @kudos_given?, do: "You gave kudos. Click to take it back.", else: "Give kudos"}
                 aria-pressed={if @kudos_given?, do: "true", else: "false"}
                 aria-label={if @kudos_given?, do: "Remove kudos", else: "Give kudos"}
               >
@@ -519,17 +518,6 @@ defmodule AvelineWeb.DocShowLive do
                   <path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/>
                 </svg>
               </button>
-            <% else %>
-              <span :if={@kudos_count > 0} class="article-kudos-btn is-static" title="Kudos given">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
-                  <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
-                  <path d="M4 22h16"/>
-                  <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
-                  <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
-                  <path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/>
-                </svg>
-              </span>
             <% end %>
             <%= if @current_user do %>
               <button
