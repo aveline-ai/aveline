@@ -140,7 +140,7 @@ end)
 
 alice = users_by_username["alice"]
 bob = users_by_username["bob"]
-_carol = users_by_username["carol"]
+carol = users_by_username["carol"]
 
 t = fn text -> %{"text" => text} end
 b = fn text, marks -> %{"text" => text, "marks" => marks} end
@@ -647,6 +647,124 @@ case Repo.one(
   c -> {:ok, _} = Comments.resolve_comment(c, alice.id)
 end
 
+# ===== Comment state showcase =====
+# A full lifecycle on architecture-decisions so the doc page opens with
+# every comment state already represented: open thread with a human +
+# agent reply, an edited comment, a thread resolved via the agent's
+# disposition reply on a new doc version, and a user-deleted thread.
+# Hits enough states that the Open / All filter both have something
+# different to show and the version switcher's time-travel renders
+# meaningfully (v1 has the question open, v2 has it resolved).
+arch = current.("architecture-decisions")
+
+if arch && arch.version_number == 1 do
+  # Anchor blocks: the two paragraph blocks (index 1 and 3).
+  block_with_c1 = Enum.at(arch.blocks, 1)
+  block_with_c2 = Enum.at(arch.blocks, 3)
+
+  # c1 — alice (human) asks for a diagram, anchored to block 1.
+  {:ok, c1} =
+    Comments.create_comment(%{
+      "doc_id" => arch.id,
+      "block_id" => block_with_c1["id"],
+      "body" => "Could we add a diagram here?",
+      "actor_user_id" => alice.id,
+      "actor_type" => "human"
+    })
+
+  # bob replies to c1.
+  {:ok, _c1_reply} =
+    Comments.create_comment(%{
+      "doc_id" => arch.id,
+      "parent_comment_id" => c1.base_comment_id,
+      "block_id" => block_with_c1["id"],
+      "body" => "+1, even a simple ASCII flow would help.",
+      "actor_user_id" => bob.id,
+      "actor_type" => "human"
+    })
+
+  # c2 — carol (human) on the other paragraph, still open at end of seed.
+  {:ok, c2} =
+    Comments.create_comment(%{
+      "doc_id" => arch.id,
+      "block_id" => block_with_c2["id"],
+      "body" => "Is this still relevant after the LV refactor?",
+      "actor_user_id" => carol.id,
+      "actor_type" => "human"
+    })
+
+  # alice (as agent this time) replies to c2.
+  {:ok, _c2_reply} =
+    Comments.create_comment(%{
+      "doc_id" => arch.id,
+      "parent_comment_id" => c2.base_comment_id,
+      "block_id" => block_with_c2["id"],
+      "body" =>
+        "Yes, the underlying decisions still hold. The LV refactor only touched rendering, not the architecture.",
+      "actor_user_id" => alice.id,
+      "actor_type" => "agent"
+    })
+
+  # c3 — bob's doc-level question, which he'll later delete.
+  {:ok, c3} =
+    Comments.create_comment(%{
+      "doc_id" => arch.id,
+      "body" => "Should we link to deploy-guide for the operational implications?",
+      "actor_user_id" => bob.id,
+      "actor_type" => "human"
+    })
+
+  # alice edits c1 to add a clarifying suffix. Creates a v2 row of c1;
+  # the prior row is superseded.
+  c1_current = Comments.get_current_by_base(c1.base_comment_id)
+
+  {:ok, _c1_v2} =
+    Comments.edit_comment_body(
+      c1_current,
+      "Could we add a diagram here? Even a simple ASCII flow would do.",
+      alice.id
+    )
+
+  # Ship arch v2: modify the block c1 anchors to (adding a placeholder
+  # diagram note) and resolve c1 via the disposition reply path. c2's
+  # block is untouched, so no disposition is required.
+  new_content =
+    (block_with_c1["content"] || []) ++
+      [
+        %{
+          "text" =>
+            " (Diagram placeholder: replace with a real ASCII flow next pass.)",
+          "marks" => ["italic"]
+        }
+      ]
+
+  ops = [
+    %{
+      "op" => "modify_block",
+      "id" => block_with_c1["id"],
+      "patch" => %{"content" => new_content},
+      "metadata" => %{"diff_intent" => "address the diagram request"}
+    }
+  ]
+
+  {:ok, _arch_v2} =
+    Docs.apply_ops(arch, ops, %{actor_user_id: alice.id, actor_type: "agent"},
+      intent: "Address the request for a diagram (placeholder for now)",
+      dispositions: [
+        %{
+          "comment_id" => c1.base_comment_id,
+          "action" => "resolve",
+          "reply" =>
+            "Added a placeholder. Will fill in a real diagram on the next pass."
+        }
+      ]
+    )
+
+  # bob deletes his doc-level c3 (decided to file an issue instead).
+  c3_current = Comments.get_current_by_base(c3.base_comment_id)
+  {:ok, _} = Comments.soft_delete_comment(c3_current, bob.id)
+end
+
 # ===== Summary =====
 
 IO.puts("")
@@ -660,8 +778,8 @@ Enum.each(users, fn {spec, _} ->
 end)
 
 IO.puts("")
-IO.puts("Docs: #{length(doc_specs)} (stack-overview at v2, oncall-runbook at v3)")
-IO.puts("Comments: #{length(thread_specs)} (mixed human + agent)")
+IO.puts("Docs: #{length(doc_specs)} (stack-overview at v2, oncall-runbook at v3, architecture-decisions at v2 w/ showcase)")
+IO.puts("Comments: open + resolved + edited + deleted showcased on architecture-decisions; basic threads on three other docs.")
 events_count = Repo.aggregate(Aveline.Events.Event, :count, :id)
 IO.puts("Activity events: #{events_count} (all action types covered)")
 IO.puts("")
