@@ -193,44 +193,19 @@ defmodule Aveline.Comments.Disposition do
   defp do_apply(
          repo,
          %__MODULE__{action: "reanchor", comment_id: base_id, new_block_id: bid},
-         now,
+         _now,
          _uid,
-         doc_id
+         _doc_id
        ) do
-    # Reanchor = new comment-version row pinned to the new doc-version
-    # being shipped, with the new block_id. Prior row is superseded.
-    # Pinning doc_id to the new doc-version is what makes time-travel
-    # show the right anchor per doc-version: viewing doc v1 historically
-    # still uses the c1-v1 row (block b_old); viewing doc v2 uses c1-v2
-    # (block b_new).
+    # Reanchor = mutate `block_id` on the comment's live row. We rely on
+    # the auto-forward step (run earlier in the same transaction by
+    # Docs.apply_ops) to have already inserted a new comment-version row
+    # pinned to the new doc-version. So "fetch_current by base" returns
+    # that just-forwarded row; updating its block_id in-place gives us
+    # the per-doc-version anchor change without a redundant extra row.
     case fetch_current(repo, base_id) do
-      nil ->
-        {:error, {:comment_not_found, base_id}}
-
-      %Comment{} = current ->
-        new_id = Ecto.UUID.generate()
-
-        new_attrs = %{
-          "base_comment_id" => current.base_comment_id,
-          "version_number" => current.version_number + 1,
-          "doc_id" => doc_id,
-          "block_id" => bid,
-          "parent_comment_id" => current.parent_comment_id,
-          "body" => current.body,
-          "actor_user_id" => current.actor_user_id,
-          "actor_type" => current.actor_type,
-          "resolved_at" => current.resolved_at,
-          "resolved_by_id" => current.resolved_by_id,
-          "resolved_by_doc_id" => current.resolved_by_doc_id,
-          "edited_at" => current.edited_at
-        }
-
-        with {:ok, _new_v} <-
-               repo.insert(Comment.create_changeset(%Comment{id: new_id}, new_attrs)) do
-          current
-          |> Ecto.Changeset.change(%{superseded_at: now})
-          |> repo.update()
-        end
+      nil -> {:error, {:comment_not_found, base_id}}
+      c -> c |> Ecto.Changeset.change(%{block_id: bid}) |> repo.update()
     end
   end
 

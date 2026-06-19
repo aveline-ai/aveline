@@ -33,13 +33,13 @@ defmodule AvelineWeb.DocShowLive do
             end
 
             all_items = Docs.list_current(ws.id)
-            messages = Comments.list_for_base_doc(current_doc.base_doc_id)
             versions = Docs.list_versions(current_doc.base_doc_id)
 
             # Optional time-travel — `:version` param means we're showing a
-            # specific historical version's blocks. Comments and sidebar
-            # always use the logical (current) item; only the rendered body
-            # changes.
+            # specific historical version's blocks. Comments are now pulled
+            # per doc-version (auto-forward gives each version its own
+            # snapshot of comments), so the historical view shows exactly
+            # what discussion existed at that doc-version.
             {showing, is_historical} =
               case resolve_version(params["version"], versions, current_doc) do
                 {:ok, %{version_number: n}} when n == current_doc.version_number ->
@@ -51,6 +51,8 @@ defmodule AvelineWeb.DocShowLive do
                 :error ->
                   {current_doc, false}
               end
+
+            messages = Comments.list_for_doc_version(showing.id)
 
             {:ok,
              assign(socket,

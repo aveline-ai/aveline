@@ -8,7 +8,10 @@ defmodule AvelineWeb.Api.CommentController do
 
   def index(conn, %{"doc_slug" => doc_slug}) do
     with %_{} = item <- resolve_current(conn, doc_slug) || {:error, :not_found} do
-      messages = Comments.list_for_base_doc(item.base_doc_id)
+      # API always returns the snapshot of the CURRENT doc-version — same
+      # as what the doc-show LV renders by default. Time-travel is web-UI
+      # only for now.
+      messages = Comments.list_for_doc_version(item.id)
 
       conn
       |> put_view(json: AvelineWeb.Api.CommentJSON)

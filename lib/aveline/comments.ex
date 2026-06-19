@@ -29,9 +29,8 @@ defmodule Aveline.Comments do
 
   @doc """
   All CURRENT-version comments on a logical doc across ALL doc versions,
-  oldest first. `deleted_at IS NULL` naturally selects only the live row
-  for each `base_comment_id` — older versions are superseded with
-  `deleted_at` set.
+  oldest first. Used by callers that don't care which doc-version they're
+  rendering — they want every live comment thread visible right now.
   """
   def list_for_base_doc(base_doc_id) when is_binary(base_doc_id) do
     from(c in base_query(),
@@ -42,6 +41,32 @@ defmodule Aveline.Comments do
       preload: [:actor_user, :resolved_by, :resolved_by_doc, :doc]
     )
     |> Repo.all()
+  end
+
+  @doc """
+  The comment snapshot pinned to a specific doc-version. Each comment-
+  version row carries a `doc_id` pointing at the doc-version it was
+  created on (or auto-forwarded to). Filtering by that gives us the
+  exact set of comments visible "as of" that doc-version — what
+  someone time-traveling there should see.
+
+  Pass the doc-version row's `id` (NOT the base_doc_id).
+
+  We do NOT filter on `superseded_at IS NULL` here, because a row that's
+  the canonical snapshot for doc-version N may still get `superseded_at`
+  set later (when doc-version N+1 ships and auto-forwards everything).
+  Instead we use DISTINCT ON to pick the latest comment-version row per
+  base within this doc-version (handles same-doc-version body edits).
+  """
+  def list_for_doc_version(doc_version_id) when is_binary(doc_version_id) do
+    from(c in Comment,
+      distinct: c.base_comment_id,
+      where: c.doc_id == ^doc_version_id and is_nil(c.deleted_at),
+      order_by: [asc: c.base_comment_id, desc: c.version_number]
+    )
+    |> Repo.all()
+    |> Enum.sort_by(& &1.inserted_at)
+    |> Repo.preload([:actor_user, :resolved_by, :resolved_by_doc, :doc])
   end
 
   @doc "Fetch by row id (a specific version). Mostly for callers that already hold a row id."

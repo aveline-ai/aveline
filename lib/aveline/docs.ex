@@ -325,10 +325,60 @@ defmodule Aveline.Docs do
         )
       )
       |> Multi.insert(:doc, Doc.changeset(%Doc{}, new_attrs))
+      |> Multi.run(:auto_forward_comments, &auto_forward_comments_step/2)
       |> Multi.run(:apply_dispositions, &apply_dispositions_step(&1, &2, dispositions, resolves))
       |> Repo.transaction()
       |> finish_apply()
     end
+  end
+
+  # For every live comment on this base doc, insert a new comment-version
+  # row pinned to the just-inserted new doc-version. Mark the prior row
+  # `superseded_at` in the same transaction. After this step runs, the
+  # "current" row for every base is the new auto-forwarded one — so the
+  # disposition step below acts on the new rows (in-place: resolve sets
+  # `resolved_at`, reanchor sets `block_id`).
+  defp auto_forward_comments_step(repo, %{doc: %Doc{id: new_doc_id, base_doc_id: base_doc_id}}) do
+    now = DateTime.utc_now()
+
+    live =
+      from(c in Comment,
+        join: d in Doc,
+        on: d.id == c.doc_id,
+        where:
+          d.base_doc_id == ^base_doc_id and
+            is_nil(c.superseded_at) and
+            is_nil(c.deleted_at)
+      )
+      |> repo.all()
+
+    Enum.reduce_while(live, {:ok, 0}, fn current, {:ok, n} ->
+      new_id = Ecto.UUID.generate()
+
+      new_attrs = %{
+        "base_comment_id" => current.base_comment_id,
+        "version_number" => current.version_number + 1,
+        "doc_id" => new_doc_id,
+        "block_id" => current.block_id,
+        "parent_comment_id" => current.parent_comment_id,
+        "body" => current.body,
+        "actor_user_id" => current.actor_user_id,
+        "actor_type" => current.actor_type,
+        "resolved_at" => current.resolved_at,
+        "resolved_by_id" => current.resolved_by_id,
+        "resolved_by_doc_id" => current.resolved_by_doc_id,
+        "edited_at" => current.edited_at
+      }
+
+      with {:ok, _} <-
+             repo.insert(Comment.create_changeset(%Comment{id: new_id}, new_attrs)),
+           {:ok, _} <-
+             repo.update(Ecto.Changeset.change(current, superseded_at: now)) do
+        {:cont, {:ok, n + 1}}
+      else
+        {:error, err} -> {:halt, {:error, err}}
+      end
+    end)
   end
 
   # Validate dispositions. The agent MUST cover every open comment thread
