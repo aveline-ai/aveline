@@ -49,7 +49,8 @@ defmodule AvelineWeb.SignupLive do
        # Pre-generate the real token on mount so the user sees their actual
        # API key in the form. We only persist (hash) it when they submit.
        preview_token: Tokens.generate_plaintext()
-     )}
+     ),
+     layout: false}
   end
 
   @impl true

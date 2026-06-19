@@ -11,7 +11,7 @@ defmodule AvelineWeb.LoginLive do
     # cookie pointing at a deleted user falls through to the login form
     # instead of bouncing through /.
     case AvelineWeb.LiveSession.current_user(session) do
-      nil -> {:ok, assign(socket, page_title: "Aveline · Log in")}
+      nil -> {:ok, assign(socket, page_title: "Aveline · Log in"), layout: false}
       _user -> {:ok, push_navigate(socket, to: ~p"/")}
     end
   end
