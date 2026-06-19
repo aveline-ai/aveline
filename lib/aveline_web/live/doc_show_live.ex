@@ -88,6 +88,10 @@ defmodule AvelineWeb.DocShowLive do
                # base_comment_id of the comment currently in inline-edit
                # mode (nil if no one is editing). One at a time.
                editing_comment_id: nil,
+               # base_comment_id of the thread whose reply form is open.
+               # Reply composer is collapsed-by-default so threads stay
+               # compact; user clicks Reply to expand it.
+               replying_to_thread_id: nil,
                # Comment view (:open | :all | :hide).
                comment_view: comment_view,
                # Resolved threads collapse their middle replies by default;
@@ -175,7 +179,8 @@ defmodule AvelineWeb.DocShowLive do
   # gone in that mode — belt-and-suspenders against scripted/replayed
   # events.
   @comment_write_events ~w(post_comment start_block_comment start_edit_comment
-                           save_edit_comment unresolve_comment delete_message)
+                           save_edit_comment unresolve_comment delete_message
+                           undelete_message start_reply)
 
   @impl true
   def handle_event(event, _params, %{assigns: %{historical?: true}} = socket)
@@ -212,6 +217,7 @@ defmodule AvelineWeb.DocShowLive do
           {:noreply,
            socket
            |> assign(:commenting_on_block_id, nil)
+           |> assign(:replying_to_thread_id, nil)
            |> push_event("reset-form", %{id: form_id})}
         else
           _ -> {:noreply, put_flash(socket, :error, "Could not post.")}
@@ -225,6 +231,14 @@ defmodule AvelineWeb.DocShowLive do
 
   def handle_event("cancel_block_comment", _, socket) do
     {:noreply, assign(socket, :commenting_on_block_id, nil)}
+  end
+
+  def handle_event("start_reply", %{"id" => base_id}, socket) do
+    {:noreply, assign(socket, :replying_to_thread_id, base_id)}
+  end
+
+  def handle_event("cancel_reply", _, socket) do
+    {:noreply, assign(socket, :replying_to_thread_id, nil)}
   end
 
   def handle_event("start_edit_comment", %{"id" => base_id}, socket) do
@@ -329,6 +343,28 @@ defmodule AvelineWeb.DocShowLive do
     else
       false -> {:noreply, put_flash(socket, :error, "You can only delete your own comments.")}
       _ -> {:noreply, put_flash(socket, :error, "Could not delete.")}
+    end
+  end
+
+  def handle_event("undelete_message", %{"id" => base_id}, socket) do
+    %{current_user: user} = socket.assigns
+
+    with %_{} = msg <- Comments.get_latest_by_base(base_id),
+         true <- user && msg.actor_user_id == user.id,
+         {:ok, _} <- Comments.undelete_comment(msg) do
+      # If the deleted comment had been excluded from `messages` (i.e.
+      # we were in :open view), the PubSub :comment_updated handler
+      # would no-op (nothing to replace). Just refresh from the current
+      # doc-version snapshot.
+      messages =
+        Comments.list_for_doc_version(socket.assigns.item.id,
+          include_deleted: socket.assigns.comment_view == :all
+        )
+
+      {:noreply, assign(socket, :messages, messages)}
+    else
+      false -> {:noreply, put_flash(socket, :error, "You can only undelete your own comments.")}
+      _ -> {:noreply, put_flash(socket, :error, "Could not undelete.")}
     end
   end
 
@@ -638,6 +674,7 @@ defmodule AvelineWeb.DocShowLive do
                 current_doc={@current_doc}
                 expanded?={MapSet.member?(@expanded_threads, thread.parent.base_comment_id)}
                 editing_comment_id={@editing_comment_id}
+                replying_to_thread_id={@replying_to_thread_id}
               />
             </li>
           </ol>
@@ -666,6 +703,8 @@ defmodule AvelineWeb.DocShowLive do
                   workspace={@workspace}
                   current_doc={@current_doc}
                   expanded?={MapSet.member?(@expanded_threads, thread.parent.base_comment_id)}
+                  editing_comment_id={@editing_comment_id}
+                  replying_to_thread_id={@replying_to_thread_id}
                 />
               </li>
             </ol>
@@ -710,6 +749,7 @@ defmodule AvelineWeb.DocShowLive do
                 current_doc={@current_doc}
                 expanded_threads={@expanded_threads}
                 editing_comment_id={@editing_comment_id}
+                replying_to_thread_id={@replying_to_thread_id}
               />
             <% end %>
           </div>
@@ -901,6 +941,7 @@ defmodule AvelineWeb.DocShowLive do
   attr :current_doc, :map, required: true
   attr :expanded_threads, :any, required: true
   attr :editing_comment_id, :any, default: nil
+  attr :replying_to_thread_id, :any, default: nil
 
   defp block_comment_zone(assigns) do
     ~H"""
@@ -917,6 +958,8 @@ defmodule AvelineWeb.DocShowLive do
             workspace={@workspace}
             current_doc={@current_doc}
             expanded?={MapSet.member?(@expanded_threads, thread.parent.base_comment_id)}
+            editing_comment_id={@editing_comment_id}
+            replying_to_thread_id={@replying_to_thread_id}
           />
         </li>
       </ol>
@@ -959,6 +1002,7 @@ defmodule AvelineWeb.DocShowLive do
   attr :current_doc, :map, required: true
   attr :expanded?, :boolean, default: false
   attr :editing_comment_id, :any, default: nil
+  attr :replying_to_thread_id, :any, default: nil
 
   defp comment_card(assigns) do
     assigns = assign(assigns, partitioned: partition_replies(assigns.thread))
@@ -1013,42 +1057,58 @@ defmodule AvelineWeb.DocShowLive do
       </ol>
 
       <%= if @current_user && is_nil(@thread.parent.resolved_at) do %>
-        <form
-          phx-submit="post_comment"
-          id={"reply-form-" <> @thread.parent.base_comment_id}
-          phx-hook="ResetOnEvent"
-          data-reset-event="reset-form"
-          class="comment-composer comment-composer-reply"
-        >
-          <input type="hidden" name="parent_comment_id" value={@thread.parent.base_comment_id} />
-          <input type="hidden" name="form_id" value={"reply-form-" <> @thread.parent.base_comment_id} />
-          <textarea
-            name="body"
-            class="comment-composer-input"
-            placeholder={"Reply to #{if message_actor(@thread.parent), do: message_actor(@thread.parent).username, else: "this thread"}…"}
-            rows="2"
-          ></textarea>
-          <div class="comment-composer-footer">
-            <span class="comment-composer-hint">Cmd+Enter to reply</span>
+        <%= if @replying_to_thread_id == @thread.parent.base_comment_id do %>
+          <form
+            phx-submit="post_comment"
+            id={"reply-form-" <> @thread.parent.base_comment_id}
+            phx-hook="ResetOnEvent"
+            data-reset-event="reset-form"
+            class="comment-composer comment-composer-reply"
+          >
+            <input type="hidden" name="parent_comment_id" value={@thread.parent.base_comment_id} />
+            <input type="hidden" name="form_id" value={"reply-form-" <> @thread.parent.base_comment_id} />
+            <textarea
+              id={"reply-input-" <> @thread.parent.base_comment_id}
+              phx-hook="AutoFocus"
+              name="body"
+              class="comment-composer-input"
+              placeholder={"Reply to #{if message_actor(@thread.parent), do: message_actor(@thread.parent).username, else: "this thread"}…"}
+              rows="2"
+            ></textarea>
+            <div class="comment-composer-footer">
+              <span class="comment-composer-hint">Cmd+Enter to reply</span>
+              <button type="button" phx-click="cancel_reply" class="comment-composer-cancel">Cancel</button>
+              <button
+                type="submit"
+                name="and_resolve"
+                value="true"
+                class="comment-composer-submit comment-composer-submit-resolve"
+                title="Post reply and mark this thread resolved"
+              >
+                Reply &amp; resolve
+              </button>
+              <button
+                type="submit"
+                name="and_resolve"
+                value="false"
+                class="comment-composer-submit"
+              >
+                Reply
+              </button>
+            </div>
+          </form>
+        <% else %>
+          <div class="comment-card-reply-prompt">
             <button
-              type="submit"
-              name="and_resolve"
-              value="true"
-              class="comment-composer-submit comment-composer-submit-resolve"
-              title="Post reply and mark this thread resolved"
-            >
-              Reply &amp; resolve
-            </button>
-            <button
-              type="submit"
-              name="and_resolve"
-              value="false"
-              class="comment-composer-submit"
+              type="button"
+              phx-click="start_reply"
+              phx-value-id={@thread.parent.base_comment_id}
+              class="comment-card-reply-btn"
             >
               Reply
             </button>
           </div>
-        </form>
+        <% end %>
       <% end %>
     </article>
     """
@@ -1123,15 +1183,25 @@ defmodule AvelineWeb.DocShowLive do
             >
               edit
             </button>
-            <button
-              type="button"
-              phx-click="delete_message"
-              phx-value-id={@message.base_comment_id}
-              data-confirm="Delete this?"
-              class="thread-action-btn"
-            >
-              delete
-            </button>
+            <%= if @message.deleted_at do %>
+              <button
+                type="button"
+                phx-click="undelete_message"
+                phx-value-id={@message.base_comment_id}
+                class="thread-action-btn"
+              >
+                undelete
+              </button>
+            <% else %>
+              <button
+                type="button"
+                phx-click="delete_message"
+                phx-value-id={@message.base_comment_id}
+                class="thread-action-btn"
+              >
+                delete
+              </button>
+            <% end %>
           <% end %>
         </span>
       </div>

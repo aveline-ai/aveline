@@ -38,12 +38,13 @@
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}></script>
     <style>
       :root {
-        /* Near-monochrome dark surfaces — slight cool drift, no purple cast. */
-        --bg: #0A0A0B;
-        --bg-elevated: #111114;
-        --bg-card: #16161A;
-        --bg-card-hover: #1B1C20;
-        --bg-input: #0F0F12;
+        /* Linear-style monochrome surfaces.
+           sidebar (#070707) < bg (#0F1010) < comment card (#171718). */
+        --bg: #0F1010;
+        --bg-elevated: #070707;
+        --bg-card: #171718;
+        --bg-card-hover: #1B1C1C;
+        --bg-input: #0A0A0A;
         --border: rgba(255,255,255,0.06);
         --border-strong: rgba(255,255,255,0.10);
         --text: #E8E8EA;
@@ -1138,6 +1139,24 @@
         width: 11px; height: 11px;
         opacity: 0.8;
       }
+      /* Collapsed reply prompt — a quiet "Reply" link sitting at the
+         bottom of the comment card. Expands into the full composer on
+         click. Keeps threads compact when nobody's actively replying. */
+      .comment-card-reply-prompt {
+        padding: 6px 14px;
+        border-top: 1px solid rgba(255,255,255,0.08);
+      }
+      .comment-card-reply-btn {
+        font-size: 11.5px;
+        color: var(--text-muted);
+        background: transparent;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .comment-card-reply-btn:hover {
+        color: var(--text-secondary);
+        background: rgba(255,255,255,0.05);
+      }
 
       /* Per-block inline comments zone — sits under each block. Flat
          layout (no left line / indent) so block comments read the same
@@ -1526,7 +1545,7 @@
         /* Significantly lighter "raised paper" surface so comments
            clearly pop off the doc body. Reads as a distinct discussion
            surface, not another card in the dark stack. */
-        background: #272A3A;
+        background: var(--bg-card);
         border: 1px solid rgba(255,255,255,0.14);
         border-radius: 10px;
         padding: 0;
@@ -1644,7 +1663,7 @@
          surface so a new thread reads as a member of the same family
          the moment you start typing. */
       .comment-composer-inline {
-        background: #272A3A;
+        background: var(--bg-card);
         border-color: rgba(255,255,255,0.14);
         border-radius: 10px;
       }

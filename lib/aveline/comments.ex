@@ -100,6 +100,22 @@ defmodule Aveline.Comments do
     end
   end
 
+  @doc """
+  Fetch the latest comment-version row for a base id, regardless of
+  whether it's currently deleted. Used by the undelete path so we can
+  flip `deleted_at` back to nil on the row that was last deleted.
+  """
+  def get_latest_by_base(base_id) when is_binary(base_id) do
+    from(c in Comment,
+      where: c.base_comment_id == ^base_id and is_nil(c.superseded_at)
+    )
+    |> Repo.one()
+    |> case do
+      nil -> nil
+      c -> Repo.preload(c, [:actor_user, :resolved_by, :resolved_by_doc, :deleted_by])
+    end
+  end
+
   def resolve_comment(%Comment{} = c, resolver_id) do
     c
     |> Ecto.Changeset.change(%{
@@ -194,6 +210,18 @@ defmodule Aveline.Comments do
     |> Ecto.Changeset.change(%{deleted_at: DateTime.utc_now(), deleted_by_id: deleted_by_id})
     |> Repo.update()
     |> preload_and_broadcast(:comment_deleted)
+  end
+
+  @doc """
+  Reverse a soft-delete. The row stays the same; we just clear the
+  deletion flags. State-flag mutation, in-place — symmetric with
+  resolve/unresolve.
+  """
+  def undelete_comment(%Comment{} = c) do
+    c
+    |> Ecto.Changeset.change(%{deleted_at: nil, deleted_by_id: nil})
+    |> Repo.update()
+    |> preload_and_broadcast(:comment_updated)
   end
 
   defp preload_and_broadcast({:ok, %Comment{} = c}, event) do
