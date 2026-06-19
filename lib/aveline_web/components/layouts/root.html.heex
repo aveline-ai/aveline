@@ -685,14 +685,14 @@
       /* ===== Article (doc detail) ===== */
       .article-header { margin-bottom: 0; }
       .article-title-row {
-        display: flex; align-items: flex-start; gap: 12px;
+        display: flex; align-items: flex-start; gap: 2px;
         margin-bottom: 4px;
       }
       .article-title {
         flex: 1; min-width: 0;
         font-size: 32px; font-weight: 600; letter-spacing: -0.02em;
         line-height: 1.2;
-        margin: 0;
+        margin: 0 10px 0 0;
       }
       .article-pin-btn {
         flex-shrink: 0;
@@ -721,36 +721,33 @@
       .article-pin-btn.is-static { cursor: default; }
       .article-pin-btn.is-static:hover { background: transparent; }
 
-      /* Kudos toggle next to the pin. Same shape language. Counter sits to
-         the right of the icon. "Given" state fills the thumb solid. */
+      /* Kudos toggle — same shape + active treatment as the pin. Icon-only,
+         no count (no social-proof bias). */
       .article-kudos-btn {
         flex-shrink: 0;
-        display: inline-flex; align-items: center; gap: 4px;
-        height: 36px;
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 36px; height: 36px;
         margin-top: 4px;
-        padding: 0 10px;
         border: none; background: transparent;
         border-radius: 8px;
         color: var(--text-muted);
         cursor: pointer;
-        font-size: 13px; font-variant-numeric: tabular-nums;
         transition: color 0.1s ease, background 0.1s ease, transform 0.06s ease;
       }
       .article-kudos-btn svg {
-        width: 18px; height: 18px;
+        width: 20px; height: 20px;
         fill: none; stroke: currentColor;
-        transition: fill 0.1s ease;
+        transition: fill 0.1s ease, color 0.1s ease;
       }
       .article-kudos-btn:hover {
-        color: var(--accent);
-        background: var(--accent-dim);
+        color: var(--text);
+        background: rgba(255,255,255,0.05);
       }
       .article-kudos-btn:active { transform: scale(0.94); }
-      .article-kudos-btn.is-given { color: var(--accent); }
+      .article-kudos-btn.is-given { color: var(--text); }
       .article-kudos-btn.is-given svg { fill: currentColor; }
       .article-kudos-btn.is-static { cursor: default; }
       .article-kudos-btn.is-static:hover { background: transparent; color: var(--text-muted); }
-      .article-kudos-count { font-weight: 500; }
       .article-summary { color: var(--text-secondary); font-size: 15px; margin-bottom: 4px; }
       .article-meta {
         display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
@@ -1322,15 +1319,93 @@
       }
 
       /* ===== Tags management page ===== */
+      /* Header row: title + subtitle on the left, "+ New tag" on the right.
+         Aligns with the page-subtitle's existing 32px bottom margin so the
+         spacing under the header still feels right. */
+      .tags-header {
+        display: flex; justify-content: space-between; align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .tags-header .page-subtitle { margin-bottom: 0; }
+      .tags-new-btn {
+        flex-shrink: 0;
+        background: var(--accent); color: white;
+        padding: 7px 14px;
+        border-radius: 6px;
+        font-size: 13px; font-weight: 500;
+        margin-top: 4px;
+      }
+      .tags-new-btn:hover { background: var(--accent-hover); }
+
+      /* Create + edit forms — no boxes, no card surface. They live as
+         inline sections separated only by hairlines from the rest of the
+         page, like the list rows themselves. Full row width on edit. */
+      .tag-create-card {
+        display: flex; flex-direction: column; gap: 14px;
+        padding: 6px 0 18px;
+        margin-bottom: 8px;
+      }
+      .tag-edit-form {
+        flex: 1;
+        display: flex; flex-direction: column; gap: 14px;
+      }
+      .tag-create-row {
+        display: flex; flex-direction: column; gap: 4px;
+      }
+      .tag-field-label {
+        font-size: 11px; font-weight: 500;
+        color: var(--text-muted);
+        text-transform: uppercase; letter-spacing: 0.04em;
+      }
+      .tag-field-input {
+        font: inherit; font-size: 13.5px;
+        background: var(--bg-input);
+        color: var(--text);
+        border: 1px solid var(--border-strong);
+        border-radius: 6px;
+        padding: 7px 10px;
+        outline: none;
+        width: 100%;
+        transition: border-color 0.08s ease;
+      }
+      .tag-field-input:focus { border-color: var(--accent); }
+      .tag-field-mono { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+      .tag-create-error {
+        font-size: 12px; color: var(--danger);
+      }
+      .tag-create-actions {
+        display: flex; justify-content: flex-end; gap: 8px;
+        margin-top: 2px;
+      }
+      .tag-btn-primary {
+        background: var(--accent); color: white;
+        padding: 7px 14px; border-radius: 6px;
+        font-size: 13px; font-weight: 500;
+      }
+      .tag-btn-primary:hover { background: var(--accent-hover); }
+      .tag-btn-primary:disabled {
+        background: rgba(255,255,255,0.05); color: var(--text-muted);
+        cursor: not-allowed;
+      }
+      .tag-btn-ghost {
+        background: transparent; color: var(--text-muted);
+        padding: 7px 14px; border-radius: 6px;
+        font-size: 13px;
+      }
+      .tag-btn-ghost:hover { color: var(--text); }
+
+      /* The list itself sits as a series of clean rows separated by a
+         hairline — no card-per-row, less visual weight. */
       .tag-list {
-        list-style: none; padding: 0; margin: 16px 0 0;
+        list-style: none; padding: 0; margin: 0;
         display: flex; flex-direction: column;
+        border-top: 1px solid var(--border);
       }
       .tag-row {
         display: flex; align-items: flex-start; gap: 12px;
-        padding: 12px 0;
+        padding: 14px 0;
         border-bottom: 1px solid var(--border);
-        font-size: 13.5px;
       }
       .tag-row-body { flex: 1; min-width: 0; }
       .tag-row-head {
@@ -1338,68 +1413,27 @@
         flex-wrap: wrap;
       }
       .tag-row-desc {
-        margin: 4px 0 0;
+        margin: 6px 0 0;
         color: var(--text-secondary);
         font-size: 13px;
-        line-height: 1.45;
+        line-height: 1.5;
       }
-      .tag-new-form { margin: 8px 0 18px; }
-      .tag-new-fields { display: flex; gap: 8px; align-items: center; }
-      .tag-new-slug {
-        flex: 0 0 220px;
-      }
-      .tag-row:last-child { border-bottom: none; }
-      .tag-row-link {
-        color: var(--text); font-weight: 500;
-        font-size: 13px;
-      }
-      .tag-row-link:hover { color: var(--accent); }
       .tag-row-meta {
         color: var(--text-muted); font-size: 12px;
         display: inline-flex; align-items: center; gap: 8px;
-        flex: 1;
       }
       .tag-row-actions {
         display: inline-flex; align-items: center; gap: 4px;
-        margin-left: auto;
+        flex-shrink: 0;
       }
       .tag-row-action {
         font-size: 12px; color: var(--text-muted);
-        padding: 4px 8px; border-radius: 4px;
+        padding: 4px 10px; border-radius: 5px;
         background: transparent;
       }
       .tag-row-action:hover { color: var(--text); background: rgba(255,255,255,0.04); }
       .tag-row-action-danger:hover { color: var(--danger); background: rgba(229,72,77,0.08); }
-      .tag-row-form {
-        display: flex; align-items: center; gap: 6px;
-        flex: 1; flex-wrap: wrap;
-      }
-      .tag-row-form-edit .tag-row-input + .tag-row-input { flex: 1; min-width: 220px; }
       .tag-row-chip { text-decoration: none; }
-      .tag-row-prompt { color: var(--text-secondary); font-size: 13px; }
-      .tag-row-input {
-        font: inherit;
-        font-size: 13px;
-        background: var(--bg-input);
-        color: var(--text);
-        border: 1px solid var(--border-strong);
-        border-radius: var(--radius);
-        padding: 4px 8px;
-        flex: 1; min-width: 0;
-      }
-      .tag-row-input:focus { outline: none; border-color: var(--accent); }
-      .tag-row-primary {
-        background: var(--accent); color: white;
-        padding: 5px 12px; border-radius: 5px;
-        font-size: 12px; font-weight: 500;
-      }
-      .tag-row-primary:hover { background: var(--accent-hover); }
-      .tag-row-secondary {
-        background: transparent; color: var(--text-muted);
-        padding: 5px 12px; border-radius: 5px;
-        font-size: 12px;
-      }
-      .tag-row-secondary:hover { color: var(--text); }
 
       /* ===== History timeline ===== */
       .event-list {
@@ -1547,17 +1581,12 @@
         border-radius: 10px;
         padding: 0;
         overflow: hidden;
-        transition: border-color 0.08s ease, opacity 0.15s ease;
       }
-      .comment-card:hover { border-color: rgba(255,255,255,0.22); }
       /* Resolved thread: keep the same surface (no dim wash, no
          transparent flip) — just a slightly subtler border so the
          "resolved" tag in the meta carries the cue. */
       .comment-card-wrap-resolved .comment-card {
         border-color: rgba(255,255,255,0.08);
-      }
-      .comment-card-wrap-resolved .comment-card:hover {
-        border-color: rgba(255,255,255,0.14);
       }
       /* The parent comment row gets explicit padding now that the card
          itself has none. */

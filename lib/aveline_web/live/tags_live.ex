@@ -1,9 +1,9 @@
 defmodule AvelineWeb.TagsLive do
   @moduledoc """
-  Tag management — the only place to create, rename, merge, delete a
-  workspace tag, or edit its description. Every tag carries a required
-  description so an LLM (or a human) browsing the index understands
-  what the tag covers.
+  Tag management — the only place to create, rename, delete a workspace
+  tag, or edit its description. Every tag carries a required description
+  so an LLM (or a human) browsing the index understands what the tag
+  covers.
 
   Tag *filtering* still happens on the All Docs chip row; this page is
   for housekeeping the taxonomy itself.
@@ -34,7 +34,8 @@ defmodule AvelineWeb.TagsLive do
            max_description: Tag.max_description(),
            # row-edit state — one slug is "in edit mode" at a time.
            editing: nil,
-           merging: nil,
+           # creating? toggles the new-tag form on/off (collapsed by default).
+           creating?: false,
            # new-tag form state
            new_slug: "",
            new_description: "",
@@ -78,7 +79,7 @@ defmodule AvelineWeb.TagsLive do
       {:ok, _tag} ->
         {:noreply,
          socket
-         |> assign(new_slug: "", new_description: "", form_error: nil)
+         |> assign(new_slug: "", new_description: "", form_error: nil, creating?: false)
          |> load_tags()}
 
       {:error, %Ecto.Changeset{} = cs} ->
@@ -86,13 +87,21 @@ defmodule AvelineWeb.TagsLive do
     end
   end
 
+  def handle_event("start_create", _, socket) do
+    {:noreply, assign(socket, creating?: true, editing: nil, form_error: nil)}
+  end
+
+  def handle_event("cancel_create", _, socket) do
+    {:noreply, assign(socket, creating?: false, new_slug: "", new_description: "", form_error: nil)}
+  end
+
   # ===== Row edits =====
 
   def handle_event("edit", %{"slug" => slug}, socket),
-    do: {:noreply, assign(socket, editing: slug, merging: nil)}
+    do: {:noreply, assign(socket, editing: slug, creating?: false)}
 
   def handle_event("cancel", _, socket),
-    do: {:noreply, assign(socket, editing: nil, merging: nil)}
+    do: {:noreply, assign(socket, editing: nil)}
 
   # Single save handler — handles slug rename and/or description edit in
   # one go. Rename cascades through every doc carrying the old slug.
@@ -108,31 +117,13 @@ defmodule AvelineWeb.TagsLive do
     else
       {:error, :destination_exists} ->
         {:noreply,
-         put_flash(socket, :error, "“#{new_slug}” already exists. Use Merge to combine them.")}
+         put_flash(socket, :error, "“#{new_slug}” already exists. Delete one of the two first.")}
 
       {:error, %Ecto.Changeset{} = cs} ->
         {:noreply, put_flash(socket, :error, format_error(cs))}
 
       _ ->
         {:noreply, put_flash(socket, :error, "Couldn't save changes.")}
-    end
-  end
-
-  def handle_event("start_merge", %{"slug" => slug}, socket),
-    do: {:noreply, assign(socket, merging: slug, editing: nil)}
-
-  def handle_event("merge", %{"slug" => slug, "target" => target}, socket) do
-    %{workspace: ws, current_user: user} = socket.assigns
-
-    if target in ["", slug] do
-      {:noreply, socket}
-    else
-      with %Tag{} = src <- Tags.get(ws.id, slug),
-           {:ok, _} <- Tags.merge(src, target, user.id) do
-        {:noreply, socket |> assign(merging: nil) |> load_tags()}
-      else
-        _ -> {:noreply, put_flash(socket, :error, "Couldn't merge.")}
-      end
     end
   end
 
@@ -164,83 +155,99 @@ defmodule AvelineWeb.TagsLive do
   def render(assigns) do
     ~H"""
     <div class="content">
-      <h1 class="page-title">Tags</h1>
-      <p class="page-subtitle">
-        Workspace taxonomy. Every tag carries a short description so an LLM
-        (or a teammate) browsing the index understands what it covers.
-        Filtering by tag happens on
-        <.link navigate={~p"/w/#{@workspace.slug}"} class="auth-link">Docs</.link>.
-      </p>
-
-      <form phx-change="new_change" phx-submit="create" class="tag-new-form">
-        <div class="tag-new-fields">
-          <input
-            type="text"
-            name="slug"
-            value={@new_slug}
-            placeholder="new-tag-slug"
-            autocomplete="off"
-            class="tag-row-input tag-new-slug"
-          />
-          <input
-            type="text"
-            name="description"
-            value={@new_description}
-            placeholder={"What's this tag for? (#{@min_description}–#{@max_description} chars)"}
-            autocomplete="off"
-            class="tag-row-input"
-          />
-          <button type="submit" class="tag-row-primary" disabled={@new_slug == "" or @new_description == ""}>
-            Create
-          </button>
+      <div class="tags-header">
+        <div>
+          <h1 class="page-title">Tags</h1>
+          <p class="page-subtitle">
+            Workspace taxonomy. Every tag carries a short description so an LLM
+            (or a teammate) browsing the index understands what it covers.
+          </p>
         </div>
-        <%= if @form_error do %>
-          <div class="auth-error" style="margin-top:8px">{@form_error}</div>
+        <%= if not @creating? do %>
+          <button type="button" phx-click="start_create" class="tags-new-btn">
+            + New tag
+          </button>
         <% end %>
-      </form>
+      </div>
+
+      <%= if @creating? do %>
+        <form phx-change="new_change" phx-submit="create" class="tag-create-card">
+          <div class="tag-create-row">
+            <label class="tag-field-label" for="new-tag-slug">Slug</label>
+            <input
+              id="new-tag-slug"
+              type="text"
+              name="slug"
+              value={@new_slug}
+              placeholder="lowercase-with-dashes"
+              autocomplete="off"
+              autofocus
+              class="tag-field-input tag-field-mono"
+            />
+          </div>
+          <div class="tag-create-row">
+            <label class="tag-field-label" for="new-tag-desc">Description</label>
+            <input
+              id="new-tag-desc"
+              type="text"
+              name="description"
+              value={@new_description}
+              placeholder={"What's this tag for? (#{@min_description}–#{@max_description} chars)"}
+              autocomplete="off"
+              class="tag-field-input"
+            />
+          </div>
+          <%= if @form_error do %>
+            <div class="tag-create-error">{@form_error}</div>
+          <% end %>
+          <div class="tag-create-actions">
+            <button type="button" phx-click="cancel_create" class="tag-btn-ghost">Cancel</button>
+            <button
+              type="submit"
+              class="tag-btn-primary"
+              disabled={@new_slug == "" or @new_description == ""}
+            >
+              Create tag
+            </button>
+          </div>
+        </form>
+      <% end %>
 
       <%= if @tags == [] do %>
-        <div class="empty">No tags yet. Create the first one above.</div>
+        <div class="empty">No tags yet — click <strong>+ New tag</strong> above to add your first one.</div>
       <% else %>
         <ol class="tag-list">
           <li :for={row <- @tags} class="tag-row">
             <%= cond do %>
               <% @editing == row.tag.slug -> %>
-                <form phx-submit="save" phx-value-slug={row.tag.slug} class="tag-row-form tag-row-form-edit">
-                  <input
-                    type="text"
-                    name="new_slug"
-                    value={row.tag.slug}
-                    autocomplete="off"
-                    autofocus
-                    class="tag-row-input tag-new-slug"
-                  />
-                  <input
-                    type="text"
-                    name="description"
-                    value={row.tag.description}
-                    autocomplete="off"
-                    maxlength={@max_description}
-                    class="tag-row-input"
-                    placeholder="What's this tag for?"
-                  />
-                  <button type="submit" class="tag-row-primary">Save</button>
-                  <button type="button" phx-click="cancel" class="tag-row-secondary">Cancel</button>
-                </form>
-
-              <% @merging == row.tag.slug -> %>
-                <form phx-submit="merge" phx-value-slug={row.tag.slug} class="tag-row-form">
-                  <span class="tag-row-prompt">
-                    Merge <span class="chip chip-tag">{row.tag.slug}</span> into:
-                  </span>
-                  <select name="target" class="tag-row-input">
-                    <option value="">— pick a tag —</option>
-                    <%= for other <- @tags, other.tag.slug != row.tag.slug do %>
-                      <option value={other.tag.slug}>{other.tag.slug}</option>
-                    <% end %>
-                  </select>
-                  <button type="submit" class="tag-row-primary">Merge</button>
-                  <button type="button" phx-click="cancel" class="tag-row-secondary">Cancel</button>
+                <form phx-submit="save" phx-value-slug={row.tag.slug} class="tag-edit-form">
+                  <div class="tag-create-row">
+                    <label class="tag-field-label">Slug</label>
+                    <input
+                      type="text"
+                      name="new_slug"
+                      value={row.tag.slug}
+                      autocomplete="off"
+                      autofocus
+                      class="tag-field-input tag-field-mono"
+                    />
+                  </div>
+                  <div class="tag-create-row">
+                    <label class="tag-field-label">Description</label>
+                    <input
+                      type="text"
+                      name="description"
+                      value={row.tag.description}
+                      autocomplete="off"
+                      maxlength={@max_description}
+                      class="tag-field-input"
+                      placeholder="What's this tag for?"
+                    />
+                  </div>
+                  <div class="tag-create-actions">
+                    <button type="button" phx-click="cancel" class="tag-btn-ghost">Cancel</button>
+                    <button type="submit" class="tag-btn-primary">Save</button>
+                  </div>
                 </form>
 
               <% true -> %>
@@ -266,13 +273,9 @@ defmodule AvelineWeb.TagsLive do
                   <button phx-click="edit" phx-value-slug={row.tag.slug} class="tag-row-action">
                     Edit
                   </button>
-                  <button phx-click="start_merge" phx-value-slug={row.tag.slug} class="tag-row-action">
-                    Merge
-                  </button>
                   <button
                     phx-click="delete"
                     phx-value-slug={row.tag.slug}
-                    data-confirm={"Delete tag “#{row.tag.slug}” and remove it from all #{row.count} #{plural("doc", row.count)}?"}
                     class="tag-row-action tag-row-action-danger"
                   >
                     Delete

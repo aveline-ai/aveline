@@ -518,10 +518,9 @@ defmodule AvelineWeb.DocShowLive do
                   <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
                   <path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/>
                 </svg>
-                <span class="article-kudos-count">{@kudos_count}</span>
               </button>
             <% else %>
-              <span :if={@kudos_count > 0} class="article-kudos-btn is-static" title={"#{@kudos_count} kudos"}>
+              <span :if={@kudos_count > 0} class="article-kudos-btn is-static" title="Kudos given">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
                   <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
@@ -530,7 +529,6 @@ defmodule AvelineWeb.DocShowLive do
                   <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
                   <path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/>
                 </svg>
-                <span class="article-kudos-count">{@kudos_count}</span>
               </span>
             <% end %>
             <%= if @current_user do %>

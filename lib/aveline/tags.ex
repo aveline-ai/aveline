@@ -130,7 +130,8 @@ defmodule Aveline.Tags do
   @doc """
   Rename a tag — both the row and every doc carrying its old slug. If
   another tag already owns the new slug, returns
-  `{:error, :destination_exists}` (use `merge/3` instead).
+  `{:error, :destination_exists}`. Resolve manually by deleting one of
+  the two tags first.
   """
   def rename(%Tag{workspace_id: ws_id, slug: old_slug} = tag, new_slug, actor_user_id) do
     new_slug = new_slug |> to_string() |> String.trim() |> String.downcase()
@@ -165,40 +166,6 @@ defmodule Aveline.Tags do
             {:error, cs} ->
               Repo.rollback(cs)
           end
-        end)
-    end
-  end
-
-  @doc """
-  Merge `source_tag` into the tag whose slug is `target_slug`. The source
-  Tag row is deleted; every doc carrying the source slug picks up the
-  target slug (de-duplicated). Target must already exist.
-  """
-  def merge(%Tag{workspace_id: ws_id, slug: source_slug} = source, target_slug, actor_user_id)
-      when is_binary(target_slug) do
-    cond do
-      target_slug == source_slug ->
-        {:ok, source}
-
-      get(ws_id, target_slug) == nil ->
-        {:error, :target_missing}
-
-      true ->
-        Repo.transaction(fn ->
-          affected = cascade_slug_change(ws_id, source_slug, target_slug)
-          Repo.delete!(source)
-
-          Events.record(%{
-            workspace_id: ws_id,
-            actor: actor_user_id,
-            actor_type: "human",
-            action: "tag_merged",
-            target_kind: "tag",
-            target_label: target_slug,
-            data: %{"from" => source_slug, "into" => target_slug, "affected" => affected}
-          })
-
-          :ok
         end)
     end
   end
