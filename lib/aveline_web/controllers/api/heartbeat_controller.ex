@@ -1,9 +1,10 @@
 defmodule AvelineWeb.Api.HeartbeatController do
   use AvelineWeb, :controller
 
+  alias AvelineWeb.Api.Envelope
+
   def show(conn, _params) do
-    json(conn, %{
-      status: "ok",
+    Envelope.ok(conn, %{
       service: "aveline",
       version: Application.spec(:aveline, :vsn) |> to_string()
     })

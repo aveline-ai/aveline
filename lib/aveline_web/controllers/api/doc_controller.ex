@@ -1,11 +1,20 @@
 defmodule AvelineWeb.Api.DocController do
+  @moduledoc """
+  Doc lifecycle endpoints. Every write path calls the same
+  `Aveline.Docs.*` context functions the LiveView calls — controllers
+  are thin adapters so business logic doesn't drift between web + API.
+  """
   use AvelineWeb, :controller
 
   alias Aveline.Docs
   alias Aveline.DocViews
   alias Aveline.Kudos
+  alias AvelineWeb.Api.Envelope
+  alias AvelineWeb.Api.Views
 
   action_fallback AvelineWeb.Api.FallbackController
+
+  # ===== Reads =====
 
   def index(conn, params) do
     ws = conn.assigns.current_workspace
@@ -16,9 +25,7 @@ defmodule AvelineWeb.Api.DocController do
         tags: parse_tag_list(params["tag"] || params["tags"])
       )
 
-    conn
-    |> put_view(json: AvelineWeb.Api.DocJSON)
-    |> render(:index, %{items: items})
+    Envelope.ok(conn, %{docs: Enum.map(items, &Views.doc_summary/1)})
   end
 
   def show(conn, %{"doc_slug" => slug}) do
@@ -26,19 +33,158 @@ defmodule AvelineWeb.Api.DocController do
     user = conn.assigns.current_user
 
     case Docs.get_current_by_slug(ws.id, slug) do
-      nil -> {:error, :not_found}
-      item ->
-        DocViews.record(ws.id, item.base_doc_id, user.id, "agent")
+      nil ->
+        {:error, :not_found}
 
-        conn
-        |> put_view(json: AvelineWeb.Api.DocJSON)
-        |> render(:show, %{item: item})
+      item ->
+        # Record an agent "read" event — same as the LV connects do.
+        DocViews.record(ws.id, item.base_doc_id, user.id, "agent")
+        Envelope.ok(conn, %{doc: Views.doc_full(item)})
+    end
+  end
+
+  # ===== Writes =====
+
+  @doc """
+  Create a doc. Body:
+      {
+        "title": "...",
+        "slug": "...",                // optional; auto-derived from title
+        "summary": "...",              // optional
+        "tags": ["..."],               // must exist in workspace
+        "pinned": false,
+        "blocks": [...],               // block array, see Aveline.Blocks
+        "intent": "...",               // why
+        "actor": "human" | "agent"     // defaults to "agent" for API
+      }
+
+  Success echoes the minimal pointer (slug + ids) the agent needs to
+  chain follow-up calls. No body echo — the agent already has the
+  blocks it sent.
+  """
+  def create(conn, params) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    attrs = %{
+      title: params["title"],
+      slug: params["slug"],
+      summary: params["summary"],
+      tags: params["tags"] || [],
+      pinned: !!params["pinned"],
+      blocks: params["blocks"] || [],
+      workspace_id: ws.id,
+      owner_id: user.id,
+      actor_user_id: user.id,
+      actor_type: params["actor"] || "agent",
+      intent: params["intent"]
+    }
+
+    with {:ok, item} <- Docs.create_doc(attrs) do
+      Envelope.ok(conn, %{
+        slug: item.slug,
+        doc_id: item.base_doc_id,
+        version_id: item.id,
+        version_number: item.version_number
+      })
     end
   end
 
   @doc """
-  Toggle kudos for the current user on this doc.
-  Returns `{"kudos": {"given_by_me": bool, "count": n}}`.
+  Apply an ops batch to an existing doc (i.e. ship a new version).
+  Body:
+      {
+        "intent": "...",
+        "operations": [...],
+        "actor": "human" | "agent",
+        "comment_dispositions": [
+          {"comment_id": "...", "action": "resolve",  "reply": "..."},
+          {"comment_id": "...", "action": "reanchor", "new_block_id": "b_xyz"},
+          {"comment_id": "...", "action": "leave",    "note": "..."}
+        ],
+        "title": "...",     // optional metadata overrides
+        "summary": "...",
+        "tags": [...],
+        "pinned": false
+      }
+
+  Returns the new version's id + number so the agent can verify it
+  shipped.
+  """
+  def update(conn, %{"doc_slug" => slug} = params) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found} do
+      ops = params["operations"] || []
+      intent = params["intent"]
+      resolves = params["resolves_comment_ids"] || []
+      dispositions = params["comment_dispositions"] || []
+
+      update_attrs =
+        %{
+          actor_user_id: user.id,
+          actor_type: params["actor"] || "agent"
+        }
+        |> maybe_put(:title, params["title"])
+        |> maybe_put(:summary, params["summary"])
+        |> maybe_put(:tags, params["tags"])
+        |> maybe_put(:pinned, params["pinned"])
+
+      with {:ok, item} <-
+             Docs.apply_ops(current, ops, update_attrs,
+               intent: intent,
+               resolves_comment_ids: resolves,
+               dispositions: dispositions
+             ) do
+        Envelope.ok(conn, %{
+          slug: item.slug,
+          doc_id: item.base_doc_id,
+          version_id: item.id,
+          version_number: item.version_number
+        })
+      end
+    end
+  end
+
+  def delete(conn, %{"doc_slug" => slug}) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
+         {:ok, _deleted} <- Docs.soft_delete(current, user.id) do
+      Envelope.ok(conn, %{})
+    end
+  end
+
+  def restore(conn, %{"doc_slug" => slug}) do
+    ws = conn.assigns.current_workspace
+
+    case latest_for_slug(ws.id, slug) do
+      nil ->
+        {:error, :not_found}
+
+      %{base_doc_id: base} ->
+        case Docs.restore(base) do
+          {:ok, item} ->
+            Envelope.ok(conn, %{
+              slug: item.slug,
+              doc_id: item.base_doc_id,
+              version_number: item.version_number
+            })
+
+          {:error, :not_user_deleted} ->
+            {:error, :not_user_deleted}
+
+          {:error, _} = err ->
+            err
+        end
+    end
+  end
+
+  @doc """
+  Toggle kudos. Returns the new state (`given_by_me` + `count`) so the
+  agent doesn't need a follow-up read.
   """
   def kudos(conn, %{"doc_slug" => slug}) do
     ws = conn.assigns.current_workspace
@@ -55,144 +201,14 @@ defmodule AvelineWeb.Api.DocController do
         {:ok, action} = Kudos.toggle(ws.id, item.base_doc_id, user.id)
         count = Kudos.count_for_base(item.base_doc_id)
 
-        conn
-        |> json(%{
-          "kudos" => %{
-            "given_by_me" => action == :given,
-            "count" => count
-          }
+        Envelope.ok(conn, %{
+          given_by_me: action == :given,
+          count: count
         })
     end
   end
 
-  @doc """
-  Create a new item. Body:
-    {
-      "title": "...",
-      "slug": "..." (optional, auto-derived from title),
-      "summary": "...",
-      "tags": [...],
-      "pinned": false,
-      "blocks": [...],
-      "intent": "...",
-      "actor": "human" | "agent"
-    }
-  """
-  def create(conn, params) do
-    ws = conn.assigns.current_workspace
-    user = conn.assigns.current_user
-
-    attrs = %{
-      title: params["title"],
-      slug: params["slug"],
-      summary: params["summary"],
-      tags: params["tags"] || [],
-      pinned: !!params["pinned"],
-      blocks: params["blocks"] || [],
-      workspace_id: ws.id,
-      owner_id: user.id,
-      actor_user_id: user.id,
-      actor_type: params["actor"] || "human",
-      intent: params["intent"]
-    }
-
-    with {:ok, item} <- Docs.create_doc(attrs) do
-      conn
-      |> put_status(:created)
-      |> put_view(json: AvelineWeb.Api.DocJSON)
-      |> render(:show, %{item: item})
-    end
-  end
-
-  @doc """
-  Apply an ops batch to an existing doc. Body:
-    {
-      "intent": "...",
-      "operations": [...],
-      "actor": "human" | "agent",
-      "comment_dispositions": [
-        # Required for agent calls: every open comment anchored to a
-        # block this op set deletes or modifies must appear. Optional
-        # dispositions on doc-level / untouched-block comments are fine.
-        {"comment_id": "...", "action": "resolve",  "reply": "..."},
-        {"comment_id": "...", "action": "reanchor", "new_block_id": "b_xyz"},
-        {"comment_id": "...", "action": "leave",    "note": "..."}
-      ],
-      "resolves_comment_ids": [...]  # legacy fallback, optional
-      "title": "...",                # optional overrides
-      "summary": "...",
-      "tags": [...],
-      "pinned": false
-    }
-  """
-  def update(conn, %{"doc_slug" => slug} = params) do
-    ws = conn.assigns.current_workspace
-    user = conn.assigns.current_user
-
-    with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found} do
-      ops = params["operations"] || []
-      intent = params["intent"]
-      resolves = params["resolves_comment_ids"] || []
-      dispositions = params["comment_dispositions"] || []
-
-      update_attrs =
-        %{
-          actor_user_id: user.id,
-          actor_type: params["actor"] || "human"
-        }
-        |> maybe_put(:title, params["title"])
-        |> maybe_put(:summary, params["summary"])
-        |> maybe_put(:tags, params["tags"])
-        |> maybe_put(:pinned, params["pinned"])
-
-      with {:ok, item} <-
-             Docs.apply_ops(current, ops, update_attrs,
-               intent: intent,
-               resolves_comment_ids: resolves,
-               dispositions: dispositions
-             ) do
-        conn
-        |> put_view(json: AvelineWeb.Api.DocJSON)
-        |> render(:show, %{item: item})
-      end
-    end
-  end
-
-  def delete(conn, %{"doc_slug" => slug}) do
-    ws = conn.assigns.current_workspace
-    user = conn.assigns.current_user
-
-    with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
-         {:ok, deleted} <- Docs.soft_delete(current, user.id) do
-      conn
-      |> put_view(json: AvelineWeb.Api.DocJSON)
-      |> render(:show, %{item: deleted})
-    end
-  end
-
-  def restore(conn, %{"doc_slug" => slug}) do
-    ws = conn.assigns.current_workspace
-
-    # Find the base_doc_id from any version with this slug
-    case latest_for_slug(ws.id, slug) do
-      nil ->
-        {:error, :not_found}
-
-      %{base_doc_id: base} ->
-        case Docs.restore(base) do
-          {:ok, item} ->
-            conn
-            |> put_view(json: AvelineWeb.Api.DocJSON)
-            |> render(:show, %{item: item})
-
-          {:error, :not_user_deleted} ->
-            {:error, :not_found}
-
-          {:error, _} = err ->
-            err
-        end
-    end
-  end
+  # ===== Helpers =====
 
   defp latest_for_slug(ws_id, slug) do
     import Ecto.Query

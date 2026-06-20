@@ -19,7 +19,8 @@ defmodule AvelineWeb.Api.WorkspaceControllerTest do
 
   test "show returns workspace", %{conn: conn, ws: ws} do
     body = conn |> get(~p"/api/workspaces/#{ws.slug}") |> json_response(200)
-    assert body["slug"] == ws.slug
+    assert body["ok"] == true
+    assert body["workspace"]["slug"] == ws.slug
   end
 
   test "show 404 when missing", %{conn: conn} do

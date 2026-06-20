@@ -1,48 +1,138 @@
 defmodule AvelineWeb.Api.FallbackController do
   @moduledoc """
-  Translates context errors into the API error envelope.
+  Translates context-layer errors into the canonical API envelope.
+
+  Controllers can return `{:error, code_atom}` (HTTP-level) or
+  `{:error, {tag, payload}}` (business-level, e.g. disposition errors
+  from the comments context) and this fallback maps them into a clean
+  envelope the agent can branch on. See ErrorCodes for the catalog.
   """
   use AvelineWeb, :controller
 
-  alias AvelineWeb.Api.ErrorJSON
+  import AvelineWeb.Api.Envelope, only: [err: 4, err: 5]
 
-  def call(conn, {:error, :unauthorized}) do
-    render_error(conn, 401, "unauthorized", "Missing or invalid bearer token.")
-  end
+  # ===== HTTP-level (auth, scope) =====
 
-  def call(conn, {:error, :forbidden}) do
-    render_error(conn, 403, "forbidden", "You don't have access to this workspace.")
-  end
+  def call(conn, {:error, :unauthorized}),
+    do: err(conn, 401, "unauthorized", "Missing or invalid bearer token.")
 
-  def call(conn, {:error, :workspace_not_found}) do
-    render_error(conn, 404, "workspace_not_found", "Workspace not found.")
-  end
+  def call(conn, {:error, :forbidden}),
+    do: err(conn, 403, "forbidden", "You don't have access to this resource.")
 
-  def call(conn, {:error, :not_found}) do
-    render_error(conn, 404, "not_found", "Resource not found.")
-  end
+  def call(conn, {:error, :workspace_not_found}),
+    do: err(conn, 404, "workspace_not_found", "Workspace not found.")
 
-  def call(conn, {:error, :slug_taken}) do
-    render_error(conn, 422, "slug_taken", "Slug already in use in this workspace.", field: "slug")
-  end
+  def call(conn, {:error, :not_found}),
+    do: err(conn, 404, "not_found", "Resource not found.")
 
-  def call(conn, {:error, :tag_invalid}) do
-    render_error(conn, 422, "tag_invalid", "One or more tags are invalid.", field: "tags")
-  end
+  # ===== Validation (changesets) =====
 
   def call(conn, {:error, %Ecto.Changeset{} = cs}) do
     {code, field, message} = changeset_summary(cs)
 
-    conn
-    |> put_status(422)
-    |> put_view(json: ErrorJSON)
-    |> render(:error, %{
-      code: code,
-      message: message,
-      field: field,
-      context: %{errors: changeset_errors(cs)}
-    })
+    err(conn, 422, code, message,
+      %{errors: changeset_errors(cs)} |> maybe_add(:field, field)
+    )
   end
+
+  # ===== Tag-specific =====
+
+  def call(conn, {:error, :slug_taken}),
+    do: err(conn, 422, "slug_taken", "Slug already in use.", %{field: "slug"})
+
+  def call(conn, {:error, :tag_invalid}),
+    do: err(conn, 422, "tag_invalid", "One or more tags are invalid.", %{field: "tags"})
+
+  def call(conn, {:error, {:unknown_tags, slugs}}),
+    do:
+      err(conn, 422, "unknown_tags",
+        "One or more tags aren't defined in this workspace yet. Create them first.",
+        %{unknown_tags: slugs}
+      )
+
+  def call(conn, {:error, {:would_orphan_docs, n}}),
+    do:
+      err(conn, 422, "would_orphan_docs",
+        "Cannot delete this tag: #{n} #{pluralize("doc", n)} would be left with no tags. Add another tag to those docs first.",
+        %{orphan_count: n}
+      )
+
+  # ===== Comment dispositions =====
+
+  def call(conn, {:error, {:disposition_missing, missing}}),
+    do:
+      err(conn, 422, "disposition_missing",
+        "Open comments anchored to touched blocks must be dispositioned (resolve / reanchor / leave).",
+        %{missing: missing}
+      )
+
+  def call(conn, {:error, {:duplicate_dispositions, ids}}),
+    do:
+      err(conn, 422, "duplicate_dispositions",
+        "A comment was dispositioned more than once.",
+        %{duplicate_ids: ids}
+      )
+
+  def call(conn, {:error, {:leave_on_deleted_block, comment_id}}),
+    do:
+      err(conn, 422, "leave_on_deleted_block",
+        "A comment whose block was deleted cannot be left open. Resolve it (with a reply) or reanchor it.",
+        %{comment_id: comment_id}
+      )
+
+  def call(conn, {:error, {:reanchor_target_missing, comment_id, block_id}}),
+    do:
+      err(conn, 422, "reanchor_target_missing",
+        "Reanchor target block does not exist in the new version's blocks.",
+        %{comment_id: comment_id, new_block_id: block_id}
+      )
+
+  def call(conn, {:error, {:invalid_action, action}}),
+    do:
+      err(conn, 422, "invalid_disposition_action",
+        "Disposition action must be one of: resolve, reanchor, leave.",
+        %{got: action}
+      )
+
+  def call(conn, {:error, {:missing_field, field}}),
+    do:
+      err(conn, 422, "validation_failed", "Missing required field: #{field}.",
+        %{field: field}
+      )
+
+  def call(conn, {:error, {:comment_not_found, id}}),
+    do:
+      err(conn, 422, "comment_not_found",
+        "Dispositioned comment no longer exists.",
+        %{comment_id: id}
+      )
+
+  def call(conn, {:error, :invalid_disposition}),
+    do: err(conn, 422, "validation_failed", "Disposition entry must be an object.")
+
+  # ===== Doc-specific =====
+
+  def call(conn, {:error, :self_kudos, msg}),
+    do: err(conn, 422, "self_kudos", msg)
+
+  def call(conn, {:error, :not_user_deleted}),
+    do:
+      err(conn, 422, "not_user_deleted",
+        "Doc was not user-deleted (it's the current live version or was superseded by a new version)."
+      )
+
+  # ===== Workspace memberships =====
+
+  def call(conn, {:error, :self_remove}),
+    do: err(conn, 422, "self_remove", "You can't remove yourself from a workspace.")
+
+  def call(conn, {:error, :already_member}),
+    do: err(conn, 422, "already_member", "User is already a member of this workspace.")
+
+  def call(conn, {:error, :not_member}),
+    do: err(conn, 422, "not_member", "User is not a member of this workspace.")
+
+  # ===== Generic tagged code =====
 
   def call(conn, {:error, code, message}) when is_atom(code) and is_binary(message) do
     status =
@@ -54,125 +144,31 @@ defmodule AvelineWeb.Api.FallbackController do
         _ -> 422
       end
 
-    render_error(conn, status, Atom.to_string(code), message)
+    err(conn, status, Atom.to_string(code), message)
   end
 
-  # Comment-disposition errors raised from Aveline.Comments.Disposition.
-  def call(conn, {:error, {:disposition_missing, missing}}) do
-    render_error(
-      conn,
-      422,
-      "disposition_missing",
-      "Open comments anchored to a touched block must be dispositioned (resolve / reanchor / leave).",
-      field: "comment_dispositions",
-      context: %{missing: missing}
-    )
-  end
+  # ===== Last resort =====
 
-  def call(conn, {:error, {:leave_on_deleted_block, comment_id}}) do
-    render_error(
-      conn,
-      422,
-      "leave_on_deleted_block",
-      "A comment whose block was deleted cannot be left open — resolve it (with a reply) or reanchor it.",
-      field: "comment_dispositions",
-      context: %{comment_id: comment_id}
-    )
-  end
+  def call(conn, :error),
+    do: err(conn, 500, "internal_error", "Unexpected error.")
 
-  def call(conn, {:error, {:duplicate_dispositions, ids}}) do
-    render_error(
-      conn,
-      422,
-      "duplicate_dispositions",
-      "A comment was dispositioned more than once.",
-      field: "comment_dispositions",
-      context: %{duplicate_ids: ids}
-    )
-  end
+  def call(conn, {:error, %{__struct__: _} = struct}),
+    do:
+      err(conn, 500, "internal_error", "Unexpected error.",
+        %{kind: inspect(struct.__struct__)}
+      )
 
-  def call(conn, {:error, {:reanchor_target_missing, comment_id, block_id}}) do
-    render_error(
-      conn,
-      422,
-      "reanchor_target_missing",
-      "Re-anchor target block does not exist in the new version's blocks.",
-      field: "comment_dispositions",
-      context: %{comment_id: comment_id, new_block_id: block_id}
-    )
-  end
+  def call(conn, _other),
+    do: err(conn, 500, "internal_error", "Unexpected error.")
 
-  def call(conn, {:error, {:invalid_action, action}}) do
-    render_error(
-      conn,
-      422,
-      "invalid_disposition_action",
-      "Disposition action must be one of: resolve, reanchor, leave.",
-      field: "comment_dispositions",
-      context: %{got: action}
-    )
-  end
+  # ===== Helpers =====
 
-  def call(conn, {:error, {:missing_field, field}}) do
-    render_error(
-      conn,
-      422,
-      "validation_failed",
-      "Missing required field: #{field}.",
-      field: field
-    )
-  end
-
-  def call(conn, {:error, {:comment_not_found, id}}) do
-    render_error(
-      conn,
-      422,
-      "comment_not_found",
-      "Dispositioned comment no longer exists.",
-      field: "comment_dispositions",
-      context: %{comment_id: id}
-    )
-  end
-
-  def call(conn, {:error, :invalid_disposition}) do
-    render_error(conn, 422, "validation_failed", "Disposition entry must be an object.")
-  end
-
-  def call(conn, {:error, {:unknown_tags, slugs}}) do
-    render_error(
-      conn,
-      422,
-      "unknown_tags",
-      "One or more tags don't exist in this workspace yet. Create them first.",
-      field: "tags",
-      context: %{unknown_tags: slugs}
-    )
-  end
-
-  # Bare `:error` last-resort
-  def call(conn, :error) do
-    render_error(conn, 500, "internal_error", "Unexpected error.")
-  end
-
-  defp render_error(conn, status, code, message, opts \\ []) do
-    conn
-    |> put_status(status)
-    |> put_view(json: ErrorJSON)
-    |> render(:error, %{
-      code: code,
-      message: message,
-      field: Keyword.get(opts, :field),
-      context: Keyword.get(opts, :context)
-    })
-  end
-
-  # Pull a useful code + first field out of the changeset.
   defp changeset_summary(%Ecto.Changeset{errors: errors} = cs) do
     errors_map = changeset_errors(cs)
 
     cond do
       Map.has_key?(errors_map, :slug) and slug_taken?(errors[:slug]) ->
-        {"slug_taken", "slug", "Slug already in use in this workspace."}
+        {"slug_taken", "slug", "Slug already in use."}
 
       Map.has_key?(errors_map, :tags) and tag_invalid?(errors_map.tags) ->
         {"tag_invalid", "tags", "One or more tags are invalid."}
@@ -186,15 +182,11 @@ defmodule AvelineWeb.Api.FallbackController do
     end
   end
 
-  defp slug_taken?({_msg, opts}) do
-    Keyword.get(opts, :constraint) == :unique
-  end
-
+  defp slug_taken?({_msg, opts}), do: Keyword.get(opts, :constraint) == :unique
   defp slug_taken?(_), do: false
 
-  defp tag_invalid?(messages) when is_list(messages) do
-    Enum.any?(messages, &(&1 == "tag_invalid"))
-  end
+  defp tag_invalid?(messages) when is_list(messages),
+    do: Enum.any?(messages, &(&1 == "tag_invalid"))
 
   defp tag_invalid?(_), do: false
 
@@ -205,4 +197,10 @@ defmodule AvelineWeb.Api.FallbackController do
       end)
     end)
   end
+
+  defp maybe_add(map, _key, nil), do: map
+  defp maybe_add(map, key, value), do: Map.put(map, key, value)
+
+  defp pluralize(noun, 1), do: noun
+  defp pluralize(noun, _), do: noun <> "s"
 end

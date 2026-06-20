@@ -1,7 +1,12 @@
 defmodule AvelineWeb.Api.MeController do
+  @moduledoc """
+  GET /api/me — who am I + workspaces I belong to.
+  """
   use AvelineWeb, :controller
 
   alias Aveline.Workspaces
+  alias AvelineWeb.Api.Envelope
+  alias AvelineWeb.Api.Views
 
   action_fallback AvelineWeb.Api.FallbackController
 
@@ -9,8 +14,9 @@ defmodule AvelineWeb.Api.MeController do
     user = conn.assigns.current_user
     workspaces = Workspaces.list_for_user(user.id)
 
-    conn
-    |> put_view(json: AvelineWeb.Api.MeJSON)
-    |> render(:show, %{user: user, workspaces: workspaces})
+    Envelope.ok(conn, %{
+      user: Views.user(user),
+      workspaces: Enum.map(workspaces, &Views.workspace/1)
+    })
   end
 end
