@@ -6,6 +6,7 @@ defmodule AvelineWeb.Api.WorkspaceController do
   """
   use AvelineWeb, :controller
 
+  alias Aveline.Slug
   alias Aveline.Workspaces
   alias AvelineWeb.Api.Envelope
   alias AvelineWeb.Api.Views
@@ -28,10 +29,14 @@ defmodule AvelineWeb.Api.WorkspaceController do
 
   def create(conn, params) do
     user = conn.assigns.current_user
+    name = params["name"]
+    # Derive slug from name when omitted so the CLI's
+    # `create-workspace --name "Foo"` flow needs only one flag.
+    slug = (params["slug"] && to_string(params["slug"])) || Slug.derive(name)
 
     attrs = %{
-      "name" => params["name"],
-      "slug" => params["slug"],
+      "name" => name,
+      "slug" => slug,
       "created_by_id" => user.id
     }
 

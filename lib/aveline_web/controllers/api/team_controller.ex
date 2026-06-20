@@ -27,7 +27,7 @@ defmodule AvelineWeb.Api.TeamController do
     user = conn.assigns.current_user
 
     case Workspaces.add_member_by_username(ws.id, username, user.id) do
-      {:ok, _membership} ->
+      {:ok, _membership, _user} ->
         Envelope.ok(conn, %{})
 
       {:error, :user_not_found} ->
@@ -41,19 +41,40 @@ defmodule AvelineWeb.Api.TeamController do
     end
   end
 
-  def remove(conn, %{"user_id" => user_id}) do
+  @doc """
+  Remove a member. Accepts either a user id (UUID) or a username at the
+  `:user_id` path segment — agents tend to know the username from
+  `list-members` and shouldn't have to do a second roundtrip to look up
+  the UUID. If a non-UUID string is passed, we resolve it as a username.
+  """
+  def remove(conn, %{"user_id" => user_id_or_username}) do
     ws = conn.assigns.current_workspace
     actor = conn.assigns.current_user
 
-    cond do
-      user_id == actor.id ->
-        {:error, :self_remove}
+    with {:ok, target_id} <- resolve_user_ref(user_id_or_username) do
+      cond do
+        target_id == actor.id ->
+          {:error, :self_remove}
 
-      true ->
-        case Workspaces.remove_member(ws.id, user_id, actor.id) do
-          {:ok, _} -> Envelope.ok(conn, %{})
-          {:error, :not_member} -> {:error, :not_member}
-          err -> err
+        true ->
+          case Workspaces.remove_member(ws.id, target_id, actor.id) do
+            {:ok, _} -> Envelope.ok(conn, %{})
+            {:error, :not_found} -> {:error, :not_member}
+            {:error, :not_member} -> {:error, :not_member}
+            err -> err
+          end
+      end
+    end
+  end
+
+  # Distinguish UUID (use as-is) from username (look up).
+  defp resolve_user_ref(ref) when is_binary(ref) do
+    case Ecto.UUID.cast(ref) do
+      {:ok, uuid} -> {:ok, uuid}
+      :error ->
+        case Aveline.Accounts.get_user_by_username(ref) do
+          nil -> {:error, :not_member}
+          user -> {:ok, user.id}
         end
     end
   end

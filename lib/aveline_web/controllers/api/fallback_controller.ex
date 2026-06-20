@@ -134,6 +134,11 @@ defmodule AvelineWeb.Api.FallbackController do
 
   # ===== Generic tagged code =====
 
+  # Bare string error message — most commonly from Block / Operation
+  # validation, which can't always produce a structured changeset.
+  def call(conn, {:error, message}) when is_binary(message),
+    do: err(conn, 422, "validation_failed", message)
+
   def call(conn, {:error, code, message}) when is_atom(code) and is_binary(message) do
     status =
       case code do
@@ -175,6 +180,9 @@ defmodule AvelineWeb.Api.FallbackController do
 
       Map.has_key?(errors_map, :tag_filter) and tag_invalid?(errors_map.tag_filter) ->
         {"tag_invalid", "tag_filter", "One or more tags are invalid."}
+
+      Map.has_key?(errors_map, :slug) and tag_invalid?(errors_map.slug) ->
+        {"tag_invalid", "slug", "Tag slug must be lowercase letters, digits, hyphens."}
 
       true ->
         {field, _} = List.first(errors) || {nil, nil}

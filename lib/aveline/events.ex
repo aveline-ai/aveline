@@ -63,18 +63,39 @@ defmodule Aveline.Events do
   def list_for_workspace(workspace_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
     before = Keyword.get(opts, :before)
+    before_id = Keyword.get(opts, :before_id)
 
     base =
       from e in Event,
         where: e.workspace_id == ^workspace_id,
-        order_by: [desc: e.inserted_at],
+        order_by: [desc: e.inserted_at, desc: e.id],
         limit: ^limit,
         preload: [:actor_user]
 
-    case before do
-      %DateTime{} = dt -> from(e in base, where: e.inserted_at < ^dt)
-      _ -> base
-    end
+    base
+    |> apply_before(before)
+    |> apply_before_id(before_id)
     |> Repo.all()
+  end
+
+  defp apply_before(q, %DateTime{} = dt), do: from(e in q, where: e.inserted_at < ^dt)
+  defp apply_before(q, _), do: q
+
+  defp apply_before_id(q, nil), do: q
+  defp apply_before_id(q, ""), do: q
+
+  defp apply_before_id(q, id) when is_binary(id) do
+    case Repo.one(from e in Event, where: e.id == ^id, select: e.inserted_at) do
+      nil ->
+        q
+
+      %DateTime{} = anchor ->
+        # Strict less-than on (inserted_at, id) to mirror the ORDER BY
+        # so the anchor row itself is excluded and ties don't repeat.
+        from e in q,
+          where:
+            e.inserted_at < ^anchor or
+              (e.inserted_at == ^anchor and e.id < ^id)
+    end
   end
 end

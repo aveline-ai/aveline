@@ -128,23 +128,31 @@ defmodule Aveline.Workspaces do
         {:error, :user_not_found}
 
       user ->
-        with {:ok, membership} <- ensure_member(workspace_id, user.id) do
-          broadcast_member(workspace_id, :member_added, %{
-            membership: membership,
-            user: user
-          })
+        # add_member_by_username represents an explicit invite. If the
+        # user is already a member we surface `:already_member` so the
+        # caller can branch. (ensure_member/3 is the idempotent flow,
+        # used by the signup path.)
+        if member?(workspace_id, user.id) do
+          {:error, :already_member}
+        else
+          with {:ok, membership} <- add_member(workspace_id, user.id) do
+            broadcast_member(workspace_id, :member_added, %{
+              membership: membership,
+              user: user
+            })
 
-          Aveline.Events.record(%{
-            workspace_id: workspace_id,
-            actor: actor_user_id || user.id,
-            actor_type: "human",
-            action: "member_joined",
-            target_kind: "user",
-            target_id: user.id,
-            target_label: user.username
-          })
+            Aveline.Events.record(%{
+              workspace_id: workspace_id,
+              actor: actor_user_id || user.id,
+              actor_type: "human",
+              action: "member_joined",
+              target_kind: "user",
+              target_id: user.id,
+              target_label: user.username
+            })
 
-          {:ok, membership, user}
+            {:ok, membership, user}
+          end
         end
     end
   end

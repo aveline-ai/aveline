@@ -46,9 +46,13 @@ defmodule AvelineWeb.Api.CommentController do
     user = conn.assigns.current_user
 
     with %_{} = item <- resolve_current(conn, doc_slug) || {:error, :not_found},
+         # Reply inherits the parent's block anchor when --block-id
+         # isn't passed, so threads stay attached to their source block.
+         block_id =
+           params["block_id"] || inherit_block_id(params["parent_comment_id"]),
          attrs = %{
            "doc_id" => item.id,
-           "block_id" => params["block_id"],
+           "block_id" => block_id,
            "parent_comment_id" => params["parent_comment_id"],
            "body" => params["body"],
            "actor_user_id" => user.id,
@@ -56,6 +60,15 @@ defmodule AvelineWeb.Api.CommentController do
          },
          {:ok, message} <- Comments.create_comment(attrs) do
       Envelope.ok(conn, %{id: message.base_comment_id})
+    end
+  end
+
+  defp inherit_block_id(nil), do: nil
+
+  defp inherit_block_id(parent_base_id) when is_binary(parent_base_id) do
+    case Comments.get_current_by_base(parent_base_id) do
+      nil -> nil
+      %{block_id: bid} -> bid
     end
   end
 

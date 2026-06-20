@@ -39,10 +39,14 @@ defmodule AvelineWeb.Api.TagController do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
 
+    # Accept either `slug` or `name` — agents tend to use `name` since
+    # that's the friendlier verb on the CLI.
+    raw_slug = params["slug"] || params["name"]
+
     with {:ok, tag} <-
            Tags.create(
              ws.id,
-             params["slug"] |> to_string() |> String.trim() |> String.downcase(),
+             raw_slug |> to_string() |> String.trim() |> String.downcase(),
              params["description"] |> to_string() |> String.trim(),
              user.id
            ) do
@@ -59,12 +63,16 @@ defmodule AvelineWeb.Api.TagController do
   def update(conn, %{"slug" => slug} = params) do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
-    new_slug = (params["new_slug"] || slug) |> to_string() |> String.trim() |> String.downcase()
-    new_desc = params["description"] |> to_string() |> String.trim()
+    # `name` accepted as an alias for `new_slug` (agent-friendly).
+    raw_new = params["new_slug"] || params["name"]
+    new_slug = (raw_new || slug) |> to_string() |> String.trim() |> String.downcase()
+    # Distinguish "no description in payload" (skip) from "" (caller is
+    # trying to clear it — that's a validation error).
+    desc_param = params["description"]
 
     with %Tag{} = tag <- Tags.get(ws.id, slug) || {:error, :not_found},
          {:ok, tag} <- maybe_rename(tag, new_slug, user.id),
-         {:ok, tag} <- maybe_update_desc(tag, new_desc, user.id) do
+         {:ok, tag} <- maybe_update_desc(tag, desc_param, user.id) do
       Envelope.ok(conn, %{tag: Views.tag(tag)})
     else
       {:error, :destination_exists} -> {:error, :slug_taken}
@@ -85,7 +93,12 @@ defmodule AvelineWeb.Api.TagController do
   defp maybe_rename(%Tag{slug: same} = tag, same, _user_id), do: {:ok, tag}
   defp maybe_rename(tag, new_slug, user_id), do: Tags.rename(tag, new_slug, user_id)
 
+  # nil ⇒ caller didn't pass --description, leave as-is.
+  defp maybe_update_desc(tag, nil, _user_id), do: {:ok, tag}
   defp maybe_update_desc(%Tag{description: same} = tag, same, _user_id), do: {:ok, tag}
-  defp maybe_update_desc(_tag, "", _user_id), do: {:error, %Ecto.Changeset{errors: [description: {"can't be blank", []}]}}
-  defp maybe_update_desc(tag, desc, user_id), do: Tags.update_description(tag, desc, user_id)
+  defp maybe_update_desc(_tag, "", _user_id),
+    do: {:error, %Ecto.Changeset{errors: [description: {"can't be blank", []}]}}
+  defp maybe_update_desc(tag, desc, user_id) when is_binary(desc) do
+    Tags.update_description(tag, String.trim(desc), user_id)
+  end
 end

@@ -67,7 +67,7 @@ defmodule Aveline.Tags.Tag do
       slug ->
         case Slug.validate(slug) do
           :ok -> changeset
-          {:error, _} -> add_error(changeset, :slug, "lowercase letters, digits, hyphens only")
+          {:error, _} -> add_error(changeset, :slug, "tag_invalid")
         end
     end
   end

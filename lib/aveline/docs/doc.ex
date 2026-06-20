@@ -15,6 +15,7 @@ defmodule Aveline.Docs.Doc do
 
   @max_tags 16
   @max_title 200
+  @max_summary 255
   @actor_types ~w(human agent)
 
   @derive {Jason.Encoder,
@@ -103,6 +104,7 @@ defmodule Aveline.Docs.Doc do
     ])
     |> validate_inclusion(:actor_type, @actor_types)
     |> validate_length(:title, min: 1, max: @max_title)
+    |> validate_length(:summary, max: @max_summary)
     |> validate_slug()
     |> validate_tags()
     |> unique_constraint(:slug,
