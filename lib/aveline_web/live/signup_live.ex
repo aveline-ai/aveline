@@ -302,7 +302,7 @@ defmodule AvelineWeb.SignupLive do
               know to read + write from the wiki via the CLI.
             </p>
             <div class="snippet">
-              <pre><code id="claude-snippet">Our team uses Aveline as a shared wiki for team knowledge, a Notion replacement designed to be read and written by AI agents. Use the `aveline` CLI to interact with it (`aveline --help` for the full verb set; common verbs: `list`, `get`, `save`, `edit`, `reply`).</code></pre>
+              <pre><code id="claude-snippet">Our team uses Aveline as a shared wiki for team knowledge, a Notion replacement designed to be read and written by AI agents. Use the `aveline` CLI to interact with it (`aveline --help` for the full verb set; common verbs: `list-docs`, `get-doc`, `create-doc`, `create-comment`, `apply-ops`).</code></pre>
               <button
                 type="button"
                 id="claude-snippet-copy"
