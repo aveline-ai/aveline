@@ -192,6 +192,73 @@ defmodule Aveline.Docs do
     end
   end
 
+  @doc """
+  Read-time enrichment: every doc_link block gains a `"target"` map
+  echoing the linked doc's current slug/title/summary/state. Computed per
+  read, never persisted — there is nothing to keep in sync. A target with
+  no live version (soft-deleted) echoes its latest metadata plus
+  `"deleted" => true` so callers can render a removed stop instead of an
+  error.
+  """
+  def enrich_doc_links(blocks, workspace_id) when is_list(blocks) do
+    ids =
+      for %{"type" => "doc_link", "doc_id" => id} <- blocks,
+          is_binary(id),
+          uniq: true,
+          do: id
+
+    if ids == [] do
+      blocks
+    else
+      live =
+        from(d in base_query(),
+          where: d.workspace_id == ^workspace_id and d.base_doc_id in ^ids
+        )
+        |> Repo.all()
+        |> Map.new(&{&1.base_doc_id, &1})
+
+      dead =
+        case ids -- Map.keys(live) do
+          [] ->
+            %{}
+
+          missing ->
+            from(d in Doc,
+              where: d.workspace_id == ^workspace_id and d.base_doc_id in ^missing,
+              distinct: d.base_doc_id,
+              order_by: [asc: d.base_doc_id, desc: d.version_number]
+            )
+            |> Repo.all()
+            |> Map.new(&{&1.base_doc_id, &1})
+        end
+
+      Enum.map(blocks, fn
+        %{"type" => "doc_link", "doc_id" => id} = b ->
+          Map.put(b, "target", doc_link_target(live[id], dead[id]))
+
+        b ->
+          b
+      end)
+    end
+  end
+
+  def enrich_doc_links(blocks, _workspace_id), do: blocks
+
+  defp doc_link_target(%Doc{} = live, _dead), do: doc_link_target_map(live, false)
+  defp doc_link_target(nil, %Doc{} = dead), do: doc_link_target_map(dead, true)
+  # Target vanished entirely (e.g. hard-cleaned in a test DB); render as deleted.
+  defp doc_link_target(nil, nil), do: %{"deleted" => true}
+
+  defp doc_link_target_map(%Doc{} = d, deleted?) do
+    %{
+      "slug" => d.slug,
+      "title" => d.title,
+      "summary" => d.summary,
+      "updated_at" => d.updated_at && DateTime.to_iso8601(d.updated_at),
+      "deleted" => deleted?
+    }
+  end
+
   # ===== Write — single path =====
 
   def create_doc(attrs) do
@@ -236,6 +303,7 @@ defmodule Aveline.Docs do
     tags = Map.get(base_attrs, :tags, []) || []
 
     with :ok <- Tags.ensure_all_exist(ws_id, tags),
+         {:ok, ops} <- resolve_doc_links(ops, ws_id),
          {:ok, new_blocks} <- run_document_apply([], ops) do
       insert_version(:new, new_blocks, ops, base_attrs, opts)
     end
@@ -246,10 +314,89 @@ defmodule Aveline.Docs do
     tags = Map.get(update_attrs, :tags, current.tags) || []
 
     with :ok <- Tags.ensure_all_exist(current.workspace_id, tags),
+         {:ok, ops} <- resolve_doc_links(ops, current.workspace_id),
          {:ok, new_blocks} <- run_document_apply(current.blocks || [], ops) do
       insert_version(current, new_blocks, ops, update_attrs, opts)
     end
   end
+
+  # ===== doc_link resolution =====
+  # doc_link blocks may arrive with `doc` (a slug) instead of `doc_id`.
+  # Resolve slugs against the workspace's current docs and verify every
+  # doc_id targets a doc that exists here — before Document.apply_ops, so
+  # Block validation only ever sees a canonical doc_id. The stored ops are
+  # the resolved ones: version replay stays deterministic even if a slug
+  # is later reused.
+
+  defp resolve_doc_links(ops, workspace_id) when is_list(ops) do
+    Enum.reduce_while(ops, {:ok, []}, fn op, {:ok, acc} ->
+      case resolve_op_doc_link(op, workspace_id) do
+        {:ok, resolved} -> {:cont, {:ok, acc ++ [resolved]}}
+        err -> {:halt, err}
+      end
+    end)
+  end
+
+  defp resolve_doc_links(ops, _workspace_id), do: {:ok, ops}
+
+  defp resolve_op_doc_link(%{"op" => o, "block" => %{} = block} = op, ws_id)
+       when o in ["append_block", "insert_block"] do
+    with {:ok, block} <- resolve_block_doc_link(block, ws_id) do
+      {:ok, Map.put(op, "block", block)}
+    end
+  end
+
+  defp resolve_op_doc_link(%{"op" => "modify_block", "patch" => %{} = patch} = op, ws_id) do
+    if Map.has_key?(patch, "doc") or Map.has_key?(patch, "doc_id") do
+      with {:ok, patch} <- resolve_block_doc_link(patch, ws_id) do
+        {:ok, Map.put(op, "patch", patch)}
+      end
+    else
+      {:ok, op}
+    end
+  end
+
+  defp resolve_op_doc_link(op, _ws_id), do: {:ok, op}
+
+  defp resolve_block_doc_link(%{"type" => t} = block, _ws_id)
+       when is_binary(t) and t != "doc_link",
+       do: {:ok, block}
+
+  defp resolve_block_doc_link(%{"doc" => slug} = block, ws_id) when is_binary(slug) do
+    case get_current_by_slug(ws_id, slug) do
+      nil ->
+        {:error, :doc_link_target_not_found, "doc_link target not found in this workspace: #{slug}"}
+
+      %Doc{base_doc_id: base} ->
+        {:ok, block |> Map.delete("doc") |> Map.put("doc_id", base)}
+    end
+  end
+
+  defp resolve_block_doc_link(%{"doc_id" => doc_id} = block, ws_id) when is_binary(doc_id) do
+    case Ecto.UUID.cast(doc_id) do
+      # Not UUID-shaped: pass through so Block.validate rejects it with the
+      # schema error instead of this query raising a CastError.
+      :error ->
+        {:ok, block}
+
+      {:ok, _} ->
+        exists? =
+          from(d in base_query(),
+            where: d.workspace_id == ^ws_id and d.base_doc_id == ^doc_id,
+            select: true,
+            limit: 1
+          )
+          |> Repo.one()
+
+        if exists?,
+          do: {:ok, block},
+          else:
+            {:error, :doc_link_target_not_found,
+             "doc_link target not found in this workspace: #{doc_id}"}
+    end
+  end
+
+  defp resolve_block_doc_link(block, _ws_id), do: {:ok, block}
 
   defp run_document_apply(blocks, ops) do
     case Document.apply_ops(blocks, ops) do
@@ -592,6 +739,10 @@ defmodule Aveline.Docs do
 
     [head, body] |> Enum.reject(&(&1 == "")) |> Enum.join(" ")
   end
+
+  # Only the note is the doc_link's own content; the target's title is
+  # searchable on the target itself.
+  defp block_to_text(%{"type" => "doc_link"} = b), do: spans_to_text(b["note"] || [])
 
   defp block_to_text(_), do: ""
 

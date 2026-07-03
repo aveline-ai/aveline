@@ -39,6 +39,7 @@ defmodule AvelineWeb.Api.DocController do
       item ->
         # Record an agent "read" event — same as the LV connects do.
         DocViews.record(ws.id, item.base_doc_id, user.id, "agent")
+        item = %{item | blocks: Docs.enrich_doc_links(item.blocks || [], ws.id)}
         Envelope.ok(conn, %{doc: Views.doc_full(item)})
     end
   end

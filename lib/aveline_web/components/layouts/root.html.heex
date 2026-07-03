@@ -951,6 +951,35 @@
         padding: 10px 14px; border: 1px dashed var(--danger);
         border-radius: var(--radius); font-size: 13px; color: var(--danger);
       }
+      .blocks .doc-link-card {
+        display: block;
+        padding: 12px 16px;
+        background: var(--bg-card); border: 1px solid var(--border);
+        border-radius: var(--radius);
+        text-decoration: none;
+        transition: border-color 0.08s ease, background 0.08s ease;
+      }
+      a.doc-link-card:hover { border-color: var(--border-strong); background: var(--bg-elevated); }
+      .doc-link-card-title {
+        font-size: 14px; font-weight: 600; color: var(--text);
+        display: flex; align-items: center; gap: 8px;
+      }
+      .doc-link-card-title::before {
+        content: "→";
+        color: var(--accent); font-weight: 500; flex: none;
+      }
+      .doc-link-card-summary {
+        margin-top: 3px; font-size: 12.5px; line-height: 1.5;
+        color: var(--text-secondary);
+      }
+      .doc-link-card-dead {
+        border-style: dashed; opacity: 0.7;
+      }
+      .doc-link-card-dead .doc-link-card-title::before { content: "×"; color: var(--text-muted); }
+      .blocks .doc-link-note {
+        margin-top: 6px; font-size: 13px; line-height: 1.6;
+        color: var(--text-secondary); font-style: italic;
+      }
 
       /* ===== Version switcher (dropdown next to v{n} chip) ===== */
       .version-switcher { position: relative; display: inline-flex; }

@@ -21,6 +21,7 @@ defmodule AvelineWeb.BlockRenderer do
   end
 
   attr :block, :map, required: true
+  attr :ws_slug, :string, default: nil
 
   def block(%{block: %{"type" => "heading"}} = assigns) do
     ~H"""
@@ -112,6 +113,37 @@ defmodule AvelineWeb.BlockRenderer do
           </tr>
         </tbody>
       </table>
+    </div>
+    """
+  end
+
+  # doc_link — a stop on a story/trail. `target` is the read-time echo
+  # merged in by Docs.enrich_doc_links; without it (or with a deleted
+  # target) we render a placeholder stop rather than break the chain.
+  def block(%{block: %{"type" => "doc_link"}} = assigns) do
+    target = assigns.block["target"]
+    live? = is_map(target) and target["deleted"] != true and is_binary(target["slug"])
+    assigns = assign(assigns, target: target, live?: live?)
+
+    ~H"""
+    <div id={@block["id"]} class="blk-doc-link blk-anchored">
+      <.block_anchor id={@block["id"]} />
+      <%= if @live? and @ws_slug do %>
+        <.link navigate={"/w/#{@ws_slug}/d/#{@target["slug"]}"} class="doc-link-card">
+          <div class="doc-link-card-title">{@target["title"]}</div>
+          <div :if={@target["summary"]} class="doc-link-card-summary">{@target["summary"]}</div>
+        </.link>
+      <% else %>
+        <div class="doc-link-card doc-link-card-dead">
+          <div class="doc-link-card-title">
+            {if is_map(@target), do: @target["title"] || "Removed doc", else: "Removed doc"}
+          </div>
+          <div class="doc-link-card-summary">This stop's doc was deleted. Restore it to bring the stop back.</div>
+        </div>
+      <% end %>
+      <p :if={@block["note"]} class="doc-link-note">
+        <.spans content={@block["note"] || []} />
+      </p>
     </div>
     """
   end

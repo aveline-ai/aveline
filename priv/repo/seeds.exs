@@ -162,6 +162,10 @@ ol = fn items ->
     "items" => Enum.map(items, fn spans -> %{"content" => spans} end)
   }
 end
+# Slug form — the server resolves `doc` to the target's base_doc_id.
+doc_link = fn slug, note ->
+  %{"type" => "doc_link", "doc" => slug, "note" => [%{"text" => note}]}
+end
 
 # ===== Tags =====
 # Every tag carries a description (required, 1..280 chars). Pre-created
@@ -442,6 +446,36 @@ created_docs =
         existing
     end
   end)
+
+# ===== Story: a doc that chains other docs via doc_link blocks =====
+# Created after the targets above so slug resolution succeeds.
+
+if is_nil(Docs.get_current_by_slug(workspace.id, "onboarding-story")) do
+  {:ok, _story} =
+    Docs.create_doc(%{
+      workspace_id: workspace.id,
+      owner_id: alice.id,
+      actor_user_id: alice.id,
+      actor_type: "agent",
+      slug: "onboarding-story",
+      title: "Story: new teammate onboarding",
+      summary: "Guided trail through the docs a new teammate (or their agent) should read, in order.",
+      tags: ["onboarding"],
+      pinned: true,
+      blocks: [
+        para.([
+          t.("Read these in order. Each stop is a doc_link block — agents can pull the whole chain with "),
+          b.("aveline get-doc onboarding-story --follow", ["code"]),
+          t.(".")
+        ]),
+        doc_link.("local-dev-setup", "Start here — get the app running on your machine."),
+        doc_link.("stack-overview", "Then the shape of the system: what runs where."),
+        doc_link.("architecture-decisions", "The why behind the shape. Don't re-litigate these."),
+        doc_link.("oncall-runbook", "Finally: what to do when it breaks.")
+      ],
+      intent: "seed a story doc demonstrating doc_link chains"
+    })
+end
 
 # ===== Versions: demonstrate the changelog on a couple of docs =====
 
@@ -778,7 +812,7 @@ Enum.each(users, fn {spec, _} ->
 end)
 
 IO.puts("")
-IO.puts("Docs: #{length(doc_specs)} (stack-overview at v2, oncall-runbook at v3, architecture-decisions at v2 w/ showcase)")
+IO.puts("Docs: #{length(doc_specs)} + onboarding-story (doc_link chain); stack-overview at v2, oncall-runbook at v3, architecture-decisions at v2 w/ showcase")
 IO.puts("Comments: open + resolved + edited + deleted showcased on architecture-decisions; basic threads on three other docs.")
 events_count = Repo.aggregate(Aveline.Events.Event, :count, :id)
 IO.puts("Activity events: #{events_count} (all action types covered)")

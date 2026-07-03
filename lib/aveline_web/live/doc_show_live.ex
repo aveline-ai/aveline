@@ -52,6 +52,8 @@ defmodule AvelineWeb.DocShowLive do
                   {current_doc, false}
               end
 
+            showing = %{showing | blocks: Docs.enrich_doc_links(showing.blocks || [], ws.id)}
+
             # Comment view — single 3-state toggle:
             #   :open → open + non-deleted (default, working view)
             #   :all  → everything in the DB, including resolved + deleted
@@ -414,7 +416,16 @@ defmodule AvelineWeb.DocShowLive do
       versions = Docs.list_versions(new_current.base_doc_id)
       # If we're viewing a specific historical version, don't replace the
       # rendered `item` — just refresh the live state + history list.
-      item = if socket.assigns.historical?, do: socket.assigns.item, else: new_current
+      item =
+        if socket.assigns.historical? do
+          socket.assigns.item
+        else
+          %{
+            new_current
+            | blocks:
+                Docs.enrich_doc_links(new_current.blocks || [], new_current.workspace_id)
+          }
+        end
 
       {:noreply,
        assign(socket,
@@ -725,7 +736,7 @@ defmodule AvelineWeb.DocShowLive do
         <article class="prose">
           <div class="blocks">
             <%= for b <- @item.blocks || [] do %>
-              <AvelineWeb.BlockRenderer.block block={b} />
+              <AvelineWeb.BlockRenderer.block block={b} ws_slug={@workspace.slug} />
               <.block_comment_zone
                 block_id={b["id"]}
                 threads={Map.get(@threads_by_block, b["id"], [])}
