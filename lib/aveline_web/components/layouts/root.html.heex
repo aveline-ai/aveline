@@ -1179,18 +1179,21 @@
         display: flex; flex-direction: column; gap: 2px;
         max-width: 720px;
       }
-      /* Legend-style entry: the chip leads and the full description
-         flows inline after it, wrapping freely — never truncated. */
+      /* Two aligned columns: chips left, descriptions start at one x
+         position and wrap within their own column. */
       .tag-glossary-row {
-        display: block;
+        display: grid;
+        grid-template-columns: 170px 1fr;
+        gap: 2px 14px;
+        align-items: baseline;
         min-width: 0; padding: 4px 6px;
         border-radius: 6px;
         text-decoration: none;
-        font-size: 12px; line-height: 1.7;
+        font-size: 12px; line-height: 1.6;
         transition: background 0.08s ease;
       }
       .tag-glossary-row:hover { background: rgba(255,255,255,0.03); }
-      .tag-glossary-row .chip { margin-right: 8px; vertical-align: 1px; }
+      .tag-glossary-row .chip { justify-self: start; }
       .tag-glossary-desc { color: var(--text-muted); }
       .tag-glossary-row:hover .tag-glossary-desc { color: var(--text-secondary); }
 
