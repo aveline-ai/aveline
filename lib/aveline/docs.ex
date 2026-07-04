@@ -192,20 +192,111 @@ defmodule Aveline.Docs do
     end
   end
 
+  # ===== Orientation doc =====
+  # Every workspace carries a doc at this well-known slug — "how we use
+  # Aveline here." It's an ordinary doc in every way (versioned,
+  # commentable, doc_links welcome) except it can't be deleted: it's the
+  # one stable thing a fresh agent can fetch to orient itself.
+
+  @orientation_slug "agents"
+
+  # GitHub-style pin budget. Pinned docs are the workspace's curated
+  # front page (the Home "Start here" shelf); the orientation doc
+  # permanently holds one slot, humans and agents pick the rest.
+  @pin_limit 6
+
+  @doc "The well-known slug of the workspace orientation doc."
+  def orientation_slug, do: @orientation_slug
+
+  @doc "Max pinned docs per workspace (orientation doc included)."
+  def pin_limit, do: @pin_limit
+
+  defp count_pinned(workspace_id) do
+    from(d in base_query(), where: d.workspace_id == ^workspace_id and d.pinned == true)
+    |> Repo.aggregate(:count, :id)
+  end
+
+  # Validate a pin-state transition against the workspace pin budget and
+  # the orientation doc's permanent slot. `old == new` is always fine.
+  defp validate_pin_change(_ws_id, _slug, same, same), do: :ok
+
+  defp validate_pin_change(ws_id, _slug, false, true) do
+    if count_pinned(ws_id) >= @pin_limit, do: {:error, :pin_limit_reached}, else: :ok
+  end
+
+  defp validate_pin_change(_ws_id, @orientation_slug, true, false),
+    do: {:error, :orientation_pin_required}
+
+  defp validate_pin_change(_ws_id, _slug, true, false), do: :ok
+
+  @doc "The workspace's orientation doc, or nil for pre-convention workspaces."
+  def get_orientation(workspace_id), do: get_current_by_slug(workspace_id, @orientation_slug)
+
   @doc """
-  Current docs whose body contains at least one doc_link block — i.e.
-  stories/trails. Detection is structural, not a flag: a doc is a story
-  because of what's in it.
+  Seed the default orientation doc into a fresh workspace. The template
+  is a form to fill in, not prose — short prompts the team (or their
+  agents) replace as conventions emerge.
   """
-  def list_stories(workspace_id, limit \\ 6) do
-    from(d in base_query(),
-      where: d.workspace_id == ^workspace_id,
-      where: fragment("? @> '[{\"type\": \"doc_link\"}]'::jsonb", d.blocks),
-      order_by: [desc: d.pinned, desc: d.updated_at],
-      limit: ^limit,
-      preload: [:owner, :actor_user]
-    )
-    |> Repo.all()
+  def seed_orientation_doc(workspace_id, owner_id) do
+    create_doc(%{
+      workspace_id: workspace_id,
+      owner_id: owner_id,
+      actor_user_id: owner_id,
+      actor_type: "human",
+      slug: @orientation_slug,
+      title: "How we use Aveline here",
+      summary:
+        "This workspace's orientation. Agents: fetch this first (aveline get-orientation --follow). Humans: keep it honest.",
+      pinned: true,
+      intent: "seed the workspace orientation doc",
+      blocks: orientation_template_blocks()
+    })
+  end
+
+  defp orientation_template_blocks do
+    [
+      %{
+        "type" => "paragraph",
+        "content" => [
+          %{"text" => "Agent: read this before anything else. It explains what lives in this workspace and how the team works. It's a normal doc — when conventions change, update it (with intent) like any other doc."}
+        ]
+      },
+      %{"type" => "heading", "level" => 2, "text" => "What this workspace is for"},
+      %{
+        "type" => "paragraph",
+        "content" => [
+          %{"text" => "(Fill in: one or two lines on what this team does and what knowledge belongs here.)"}
+        ]
+      },
+      %{"type" => "heading", "level" => 2, "text" => "Read these first"},
+      %{
+        "type" => "paragraph",
+        "content" => [
+          %{"text" => "(Add "},
+          %{"text" => "doc_link", "marks" => ["code"]},
+          %{"text" => " blocks to the docs every new agent should read, in order. "},
+          %{"text" => "aveline get-orientation --follow", "marks" => ["code"]},
+          %{"text" => " then pulls the whole chain in one call.)"}
+        ]
+      },
+      %{"type" => "heading", "level" => 2, "text" => "Conventions"},
+      %{
+        "type" => "list",
+        "ordered" => false,
+        "items" => [
+          %{"content" => [%{"text" => "(Tags we use and what each means.)"}]},
+          %{"content" => [%{"text" => "(When to create a new doc vs. edit an existing one.)"}]},
+          %{"content" => [%{"text" => "(Where ideas and friction go — e.g. a wishlist doc humans triage.)"}]}
+        ]
+      },
+      %{"type" => "heading", "level" => 2, "text" => "How you interact"},
+      %{
+        "type" => "code",
+        "language" => "sh",
+        "content" =>
+          "aveline list-docs\naveline get-doc <slug>\naveline create-comment <slug> --body \"...\"\naveline apply-ops <slug> --ops ops.json --intent \"why\""
+      }
+    ]
   end
 
   @doc """
@@ -317,8 +408,10 @@ defmodule Aveline.Docs do
   def apply_ops(:new, ops, base_attrs, opts) when is_list(ops) and is_map(base_attrs) do
     ws_id = Map.fetch!(base_attrs, :workspace_id)
     tags = Map.get(base_attrs, :tags, []) || []
+    pinned = Map.get(base_attrs, :pinned, false)
 
     with :ok <- Tags.ensure_all_exist(ws_id, tags),
+         :ok <- validate_pin_change(ws_id, Map.get(base_attrs, :slug), false, pinned),
          {:ok, ops} <- resolve_doc_links(ops, ws_id),
          {:ok, new_blocks} <- run_document_apply([], ops) do
       insert_version(:new, new_blocks, ops, base_attrs, opts)
@@ -328,8 +421,10 @@ defmodule Aveline.Docs do
   def apply_ops(%Doc{} = current, ops, update_attrs, opts)
       when is_list(ops) and is_map(update_attrs) do
     tags = Map.get(update_attrs, :tags, current.tags) || []
+    new_pinned = Map.get(update_attrs, :pinned, current.pinned)
 
     with :ok <- Tags.ensure_all_exist(current.workspace_id, tags),
+         :ok <- validate_pin_change(current.workspace_id, current.slug, current.pinned, new_pinned),
          {:ok, ops} <- resolve_doc_links(ops, current.workspace_id),
          {:ok, new_blocks} <- run_document_apply(current.blocks || [], ops) do
       insert_version(current, new_blocks, ops, update_attrs, opts)
@@ -775,6 +870,12 @@ defmodule Aveline.Docs do
   # state is workspace-navigation metadata, not content, so we don't mint
   # a new version row each toggle.
   def set_pinned(%Doc{} = current, pinned, actor_user_id \\ nil) when is_boolean(pinned) do
+    with :ok <- validate_pin_change(current.workspace_id, current.slug, current.pinned, pinned) do
+      do_set_pinned(current, pinned, actor_user_id)
+    end
+  end
+
+  defp do_set_pinned(%Doc{} = current, pinned, actor_user_id) do
     current
     |> Ecto.Changeset.change(%{pinned: pinned})
     |> Repo.update()
@@ -802,6 +903,10 @@ defmodule Aveline.Docs do
   end
 
   # ===== Delete / restore =====
+
+  def soft_delete(%Doc{slug: @orientation_slug}, _deleted_by_id) do
+    {:error, :orientation_undeletable}
+  end
 
   def soft_delete(%Doc{} = current, deleted_by_id) do
     current

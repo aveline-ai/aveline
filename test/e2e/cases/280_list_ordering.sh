@@ -23,7 +23,7 @@ test_list_docs_recent_first_among_unpinned() {
   mk_doc "$ws" "Last" >/dev/null
   run_cli -w "$ws" list-docs
   # Last-modified should come first among unpinned.
-  expect_eq ".docs[0].title" "Last" "newest first"
+  expect_eq '.docs | map(select(.pinned | not)) | .[0].title' "Last" "newest first among unpinned"
 }
 
 test_list_versions_descending_by_number() {

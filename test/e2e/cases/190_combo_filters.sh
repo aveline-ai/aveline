@@ -53,7 +53,7 @@ test_list_docs_no_filter_lists_all_undeleted() {
   run_cli -w "$ws" delete-doc "$doomed"
   run_cli -w "$ws" list-docs
   expect_ok "list-docs ok"
-  expect_count ".docs" "2" "deleted doc excluded"
+  expect_count "$MY_DOCS" "2" "deleted doc excluded"
 }
 
 test_list_docs_pinned_false_filters_unpinned() {

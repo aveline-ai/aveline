@@ -26,7 +26,8 @@ defmodule AvelineWeb.HomeLive do
            sidebar_workspaces: Workspaces.list_for_user(user.id),
            nav_active: :home,
            topbar_title: "Home",
-           stories: load_stories(ws),
+           orientation: Docs.get_orientation(ws.id),
+           pinned_docs: load_pinned(ws),
            needs_you: Comments.list_open_threads_for_workspace(ws.id, 5),
            recent_changes: Docs.list_current(ws.id, pin_mode: :interleave, sort: :recent, limit: 5)
          )}
@@ -45,21 +46,24 @@ defmodule AvelineWeb.HomeLive do
     end
   end
 
-  # Stories with their stops' read-time targets, ready to render as
-  # trail cards.
-  defp load_stories(ws) do
+  # Start here = the workspace's pinned docs (GitHub-style: 6 slots,
+  # the orientation doc permanently holds one and renders as its own
+  # card above, so up to 5 show here). Docs with doc_link chains get
+  # the trail treatment; plain docs render as plain cards.
+  defp load_pinned(ws) do
     ws.id
-    |> Docs.list_stories()
-    |> Enum.map(fn story ->
+    |> Docs.list_current(pinned: true)
+    |> Enum.reject(&(&1.slug == Docs.orientation_slug()))
+    |> Enum.map(fn doc ->
       stops =
-        story.blocks
+        doc.blocks
         |> Docs.enrich_doc_links(ws.id)
         |> Enum.flat_map(fn
           %{"type" => "doc_link", "target" => t} -> [t]
           _ -> []
         end)
 
-      %{doc: story, stops: stops}
+      %{doc: doc, stops: stops}
     end)
   end
 
@@ -77,28 +81,51 @@ defmodule AvelineWeb.HomeLive do
         Start here, catch up on what needs you, and see what changed.
       </p>
 
-      <section :if={@stories != []} class="shelf">
+      <.link
+        :if={@orientation}
+        navigate={~p"/w/#{@workspace.slug}/d/#{@orientation.slug}"}
+        class="orientation-card"
+      >
+        <span class="orientation-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+          </svg>
+        </span>
+        <span class="orientation-body">
+          <span class="orientation-title">{@orientation.title}</span>
+          <span class="orientation-summary">
+            What lives in this workspace and how the team works — for humans and agents alike.
+          </span>
+        </span>
+        <span class="orientation-cta">Get oriented →</span>
+      </.link>
+
+      <section :if={@pinned_docs != []} class="shelf">
         <div class="shelf-head">
           <span class="shelf-label">Start here</span>
+          <span class="shelf-count">
+            {length(@pinned_docs) + 1}/{Docs.pin_limit()} pins
+          </span>
         </div>
         <div class="story-grid">
           <.link
-            :for={s <- @stories}
+            :for={s <- @pinned_docs}
             navigate={~p"/w/#{@workspace.slug}/d/#{s.doc.slug}"}
             class="story-card"
           >
             <div class="story-card-top">
-              <span class="story-icon" aria-hidden="true">
+              <span :if={s.stops != []} class="story-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
                   <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
                 </svg>
               </span>
               <span class="story-card-title">{s.doc.title}</span>
-              <span class="story-stops-badge">{length(s.stops)} stops</span>
+              <span :if={s.stops != []} class="story-stops-badge">{length(s.stops)} stops</span>
             </div>
             <div :if={s.doc.summary} class="story-card-summary">{s.doc.summary}</div>
-            <div class="story-card-path">
+            <div :if={s.stops != []} class="story-card-path">
               <%= for {t, idx} <- Enum.with_index(s.stops) do %>
                 <span :if={idx > 0} class="story-path-arrow">→</span>
                 <span class={"story-path-stop" <> if t["deleted"], do: " story-path-dead", else: ""}>
@@ -157,7 +184,7 @@ defmodule AvelineWeb.HomeLive do
         </div>
       </section>
 
-      <%= if @stories == [] and @needs_you == [] and @recent_changes == [] do %>
+      <%= if @pinned_docs == [] and @needs_you == [] and @recent_changes == [] do %>
         <div class="empty">
           Nothing here yet — create a doc (or have your agent do it) and this
           page fills itself in.

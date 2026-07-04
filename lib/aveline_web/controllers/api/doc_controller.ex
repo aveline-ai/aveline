@@ -44,6 +44,26 @@ defmodule AvelineWeb.Api.DocController do
     end
   end
 
+  @doc """
+  The workspace orientation doc (well-known slug, seeded at workspace
+  creation, undeletable). Agents fetch this first to learn how the
+  workspace is laid out. Same shape as GET /docs/:slug.
+  """
+  def orientation(conn, _params) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    case Docs.get_orientation(ws.id) do
+      nil ->
+        {:error, :not_found}
+
+      item ->
+        DocViews.record(ws.id, item.base_doc_id, user.id, "agent")
+        item = %{item | blocks: Docs.enrich_doc_links(item.blocks || [], ws.id)}
+        Envelope.ok(conn, %{doc: Views.doc_full(item)})
+    end
+  end
+
   # ===== Writes =====
 
   @doc """

@@ -161,6 +161,10 @@ expect_absent() {
   fi
 }
 
+# Docs the test itself created — excludes the seeded orientation doc
+# (slug "agents") that every workspace ships with.
+MY_DOCS='.docs | map(select(.slug != "agents"))'
+
 # expect_count <jq-array-path> <expected-int> <message>
 expect_count() {
   local path="$1" want="$2" msg="$3"

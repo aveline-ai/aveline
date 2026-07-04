@@ -52,10 +52,10 @@ test_w_flag_overrides_config_workspace() {
   mk_doc "$a" "InA" >/dev/null
   run_cli -w "$b" list-docs
   expect_ok "list ws B"
-  expect_count ".docs" "0" "ws B is empty (-w isolated)"
+  expect_count "$MY_DOCS" "0" "ws B is empty (-w isolated)"
   run_cli -w "$a" list-docs
   expect_ok "list ws A"
-  expect_count ".docs" "1" "ws A has the doc"
+  expect_count "$MY_DOCS" "1" "ws A has the doc"
 }
 
 test_unknown_verb_local_error() {

@@ -5,7 +5,8 @@ test_list_docs_empty_workspace() {
   local ws; ws="$(mk_workspace ws-list-empty)"
   run_cli -w "$ws" list-docs
   expect_ok "list-docs on empty ws ok"
-  expect_count ".docs" "0" "empty workspace returns 0 docs"
+  expect_count "$MY_DOCS" "0" "no docs beyond the seeded orientation doc"
+  expect_eq '.docs[0].slug' "agents" "orientation doc is the only one there"
 }
 
 test_list_docs_after_creating_three() {
@@ -15,7 +16,7 @@ test_list_docs_after_creating_three() {
   mk_doc "$ws" "Gamma" >/dev/null
   run_cli -w "$ws" list-docs
   expect_ok "list-docs ok"
-  expect_count ".docs" "3" "three docs listed"
+  expect_count "$MY_DOCS" "3" "three docs listed"
 }
 
 test_list_docs_filter_pinned() {
@@ -30,7 +31,7 @@ test_list_docs_filter_pinned() {
   expect_ok "unpinned doc created"
   run_cli -w "$ws" list-docs --pinned
   expect_ok "list --pinned ok"
-  expect_count ".docs" "1" "exactly one pinned doc"
+  expect_count "$MY_DOCS" "1" "exactly one pinned doc (plus the pinned orientation doc)"
   if jq -e '.docs | all(.pinned == true)' <<<"$LAST_OUT_TEXT" >/dev/null 2>&1; then
     pass "every returned doc is pinned"
   else

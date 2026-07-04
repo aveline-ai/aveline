@@ -112,8 +112,8 @@ test_docs_dont_leak_across_workspaces() {
   mk_doc "$a" "InA" >/dev/null
   mk_doc "$b" "InB" >/dev/null
   run_cli -w "$a" list-docs
-  expect_count ".docs" "1" "A has exactly 1 doc"
-  expect_eq ".docs[0].title" "InA" "right doc"
+  expect_count "$MY_DOCS" "1" "A has exactly 1 created doc"
+  expect_eq "$MY_DOCS | .[0].title" "InA" "right doc"
 }
 
 test_member_added_can_then_access() {
@@ -122,5 +122,5 @@ test_member_added_can_then_access() {
   add_member "$ws" "bob"
   AVELINE_E2E_PERSONA=bob run_cli -w "$ws" list-docs
   expect_ok "bob can list after add"
-  expect_count ".docs" "1" "bob sees the doc"
+  expect_count "$MY_DOCS" "1" "bob sees the doc"
 }

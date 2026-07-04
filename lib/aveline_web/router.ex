@@ -71,6 +71,7 @@ defmodule AvelineWeb.Router do
     pipe_through [:api_auth, :workspace_scoped]
 
     # Docs
+    get "/orientation", DocController, :orientation
     get "/docs", DocController, :index
     post "/docs", DocController, :create
     get "/docs/:doc_slug", DocController, :show

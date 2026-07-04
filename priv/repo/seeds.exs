@@ -284,7 +284,9 @@ doc_specs = [
     title: "Local dev setup",
     summary: "Get the backend, API, and CLI talking on your laptop.",
     owner: alice,
-    pinned: true,
+    # Not pinned: the pin budget is 6 (agents + 3 spec pins + the story
+    # + the deploy-guide pin-toggle below fills it exactly).
+    pinned: false,
     tags: ["onboarding", "dev"],
     blocks: [
       heading.(2, "Prereqs"),
@@ -350,7 +352,8 @@ doc_specs = [
     title: "Code blocks — every language at a glance",
     summary: "A grab-bag of snippets to sanity-check syntax highlighting + monospace rendering.",
     owner: alice,
-    pinned: true,
+    # Not pinned — see the pin-budget note on local-dev-setup.
+    pinned: false,
     tags: ["stack", "examples"],
     blocks: [
       para.([

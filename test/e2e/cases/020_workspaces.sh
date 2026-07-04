@@ -77,7 +77,7 @@ test_workspaces_w_flag_overrides_default() {
   # Switch default persona has no workspace set; -w should pick this one.
   run_cli -w "$slug" list-docs
   expect_ok "-w override targets the new workspace"
-  expect_count ".docs" "0" "fresh workspace is empty"
+  expect_count "$MY_DOCS" "0" "fresh workspace has only the seeded orientation doc"
 }
 
 test_workspaces_create_then_immediately_usable() {

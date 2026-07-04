@@ -327,8 +327,23 @@ defmodule AvelineWeb.DocShowLive do
 
     if user do
       case Docs.set_pinned(current_doc, not current_doc.pinned, user.id) do
-        {:ok, _} -> {:noreply, socket}
-        {:error, _} -> {:noreply, put_flash(socket, :error, "Could not update pin.")}
+        {:ok, _} ->
+          {:noreply, socket}
+
+        {:error, :pin_limit_reached} ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             "All #{Docs.pin_limit()} pin slots are taken — unpin another doc first."
+           )}
+
+        {:error, :orientation_pin_required} ->
+          {:noreply,
+           put_flash(socket, :error, "The orientation doc always keeps its pin slot.")}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Could not update pin.")}
       end
     else
       {:noreply, put_flash(socket, :error, "Sign in to pin.")}
