@@ -69,7 +69,7 @@ test_board_block_echoes_computed_view() {
 
   run_cli -w "$ws" get-doc "$board"
   expect_ok "get board doc"
-  expect_eq '.doc.blocks[0].view.columns | length' "4" "columns from the status scope"
+  expect_eq '.doc.blocks[0].view.columns | length' "5" "columns from the status scope"
   expect_eq '.doc.blocks[0].view.columns[0]' "status:backlog" "columns in creation order"
   expect_eq '.doc.blocks[0].view.cards | length' "3" "all filter matches are cards"
   expect_eq '.doc.blocks[0].view.cards | map(select(.column == null)) | length' "1" "unstatused card has null column"

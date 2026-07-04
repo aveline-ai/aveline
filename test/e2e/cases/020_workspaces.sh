@@ -84,5 +84,5 @@ test_workspaces_create_then_immediately_usable() {
   local slug; slug="$(mk_workspace ws-roundtrip)"
   run_cli -w "$slug" list-tags
   expect_ok "list-tags on brand-new workspace ok"
-  expect_count ".tags" "19" "brand-new workspace has the template tags"
+  expect_count ".tags" "20" "brand-new workspace has the template tags"
 }

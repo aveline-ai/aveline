@@ -43,6 +43,7 @@ defmodule Aveline.Workspaces.Template do
       {"status:todo", "Next up.", "#3b82f6", "status:2"},
       {"status:in-progress", "Being worked on now.", "#e09150", "status:3"},
       {"status:done", "Shipped.", "#22c55e", "status:4"},
+      {"status:cancelled", "Decided not to do it. Kept as the record.", "#ef4444", "status:5"},
 
       # stage: whether the doc is trustworthy. No stage tag means live.
       {"stage:draft", "Work in progress. Don't rely on this yet.", nil, "stage:1"},
