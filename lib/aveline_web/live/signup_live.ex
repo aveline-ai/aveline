@@ -49,8 +49,7 @@ defmodule AvelineWeb.SignupLive do
        # Pre-generate the real token on mount so the user sees their actual
        # API key in the form. We only persist (hash) it when they submit.
        preview_token: Tokens.generate_plaintext()
-     ),
-     layout: false}
+     ), layout: false}
   end
 
   @impl true
@@ -127,9 +126,15 @@ defmodule AvelineWeb.SignupLive do
       |> String.downcase()
 
     cond do
-      username == "" -> {username, nil}
-      String.length(username) < 2 -> {username, "Username too short (min 2)."}
-      String.length(username) > 60 -> {username, "Username too long (max 60)."}
+      username == "" ->
+        {username, nil}
+
+      String.length(username) < 2 ->
+        {username, "Username too short (min 2)."}
+
+      String.length(username) > 60 ->
+        {username, "Username too long (max 60)."}
+
       not Regex.match?(~r/^[a-z0-9][a-z0-9-]*$/, username) ->
         {username, "Lowercase letters, digits, and hyphens only."}
 
@@ -255,7 +260,13 @@ defmodule AvelineWeb.SignupLive do
   end
 
   def render(%{state: :show_token, result: %{user: user, workspace: ws, token: plaintext}} = assigns) do
-    assigns = assign(assigns, user: user, workspace: ws, plaintext: plaintext)
+    assigns =
+      assign(assigns,
+        user: user,
+        workspace: ws,
+        plaintext: plaintext,
+        setup_prompt: setup_prompt(ws, plaintext)
+      )
 
     ~H"""
     <div class="auth-shell">
@@ -268,40 +279,18 @@ defmodule AvelineWeb.SignupLive do
 
         <h1 class="auth-title">You're in, {@user.username}</h1>
         <p class="auth-subtitle">
-          Two quick steps to get going with Aveline.
+          One step: hand this to your Claude.
         </p>
 
         <div class="onboarding-step">
-          <div class="onboarding-step-num">1</div>
           <div class="onboarding-step-body">
-            <div class="onboarding-step-title">Install the CLI</div>
             <p class="onboarding-step-desc">
-              Download the latest binary for your OS, then run <code>aveline login</code>
-              with the API key you just saved.
-            </p>
-            <a
-              href="https://github.com/aveline-ai/cli/releases/latest"
-              target="_blank"
-              rel="noopener"
-              class="auth-secondary"
-              style="display:inline-flex;align-items:center;gap:6px;padding:0 14px;height:34px;text-decoration:none"
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
-              Open releases
-            </a>
-          </div>
-        </div>
-
-        <div class="onboarding-step">
-          <div class="onboarding-step-num">2</div>
-          <div class="onboarding-step-body">
-            <div class="onboarding-step-title">Tell Claude about Aveline</div>
-            <p class="onboarding-step-desc">
-              Paste this into your project's <code>CLAUDE.md</code> so Claude
-              knows you use Aveline for knowledge management.
+              Paste this prompt into Claude Code — it installs the
+              <code>aveline</code> CLI, signs in, and teaches your project to
+              use Aveline for knowledge management.
             </p>
             <div class="snippet">
-              <pre><code id="claude-snippet">Our team keeps shared knowledge in Aveline, a wiki built for AI agents. Interact with it through the `aveline` CLI — run `aveline --help` to discover every operation. Start each session with `aveline get-orientation --follow` to learn how this workspace organizes its knowledge.</code></pre>
+              <pre><code id="claude-snippet">{@setup_prompt}</code></pre>
               <button
                 type="button"
                 id="claude-snippet-copy"
@@ -329,6 +318,21 @@ defmodule AvelineWeb.SignupLive do
         </form>
       </div>
     </div>
+    """
+  end
+
+  # The one-step onboarding prompt: the user hands this to their Claude,
+  # which installs the CLI, signs in, and adds the CLAUDE.md note. The
+  # API key rides in the prompt (a one-time paste into the user's own
+  # session) — the prompt itself tells Claude to keep it out of files.
+  defp setup_prompt(ws, plaintext) do
+    """
+    Set up Aveline, the wiki our team uses for shared knowledge (built for AI agents like you):
+
+    1. Install the `aveline` CLI from https://github.com/aveline-ai/cli/releases/latest (pick the binary for this machine and put it on PATH).
+    2. Run `aveline login --token #{plaintext}` and then `aveline use-workspace #{ws.slug}`. Never write this token into any file.
+    3. Verify with `aveline whoami`, then read `aveline get-orientation --follow` to learn how this workspace organizes its knowledge.
+    4. Add a short note to this project's CLAUDE.md: we keep shared knowledge in Aveline; interact via the `aveline` CLI (`aveline --help` shows every operation); start sessions with `aveline get-orientation --follow`.
     """
   end
 end
