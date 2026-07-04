@@ -29,7 +29,7 @@ defmodule AvelineWeb.HomeLive do
            nav_active: :home,
            topbar_title: "Home",
            orientation: Docs.get_orientation(ws.id),
-           jump_back_in: (user && DocViews.recent_for_user(ws.id, user.id, 3)) || [],
+           recently_viewed: (user && DocViews.recent_for_user(ws.id, user.id, 3)) || [],
            pinned_docs: load_pinned(ws),
            needs_you: (user && Comments.list_open_threads_for_owner(ws.id, user.id, 5)) || [],
            recent_changes: Docs.list_current(ws.id, sort: :recent, limit: 5),
@@ -108,29 +108,6 @@ defmodule AvelineWeb.HomeLive do
         <span class="orientation-cta">Get oriented →</span>
       </.link>
 
-      <section :if={@jump_back_in != []} class="shelf">
-        <div class="shelf-head">
-          <span class="shelf-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-            </svg>
-          </span>
-          <span class="shelf-label">Jump back in</span>
-        </div>
-        <div class="jump-grid">
-          <.link
-            :for={{d, viewed_at} <- @jump_back_in}
-            navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}"}
-            class="jump-card"
-          >
-            <span class="jump-card-title">{d.title}</span>
-            <span class="jump-card-time" title={absolute_time(viewed_at)}>
-              opened {relative_time(viewed_at)}
-            </span>
-          </.link>
-        </div>
-      </section>
-
       <section :if={@pinned_docs != []} class="shelf">
         <div class="shelf-head">
           <span class="shelf-icon" aria-hidden="true">
@@ -168,6 +145,29 @@ defmodule AvelineWeb.HomeLive do
             <div :if={s.doc.tags != []} class="story-card-tags">
               <span :for={t <- Enum.take(s.doc.tags, 3)} class="story-card-tag">{t}</span>
             </div>
+          </.link>
+        </div>
+      </section>
+
+      <section :if={@recently_viewed != []} class="shelf">
+        <div class="shelf-head">
+          <span class="shelf-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </span>
+          <span class="shelf-label">Recently viewed by you</span>
+        </div>
+        <div class="jump-grid">
+          <.link
+            :for={{d, viewed_at} <- @recently_viewed}
+            navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}"}
+            class="jump-card"
+          >
+            <span class="jump-card-title">{d.title}</span>
+            <span class="jump-card-time" title={absolute_time(viewed_at)}>
+              opened {relative_time(viewed_at)}
+            </span>
           </.link>
         </div>
       </section>
