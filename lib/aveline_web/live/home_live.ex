@@ -203,13 +203,6 @@ defmodule AvelineWeb.HomeLive do
             navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}" <> if(c.block_id, do: "#" <> c.block_id, else: "")}
             class="attn-row"
           >
-            <span
-              class="avatar"
-              style={"--h: #{hue(c.actor_user && c.actor_user.username)}"}
-              aria-hidden="true"
-            >
-              {initial(c.actor_user && c.actor_user.username)}
-            </span>
             <span class="attn-body">“{snippet(c.body)}”</span>
             <span class="attn-meta">
               <%= if c.actor_user do %>{c.actor_user.username}<% end %><%= if c.actor_type == "agent" do %>
