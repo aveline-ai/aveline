@@ -123,12 +123,9 @@ defmodule AvelineWeb.HomeLive do
             navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}"}
             class="jump-card"
           >
-            <span class="doc-tile doc-tile-sm" style={"--h: #{hue(d.slug)}"}>{initial(d.title)}</span>
-            <span class="jump-card-body">
-              <span class="jump-card-title">{d.title}</span>
-              <span class="jump-card-time" title={absolute_time(viewed_at)}>
-                opened {relative_time(viewed_at)}
-              </span>
+            <span class="jump-card-title">{d.title}</span>
+            <span class="jump-card-time" title={absolute_time(viewed_at)}>
+              opened {relative_time(viewed_at)}
             </span>
           </.link>
         </div>
@@ -155,16 +152,6 @@ defmodule AvelineWeb.HomeLive do
             style={"--h: #{hue(s.doc.slug)}"}
           >
             <div class="story-card-top">
-              <span class="doc-tile" style={"--h: #{hue(s.doc.slug)}"}>
-                <%= if s.stops != [] do %>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                  </svg>
-                <% else %>
-                  {initial(s.doc.title)}
-                <% end %>
-              </span>
               <span class="story-card-title">{s.doc.title}</span>
               <span :if={s.stops != []} class="story-stops-badge">{length(s.stops)} stops</span>
             </div>
@@ -227,7 +214,6 @@ defmodule AvelineWeb.HomeLive do
             navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}"}
             class="recent-row"
           >
-            <span class="doc-tile doc-tile-xs" style={"--h: #{hue(d.slug)}"}>{initial(d.title)}</span>
             <span class="recent-title">{d.title}</span>
             <span class="recent-version">v{d.version_number}</span>
             <span :if={d.intent} class="recent-intent">“{d.intent}”</span>
