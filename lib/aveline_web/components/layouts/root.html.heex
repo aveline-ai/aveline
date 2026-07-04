@@ -1017,6 +1017,28 @@
       }
       .shelf-count { font-size: 11.5px; color: var(--text-muted); }
 
+      /* Jump back in — the user's own recent reads, compact */
+      .jump-grid {
+        display: grid; gap: 8px;
+        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      }
+      .jump-card {
+        display: flex; flex-direction: column; gap: 2px;
+        padding: 10px 14px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        text-decoration: none;
+        transition: border-color 0.08s ease, background 0.08s ease;
+        min-width: 0;
+      }
+      .jump-card:hover { border-color: var(--border-strong); background: var(--bg-card-hover); }
+      .jump-card-title {
+        font-size: 13px; font-weight: 500; color: var(--text);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .jump-card-time { font-size: 11px; color: var(--text-muted); }
+
       /* Start here — story/trail cards */
       .story-grid {
         display: grid; gap: 10px;

@@ -88,6 +88,36 @@ defmodule Aveline.DocViews do
   end
 
   @doc """
+  The last `limit` distinct docs this user opened in this workspace,
+  most recent first — human views only, so an agent reading half the
+  wiki over the API under your token doesn't swamp your own trail.
+  Joined to the current live doc row, so deleted docs drop out. Powers
+  the Home "Jump back in" shelf.
+
+  Returns `{doc, last_viewed_at}` tuples.
+  """
+  def recent_for_user(workspace_id, user_id, limit \\ 3) do
+    latest =
+      from(v in DocView,
+        where:
+          v.workspace_id == ^workspace_id and v.user_id == ^user_id and
+            v.actor_type == "human",
+        group_by: v.base_doc_id,
+        select: %{base_doc_id: v.base_doc_id, last_viewed_at: max(v.viewed_at)}
+      )
+
+    from(l in subquery(latest),
+      join: d in Doc,
+      on: d.base_doc_id == l.base_doc_id and is_nil(d.deleted_at),
+      where: d.workspace_id == ^workspace_id,
+      order_by: [desc: l.last_viewed_at],
+      limit: ^limit,
+      select: {d, l.last_viewed_at}
+    )
+    |> Repo.all()
+  end
+
+  @doc """
   Total view count for a logical doc.
   """
   def count_for_base(base_doc_id) when is_binary(base_doc_id) do
