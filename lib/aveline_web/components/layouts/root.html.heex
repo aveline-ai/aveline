@@ -57,12 +57,15 @@
         --accent: #3B82F6;
         --accent-hover: #4F8EF7;
         --accent-dim: rgba(59,130,246,0.14);
-        /* Tag/author chip colors — distinct, subtle tones so each badge
-           category reads as its own thing without competing with the
-           blue CTA accent. */
-        --tag: #E09150;
-        --tag-dim: rgba(224,145,80,0.08);
-        --tag-border: rgba(224,145,80,0.22);
+        /* Tag chips default to neutral grey — color is reserved for
+           tags with a user-chosen color (per-chip --tag override). */
+        --tag: #A9AFB8;
+        --tag-dim: rgba(169,175,184,0.07);
+        --tag-border: rgba(169,175,184,0.24);
+        /* Attention amber — the needs-you inbox, independent of tags. */
+        --attn: #E09150;
+        --attn-dim: rgba(224,145,80,0.08);
+        --attn-border: rgba(224,145,80,0.22);
         --author: #B8A78F;
         --author-dim: rgba(184,167,143,0.08);
         --author-border: rgba(184,167,143,0.24);
@@ -1003,7 +1006,7 @@
         display: inline-flex; color: var(--text-muted);
       }
       .shelf-icon svg { width: 14px; height: 14px; }
-      .shelf-icon-attn { color: var(--tag); }
+      .shelf-icon-attn { color: var(--attn); }
       .shelf-label {
         font-size: 11.5px; font-weight: 600;
         text-transform: uppercase; letter-spacing: 0.09em;
@@ -1015,8 +1018,8 @@
         padding: 0 7px; line-height: 16px;
       }
       .shelf-count-attn {
-        color: var(--tag); border-color: var(--tag-border);
-        background: var(--tag-dim);
+        color: var(--attn); border-color: var(--attn-border);
+        background: var(--attn-dim);
       }
 
       /* Jump back in — the user's own recent reads, compact */
@@ -1098,8 +1101,8 @@
 
       /* Needs you — open-thread rows */
       .attn-list {
-        border: 1px solid var(--tag-border); border-radius: 12px;
-        background: linear-gradient(180deg, var(--tag-dim), transparent 30%), var(--bg-card);
+        border: 1px solid var(--attn-border); border-radius: 12px;
+        background: linear-gradient(180deg, var(--attn-dim), transparent 30%), var(--bg-card);
         overflow: hidden;
       }
       .attn-row {
