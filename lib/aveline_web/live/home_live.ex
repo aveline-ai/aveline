@@ -101,9 +101,7 @@ defmodule AvelineWeb.HomeLive do
         </span>
         <span class="orientation-body">
           <span class="orientation-title">{@orientation.title}</span>
-          <span class="orientation-summary">
-            What lives in this workspace and how the team works — for humans and agents alike.
-          </span>
+          <span :if={@orientation.summary} class="orientation-summary">{@orientation.summary}</span>
         </span>
         <span class="orientation-cta">Get oriented →</span>
       </.link>

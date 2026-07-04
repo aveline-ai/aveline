@@ -255,7 +255,7 @@ defmodule Aveline.Docs do
       slug: @orientation_slug,
       title: "How we use Aveline here",
       summary:
-        "This workspace's orientation. Agents: fetch this first (aveline get-orientation --follow). Humans: keep it honest.",
+        "What lives in this workspace and how the team works. Agents fetch this first (aveline get-orientation --follow); humans keep it honest.",
       pinned: true,
       intent: "seed the workspace orientation doc",
       blocks: orientation_template_blocks()
