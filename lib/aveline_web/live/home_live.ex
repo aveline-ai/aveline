@@ -87,8 +87,7 @@ defmodule AvelineWeb.HomeLive do
     ~H"""
     <div class="content home-content">
       <div class="home-hero">
-        <p class="home-greeting">Welcome back, {display_name(@current_user)}</p>
-        <h1 class="page-title home-title">{@workspace.name}</h1>
+        <h1 class="page-title home-title">Welcome back, {display_name(@current_user)}</h1>
       </div>
 
       <.link
