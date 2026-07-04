@@ -102,16 +102,8 @@ test_list_docs_has_filter() {
   local plain; plain="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" create-doc --title "A board" \
     --blocks "$(jq -nc '[{type: "board", tags: ["feature-x"], by: "status"}]')"
-  run_cli -w "$ws" create-doc --title "A trail" \
-    --blocks "$(jq -nc --arg doc "$plain" '[{type: "doc_link", doc: $doc}]')"
-
   run_cli -w "$ws" list-docs --has board
   expect_ok "list --has board ok"
   expect_count ".docs" "1" "one board"
   expect_eq ".docs[0].title" "A board" "the board"
-
-  run_cli -w "$ws" list-docs --has links
-  expect_ok "list --has links ok"
-  expect_count ".docs" "1" "one trail"
-  expect_eq ".docs[0].title" "A trail" "the trail"
 }

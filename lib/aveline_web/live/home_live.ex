@@ -30,7 +30,7 @@ defmodule AvelineWeb.HomeLive do
            topbar_title: "Home",
            orientation: Docs.get_orientation(ws.id),
            recently_viewed: (user && DocViews.recent_for_user(ws.id, user.id, 3)) || [],
-           pinned_docs: load_pinned(ws),
+           pinned_docs: Docs.list_pinned(ws.id),
            needs_you: (user && Comments.list_open_threads_for_owner(ws.id, user.id, 5)) || [],
            recent_changes: Docs.list_current(ws.id, sort: :recent, limit: 5),
            # Used tags only, by usage — the workspace's topic map.
@@ -52,26 +52,6 @@ defmodule AvelineWeb.HomeLive do
          |> put_flash(:error, "You are not a member of this workspace.")
          |> push_navigate(to: ~p"/")}
     end
-  end
-
-  # Pinned docs = the workspace's pinned docs in slot order (6 numbered
-  # slots; the orientation doc has its own card above and never takes
-  # one). Docs with doc_link chains get the trail treatment; plain docs
-  # render as plain cards.
-  defp load_pinned(ws) do
-    ws.id
-    |> Docs.list_pinned()
-    |> Enum.map(fn doc ->
-      stops =
-        doc.blocks
-        |> Docs.enrich_blocks(ws.id)
-        |> Enum.flat_map(fn
-          %{"type" => "doc_link", "target" => t} -> [t]
-          _ -> []
-        end)
-
-      %{doc: doc, stops: stops}
-    end)
   end
 
   defp snippet(body, max \\ 110) do
@@ -150,25 +130,16 @@ defmodule AvelineWeb.HomeLive do
         </div>
         <div class="story-grid">
           <.link
-            :for={s <- @pinned_docs}
-            navigate={~p"/w/#{@workspace.slug}/d/#{s.doc.slug}"}
+            :for={d <- @pinned_docs}
+            navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}"}
             class="story-card"
           >
             <div class="story-card-top">
-              <span class="story-card-title">{s.doc.title}</span>
-              <span :if={s.stops != []} class="story-stops-badge">{length(s.stops)} stops</span>
+              <span class="story-card-title">{d.title}</span>
             </div>
-            <div :if={s.doc.summary} class="story-card-summary">{s.doc.summary}</div>
-            <div :if={s.stops != []} class="story-card-path">
-              <%= for {t, idx} <- Enum.with_index(s.stops) do %>
-                <span :if={idx > 0} class="story-path-arrow">→</span>
-                <span class={"story-path-stop" <> if t["deleted"], do: " story-path-dead", else: ""}>
-                  {t["title"] || "removed"}
-                </span>
-              <% end %>
-            </div>
-            <div :if={s.doc.tags != []} class="story-card-tags">
-              <span :for={t <- Enum.take(s.doc.tags, 3)} class="story-card-tag">{t}</span>
+            <div :if={d.summary} class="story-card-summary">{d.summary}</div>
+            <div :if={d.tags != []} class="story-card-tags">
+              <span :for={t <- Enum.take(d.tags, 3)} class="story-card-tag">{t}</span>
             </div>
           </.link>
         </div>

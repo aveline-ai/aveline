@@ -83,17 +83,15 @@ defmodule Aveline.Docs do
   end
 
   @doc "Structural doc kinds the `has:` filter understands."
-  def has_kinds, do: ~w(links board)
+  def has_kinds, do: ~w(board)
 
-  # Structural kind filters — a doc is a trail/board because of what's
-  # in its blocks (jsonb containment; multiple values AND together).
+  # Structural kind filter: a doc is a board because of what's in its
+  # blocks (jsonb containment). Links are just what documents do, not a
+  # kind worth filtering on.
   defp maybe_filter_has(query, []), do: query
 
   defp maybe_filter_has(query, kinds) when is_list(kinds) do
     Enum.reduce(kinds, query, fn
-      "links", q ->
-        from(d in q, where: fragment("? @> '[{\"type\": \"doc_link\"}]'::jsonb", d.blocks))
-
       "board", q ->
         from(d in q, where: fragment("? @> '[{\"type\": \"board\"}]'::jsonb", d.blocks))
 
@@ -358,7 +356,6 @@ defmodule Aveline.Docs do
       blocks: Aveline.Workspaces.Template.orientation_blocks()
     })
   end
-
 
   @doc """
   Read-time enrichment, never persisted — computed per read so there is

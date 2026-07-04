@@ -140,10 +140,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
     |> Map.new(&{&1.slug, &1.color})
   end
 
-  defp story_stop_count(item) do
-    Enum.count(item.blocks || [], &(&1["type"] == "doc_link"))
-  end
-
   defp parse_tags(nil), do: []
   defp parse_tags(""), do: []
   defp parse_tags(s) when is_binary(s), do: [s]
@@ -371,13 +367,9 @@ defmodule AvelineWeb.WorkspaceShowLive do
   end
 
   defp type_options do
-    [
-      {"links", "Trails", "has doc links"},
-      {"board", "Boards", "has a kanban"}
-    ]
+    [{"board", "Boards", "has a kanban"}]
   end
 
-  defp has_label("links"), do: "Trails"
   defp has_label("board"), do: "Boards"
   defp has_label(other), do: other
 
@@ -545,15 +537,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
             <.link navigate={~p"/w/#{@workspace.slug}/d/#{i.slug}"} class="card">
               <div class="card-title">
                 {i.title}
-                <%= if (n = story_stop_count(i)) > 0 do %>
-                  <span class="card-trail-chip" title="Story: a chain of linked docs">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                    </svg>
-                    {n} stops
-                  </span>
-                <% end %>
               </div>
               <%= if i.summary do %>
                 <div class="card-summary">{i.summary}</div>
