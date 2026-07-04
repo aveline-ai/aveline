@@ -31,6 +31,13 @@ defmodule Aveline.Repo.Migrations.HouseVersioningModel do
 
     flush()
 
+    # Old live-scoped indexes must go BEFORE the backfill: clearing
+    # deleted_at on superseded history would collide with
+    # `UNIQUE (base) WHERE deleted_at IS NULL` while it still stands.
+    drop index(:docs, [:base_doc_id], name: :docs_one_current_per_base_idx)
+    drop index(:docs, [:workspace_id, :slug], name: :docs_workspace_id_slug_active_index)
+    drop index(:docs, [:workspace_id, :pin_slot], name: :docs_workspace_pin_slot_index)
+
     # Overloaded deleted_at → the split model: any "deleted" row with a
     # newer version was actually superseded.
     execute """
@@ -45,9 +52,6 @@ defmodule Aveline.Repo.Migrations.HouseVersioningModel do
           AND d2.version_number > d.version_number
       )
     """
-
-    drop index(:docs, [:base_doc_id], name: :docs_one_current_per_base_idx)
-    drop index(:docs, [:workspace_id, :slug], name: :docs_workspace_id_slug_active_index)
 
     # One CURRENT row per base — current may be live or deleted, but
     # never plural. Inserting a successor without superseding fails here.
@@ -67,8 +71,6 @@ defmodule Aveline.Repo.Migrations.HouseVersioningModel do
 
     # Pin slots ride on current rows; superseded history must not hold
     # them hostage. (Deleting a doc clears its slot in code.)
-    drop index(:docs, [:workspace_id, :pin_slot], name: :docs_workspace_pin_slot_index)
-
     create unique_index(:docs, [:workspace_id, :pin_slot],
              where: "NOT superseded AND pin_slot IS NOT NULL",
              name: :docs_workspace_pin_slot_index
