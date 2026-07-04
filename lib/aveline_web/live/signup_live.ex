@@ -268,7 +268,7 @@ defmodule AvelineWeb.SignupLive do
 
         <h1 class="auth-title">You're in, {@user.username}</h1>
         <p class="auth-subtitle">
-          Two quick things to get the most out of Aveline.
+          Two quick steps to get going with Aveline.
         </p>
 
         <div class="onboarding-step">
