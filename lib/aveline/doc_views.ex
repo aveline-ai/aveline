@@ -118,6 +118,23 @@ defmodule Aveline.DocViews do
   end
 
   @doc """
+  Has this user's agent ever read this doc? Powers the onboarding
+  page's setup detection: `get-orientation` records an agent view, so
+  an agent view of the orientation doc means the CLI is installed,
+  authed, and oriented.
+  """
+  def agent_viewed?(base_doc_id, user_id) do
+    from(v in DocView,
+      where:
+        v.base_doc_id == ^base_doc_id and v.user_id == ^user_id and
+          v.actor_type == "agent",
+      select: 1,
+      limit: 1
+    )
+    |> Repo.one() != nil
+  end
+
+  @doc """
   Total view count for a logical doc.
   """
   def count_for_base(base_doc_id) when is_binary(base_doc_id) do

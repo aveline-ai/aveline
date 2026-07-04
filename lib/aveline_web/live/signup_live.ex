@@ -14,6 +14,8 @@ defmodule AvelineWeb.SignupLive do
 
   alias Aveline.Accounts
   alias Aveline.Slug
+  alias Aveline.Docs
+  alias Aveline.DocViews
   alias Aveline.Tokens
 
   @impl true
@@ -103,9 +105,12 @@ defmodule AvelineWeb.SignupLive do
                "plaintext_token" => socket.assigns.preview_token
              }) do
           {:ok, %{user: user, workspace: ws, token: plaintext}} ->
+            if connected?(socket), do: Process.send_after(self(), :check_setup, 2_000)
+
             {:noreply,
              assign(socket,
                state: :show_token,
+               setup_done: false,
                result: %{user: user, workspace: ws, token: plaintext}
              )}
 
@@ -117,6 +122,23 @@ defmodule AvelineWeb.SignupLive do
         end
     end
   end
+
+  # Setup detection: the moment the user's Claude reads the orientation
+  # doc over the API (an agent DocView), the Continue button unlocks.
+  @impl true
+  def handle_info(:check_setup, %{assigns: %{state: :show_token}} = socket) do
+    %{user: user, workspace: ws} = socket.assigns.result
+    orientation = Docs.get_orientation(ws.id)
+
+    if orientation && DocViews.agent_viewed?(orientation.base_doc_id, user.id) do
+      {:noreply, assign(socket, setup_done: true)}
+    else
+      Process.send_after(self(), :check_setup, 2_000)
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info(:check_setup, socket), do: {:noreply, socket}
 
   defp check_username(raw) do
     username =
@@ -308,9 +330,20 @@ defmodule AvelineWeb.SignupLive do
         <form action={~p"/login"} method="post" id="continue-form" class="auth-form" style="margin-top:8px">
           <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
           <input type="hidden" name="token" value={@plaintext} />
-          <button id="continue-btn" type="submit" class="auth-submit">
-            Continue to {@workspace.name}
-          </button>
+          <%= if assigns[:setup_done] do %>
+            <p class="setup-status setup-status-done">
+              ✓ Your Claude just read the orientation doc — you're set up.
+            </p>
+            <button id="continue-btn" type="submit" class="auth-submit">
+              Continue to {@workspace.name}
+            </button>
+          <% else %>
+            <p class="setup-status">
+              <span class="setup-pulse" aria-hidden="true"></span>
+              Waiting for your Claude to read the orientation doc…
+            </p>
+            <button type="submit" class="setup-skip">skip for now</button>
+          <% end %>
         </form>
       </div>
     </div>
