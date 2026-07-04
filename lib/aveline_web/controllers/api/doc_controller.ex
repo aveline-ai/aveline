@@ -21,8 +21,8 @@ defmodule AvelineWeb.Api.DocController do
 
     items =
       Docs.list_current(ws.id,
-        pinned: parse_pinned(params["pinned"]),
-        tags: parse_tag_list(params["tag"] || params["tags"])
+        tags: parse_tag_list(params["tag"] || params["tags"]),
+        has: parse_has(params["has"])
       )
 
     Envelope.ok(conn, %{docs: Enum.map(items, &Views.doc_summary/1)})
@@ -39,6 +39,27 @@ defmodule AvelineWeb.Api.DocController do
       item ->
         # Record an agent "read" event — same as the LV connects do.
         DocViews.record(ws.id, item.base_doc_id, user.id, "agent")
+        item = %{item | blocks: Docs.enrich_blocks(item.blocks || [], ws.id)}
+        Envelope.ok(conn, %{doc: Views.doc_full(item)})
+    end
+  end
+
+  @doc """
+  The workspace orientation doc (well-known slug, seeded at workspace
+  creation, undeletable). Agents fetch this first to learn how the
+  workspace is laid out. Same shape as GET /docs/:slug.
+  """
+  def orientation(conn, _params) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    case Docs.get_orientation(ws.id) do
+      nil ->
+        {:error, :not_found}
+
+      item ->
+        DocViews.record(ws.id, item.base_doc_id, user.id, "agent")
+        item = %{item | blocks: Docs.enrich_blocks(item.blocks || [], ws.id)}
         Envelope.ok(conn, %{doc: Views.doc_full(item)})
     end
   end
@@ -52,7 +73,6 @@ defmodule AvelineWeb.Api.DocController do
         "slug": "...",                // optional; auto-derived from title
         "summary": "...",              // optional
         "tags": ["..."],               // must exist in workspace
-        "pinned": false,
         "blocks": [...],               // block array, see Aveline.Blocks
         "intent": "...",               // why
         "actor": "human" | "agent"     // defaults to "agent" for API
@@ -71,7 +91,6 @@ defmodule AvelineWeb.Api.DocController do
       slug: params["slug"],
       summary: params["summary"],
       tags: params["tags"] || [],
-      pinned: !!params["pinned"],
       blocks: params["blocks"] || [],
       workspace_id: ws.id,
       owner_id: user.id,
@@ -104,8 +123,7 @@ defmodule AvelineWeb.Api.DocController do
         ],
         "title": "...",     // optional metadata overrides
         "summary": "...",
-        "tags": [...],
-        "pinned": false
+        "tags": [...]
       }
 
   Returns the new version's id + number so the agent can verify it
@@ -129,7 +147,6 @@ defmodule AvelineWeb.Api.DocController do
         |> maybe_put(:title, params["title"])
         |> maybe_put(:summary, params["summary"])
         |> maybe_put(:tags, params["tags"])
-        |> maybe_put(:pinned, params["pinned"])
 
       with {:ok, item} <-
              Docs.apply_ops(current, ops, update_attrs,
@@ -208,6 +225,44 @@ defmodule AvelineWeb.Api.DocController do
     end
   end
 
+  @doc """
+  Pin a doc to a home-page slot. Body: {"slot": 1..6} — omit slot to
+  take the lowest free one. The orientation doc has its own card and
+  can't be slotted.
+  """
+  def pin(conn, %{"doc_slug" => slug} = params) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
+         {:ok, slot} <- parse_slot(params["slot"]),
+         {:ok, doc} <- Docs.pin(current, slot, user.id) do
+      Envelope.ok(conn, %{slug: doc.slug, pin_slot: doc.pin_slot})
+    end
+  end
+
+  def unpin(conn, %{"doc_slug" => slug}) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
+         {:ok, doc} <- Docs.unpin(current, user.id) do
+      Envelope.ok(conn, %{slug: doc.slug, pin_slot: nil})
+    end
+  end
+
+  defp parse_slot(nil), do: {:ok, nil}
+  defp parse_slot(n) when is_integer(n), do: {:ok, n}
+
+  defp parse_slot(s) when is_binary(s) do
+    case Integer.parse(s) do
+      {n, ""} -> {:ok, n}
+      _ -> {:error, "pin slot must be an integer between 1 and 6"}
+    end
+  end
+
+  defp parse_slot(_), do: {:error, "pin slot must be an integer between 1 and 6"}
+
   # ===== Helpers =====
 
   defp latest_for_slug(ws_id, slug) do
@@ -224,11 +279,14 @@ defmodule AvelineWeb.Api.DocController do
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
-  defp parse_pinned("true"), do: true
-  defp parse_pinned(true), do: true
-  defp parse_pinned("false"), do: false
-  defp parse_pinned(false), do: false
-  defp parse_pinned(_), do: nil
+  # ?has=links,board — structural kind filter (doc contains doc_links /
+  # a board block). Unknown values are ignored.
+  defp parse_has(nil), do: []
+  defp parse_has(""), do: []
+  defp parse_has(list) when is_list(list), do: Enum.filter(list, &(&1 in Docs.has_kinds()))
+
+  defp parse_has(s) when is_binary(s),
+    do: s |> String.split(",", trim: true) |> Enum.filter(&(&1 in Docs.has_kinds()))
 
   defp parse_tag_list(nil), do: []
   defp parse_tag_list(""), do: []

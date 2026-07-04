@@ -28,7 +28,7 @@ defmodule Aveline.Docs.Doc do
              :summary,
              :blocks,
              :tags,
-             :pinned,
+             :pin_slot,
              :actor_type,
              :operations,
              :intent,
@@ -46,7 +46,7 @@ defmodule Aveline.Docs.Doc do
     field :summary, :string
     field :blocks, {:array, :map}, default: []
     field :tags, {:array, :string}, default: []
-    field :pinned, :boolean, default: false
+    field :pin_slot, :integer
     field :actor_type, :string
     field :operations, {:array, :map}, default: []
     field :intent, :string
@@ -58,6 +58,9 @@ defmodule Aveline.Docs.Doc do
     # Docs.apply_ops. The English tsvector is built from this column via
     # the docs_search_idx GIN index.
     field :search_text, :string, default: ""
+    # Mechanism vs intent (house model): superseded = a newer version
+    # exists; deleted_at (+deleted_by) = a human deleted the doc.
+    field :superseded, :boolean, default: false
     field :deleted_at, :utc_datetime_usec
 
     belongs_to :workspace, Workspace, type: :binary_id
@@ -82,7 +85,7 @@ defmodule Aveline.Docs.Doc do
       :summary,
       :blocks,
       :tags,
-      :pinned,
+      :pin_slot,
       :owner_id,
       :actor_user_id,
       :actor_type,
@@ -134,12 +137,21 @@ defmodule Aveline.Docs.Doc do
       length(tags) > @max_tags ->
         add_error(changeset, :tags, "too many tags (max #{@max_tags})")
 
-      Enum.any?(tags, fn t -> not is_binary(t) or Slug.validate(t) != :ok end) ->
+      Enum.any?(tags, fn t -> not is_binary(t) or not valid_tag_slug?(t) end) ->
         add_error(changeset, :tags, "tag_invalid")
 
       true ->
         normalized = tags |> Enum.map(&String.downcase/1) |> Enum.uniq()
         put_change(changeset, :tags, normalized)
+    end
+  end
+
+  # Plain slug or scoped `scope:value` — mirrors Tag.validate_slug_format.
+  defp valid_tag_slug?(slug) do
+    case String.split(slug, ":") do
+      [plain] -> Slug.validate(plain) == :ok
+      [scope, value] -> Slug.validate(scope) == :ok and Slug.validate(value) == :ok
+      _ -> false
     end
   end
 end

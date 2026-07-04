@@ -41,16 +41,15 @@ test_get_doc_returns_version_pointer() {
   expect_present ".doc.base_doc_id" "base doc id present"
 }
 
-test_get_doc_includes_pin_and_tags() {
+test_get_doc_includes_tags() {
   local ws; ws="$(mk_workspace ws-meta)"
   mk_tag "$ws" "meta" >/dev/null
   local blocks; blocks="[$(block_paragraph 'm')]"
-  run_cli -w "$ws" create-doc --title "Meta" --tag meta --pin --blocks "$blocks"
+  run_cli -w "$ws" create-doc --title "Meta" --tag meta --blocks "$blocks"
   expect_ok "doc created"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
   expect_ok "get-doc ok"
-  expect_eq ".doc.pinned" "true" "pinned echoed back"
   if jq -e '.doc.tags | index("meta")' <<<"$LAST_OUT_TEXT" >/dev/null 2>&1; then
     pass "tags echoed back"
   else

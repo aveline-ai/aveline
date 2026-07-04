@@ -162,6 +162,10 @@ ol = fn items ->
     "items" => Enum.map(items, fn spans -> %{"content" => spans} end)
   }
 end
+# Slug form — the server resolves `doc` to the target's base_doc_id.
+doc_link = fn slug, note ->
+  %{"type" => "doc_link", "doc" => slug, "note" => [%{"text" => note}]}
+end
 
 # ===== Tags =====
 # Every tag carries a description (required, 1..280 chars). Pre-created
@@ -178,12 +182,26 @@ tag_specs = [
   {"oncall", "What to do when paged — triage flows and escalation."},
   {"onboarding", "Read-these-first content for new teammates."},
   {"runbook", "Operational playbooks for live incidents."},
-  {"stack", "The components Aveline runs on and how they fit together."}
+  {"stack", "The components Aveline runs on and how they fit together."},
+  # Scoped status tags — enum members (a doc carries at most one
+  # status:*). Creation order here IS board column order. Colors are
+  # optional; these demo the custom-color path.
+  {"status:backlog", "Status: captured, not started.", "#6b7280"},
+  {"status:todo", "Status: next up.", "#3b82f6"},
+  {"status:in-progress", "Status: being worked on now.", "#e09150"},
+  {"status:done", "Status: shipped.", "#22c55e"},
+  {"kanban-feature", "Work on the kanban board feature itself."}
 ]
 
-Enum.each(tag_specs, fn {slug, description} ->
+Enum.each(tag_specs, fn spec ->
+  {slug, description, color} =
+    case spec do
+      {s, d} -> {s, d, nil}
+      {s, d, c} -> {s, d, c}
+    end
+
   case Tags.get(workspace.id, slug) do
-    nil -> {:ok, _} = Tags.create(workspace.id, slug, description, alice.id)
+    nil -> {:ok, _} = Tags.create(workspace.id, slug, description, alice.id, color: color)
     _ -> :ok
   end
 end)
@@ -194,7 +212,6 @@ doc_specs = [
     title: "Stack overview",
     summary: "One-page tour of the Aveline stack — what runs where.",
     owner: alice,
-    pinned: true,
     tags: ["onboarding", "architecture", "stack"],
     blocks: [
       para.([
@@ -221,7 +238,6 @@ doc_specs = [
     title: "Architecture decisions",
     summary: "Running log of \"why we picked X\" so we don't re-litigate it.",
     owner: alice,
-    pinned: true,
     tags: ["onboarding", "architecture", "decisions"],
     blocks: [
       heading.(2, "Phoenix LiveView over a separate SPA"),
@@ -239,7 +255,6 @@ doc_specs = [
     title: "Oncall runbook",
     summary: "First things to do when an alert pages you.",
     owner: bob,
-    pinned: true,
     tags: ["oncall", "runbook"],
     blocks: [
       heading.(2, "1. Acknowledge"),
@@ -263,7 +278,6 @@ doc_specs = [
     title: "Deploy guide",
     summary: "How to ship the backend without breaking prod.",
     owner: bob,
-    pinned: false,
     tags: ["runbook", "deploys", "stack"],
     blocks: [
       heading.(2, "Local pre-flight"),
@@ -280,7 +294,6 @@ doc_specs = [
     title: "Local dev setup",
     summary: "Get the backend, API, and CLI talking on your laptop.",
     owner: alice,
-    pinned: true,
     tags: ["onboarding", "dev"],
     blocks: [
       heading.(2, "Prereqs"),
@@ -299,7 +312,6 @@ doc_specs = [
     title: "Sentry tips",
     summary: "Things that bit us while wiring Sentry 12.",
     owner: alice,
-    pinned: false,
     tags: ["stack", "observability", "runbook"],
     blocks: [
       heading.(2, "DSN gates everything"),
@@ -322,7 +334,6 @@ doc_specs = [
     title: "Database notes",
     summary: "Conventions and gotchas for the Postgres schema.",
     owner: bob,
-    pinned: false,
     tags: ["stack", "database"],
     blocks: [
       heading.(2, "UUIDs everywhere"),
@@ -346,7 +357,6 @@ doc_specs = [
     title: "Code blocks — every language at a glance",
     summary: "A grab-bag of snippets to sanity-check syntax highlighting + monospace rendering.",
     owner: alice,
-    pinned: true,
     tags: ["stack", "examples"],
     blocks: [
       para.([
@@ -416,6 +426,48 @@ doc_specs = [
   }
 ]
 
+# Issue-style docs demoing the tag-driven Board view
+# (scope tag kanban-feature + one status tag each).
+issue = fn title, body, owner, status ->
+  %{
+    slug: title |> String.downcase() |> String.replace(~r/[^a-z0-9]+/, "-") |> String.trim("-"),
+    title: title,
+    summary: body,
+    owner: owner,
+    tags: ["kanban-feature", "status:" <> status],
+    blocks: [para.([t.(body)])]
+  }
+end
+
+doc_specs =
+  doc_specs ++
+    [
+      issue.("Kanban: drag & drop in the web", "Web is read-only for now (humans comment); revisit if pointing at cards ever beats asking your agent.", carol, "backlog"),
+      issue.("Kanban: board block inside worklogs", "Embed a feature's own board under its worklog prose. Should already work — verify and demo it.", bob, "todo"),
+      issue.("Kanban: ship boards-as-docs", "board block + scoped status tags + the Boards directory tab.", alice, "in-progress"),
+      issue.("Kanban: settle the tag model", "Scoped tags (status:todo) with per-scope exclusivity. Decided.", alice, "done"),
+      %{
+        slug: "board-kanban-feature",
+        title: "Kanban feature — board",
+        summary: "Live board for the kanban feature work. Cards are docs tagged kanban-feature; columns come from the status scope.",
+        owner: alice,
+        # Deliberately NOT tagged kanban-feature — a board carrying its
+        # own filter tag becomes one of its own cards.
+        tags: [],
+        blocks: [
+          para.([
+            t.("Everything tagged "),
+            b.("kanban-feature", ["code"]),
+            t.(" below, grouped by "),
+            b.("status", ["code"]),
+            t.(". Agents move cards by retagging: "),
+            b.("aveline apply-ops <slug> --tag kanban-feature --tag status:done --ops \"[]\"", ["code"])
+          ]),
+          %{"type" => "board", "tags" => ["kanban-feature"], "by" => "status"}
+        ]
+      }
+    ]
+
 # Create docs if they don't already exist (idempotent).
 created_docs =
   Enum.map(doc_specs, fn spec ->
@@ -431,7 +483,6 @@ created_docs =
             title: spec.title,
             summary: spec.summary,
             tags: spec.tags,
-            pinned: spec.pinned,
             blocks: spec.blocks,
             intent: "initial seed: write the #{spec.slug} note"
           })
@@ -442,6 +493,35 @@ created_docs =
         existing
     end
   end)
+
+# ===== Story: a doc that chains other docs via doc_link blocks =====
+# Created after the targets above so slug resolution succeeds.
+
+if is_nil(Docs.get_current_by_slug(workspace.id, "onboarding-story")) do
+  {:ok, _story} =
+    Docs.create_doc(%{
+      workspace_id: workspace.id,
+      owner_id: alice.id,
+      actor_user_id: alice.id,
+      actor_type: "agent",
+      slug: "onboarding-story",
+      title: "Story: new teammate onboarding",
+      summary: "Guided trail through the docs a new teammate (or their agent) should read, in order.",
+      tags: ["onboarding"],
+      blocks: [
+        para.([
+          t.("Read these in order. Each stop is a doc_link block — agents can pull the whole chain with "),
+          b.("aveline get-doc onboarding-story --follow", ["code"]),
+          t.(".")
+        ]),
+        doc_link.("local-dev-setup", "Start here — get the app running on your machine."),
+        doc_link.("stack-overview", "Then the shape of the system: what runs where."),
+        doc_link.("architecture-decisions", "The why behind the shape. Don't re-litigate these."),
+        doc_link.("oncall-runbook", "Finally: what to do when it breaks.")
+      ],
+      intent: "seed a story doc demonstrating doc_link chains"
+    })
+end
 
 # ===== Versions: demonstrate the changelog on a couple of docs =====
 
@@ -561,7 +641,7 @@ Enum.each(thread_specs, fn spec ->
             m.actor_user_id == ^author.id and
             m.body == ^spec.body and
             is_nil(m.deleted_at) and
-            is_nil(m.superseded_at)
+            not m.superseded
     )
 
   unless exists? do
@@ -626,11 +706,20 @@ Enum.each(view_specs, fn {username, slug} ->
   if doc, do: DocViews.record(workspace.id, doc.base_doc_id, user.id, "human")
 end)
 
-# A pin toggle so doc_pinned shows up in history. Pin the deploy-guide
-# (it isn't pinned by default).
-if doc = current.("deploy-guide") do
-  unless doc.pinned, do: {:ok, _} = Docs.set_pinned(doc, true, bob.id)
-end
+# Home-page pin slots: a deliberate front page, in a deliberate order.
+# (Also seeds doc_pinned events for the Activity tab.)
+[
+  {1, "onboarding-story"},
+  {2, "stack-overview"},
+  {3, "architecture-decisions"},
+  {4, "oncall-runbook"},
+  {5, "deploy-guide"}
+]
+|> Enum.each(fn {slot, slug} ->
+  with %{pin_slot: nil} = doc <- current.(slug) do
+    {:ok, _} = Docs.pin(doc, slot, bob.id)
+  end
+end)
 
 # Resolve one of the open comment threads to seed a comment_resolved event.
 case Repo.one(
@@ -640,7 +729,7 @@ case Repo.one(
          where:
            d.slug == "stack-overview" and
              c.body == "Worth noting: keep an eye on pool utilization in the managed PG dashboard. If we ever start sitting near the cap during peak, that's the upgrade signal." and
-             is_nil(c.resolved_at) and is_nil(c.deleted_at) and is_nil(c.superseded_at),
+             is_nil(c.resolved_at) and is_nil(c.deleted_at) and not c.superseded,
          limit: 1
      ) do
   nil -> :ok
@@ -778,7 +867,7 @@ Enum.each(users, fn {spec, _} ->
 end)
 
 IO.puts("")
-IO.puts("Docs: #{length(doc_specs)} (stack-overview at v2, oncall-runbook at v3, architecture-decisions at v2 w/ showcase)")
+IO.puts("Docs: #{length(doc_specs)} + onboarding-story (doc_link chain); stack-overview at v2, oncall-runbook at v3, architecture-decisions at v2 w/ showcase")
 IO.puts("Comments: open + resolved + edited + deleted showcased on architecture-decisions; basic threads on three other docs.")
 events_count = Repo.aggregate(Aveline.Events.Event, :count, :id)
 IO.puts("Activity events: #{events_count} (all action types covered)")

@@ -56,6 +56,17 @@ defmodule Aveline.Workspaces do
     %Workspace{}
     |> Workspace.changeset(attrs)
     |> Repo.insert()
+    |> case do
+      {:ok, ws} ->
+        # Every workspace ships with its orientation doc (well-known slug,
+        # undeletable) — the one stable thing a fresh agent can fetch.
+        creator = Map.get(attrs, "created_by_id") || Map.get(attrs, :created_by_id)
+        if creator, do: {:ok, _} = Aveline.Docs.seed_orientation_doc(ws.id, creator)
+        {:ok, ws}
+
+      err ->
+        err
+    end
   end
 
   def update_workspace(%Workspace{} = workspace, attrs) do

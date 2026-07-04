@@ -114,8 +114,7 @@ defmodule AvelineWeb.TagsLive do
     desc = to_string(desc) |> String.trim()
 
     with %Tag{} = tag <- Tags.get(ws.id, slug),
-         {:ok, tag} <- maybe_rename(tag, new_slug, user.id),
-         {:ok, _} <- Tags.update_description(tag, desc, user.id) do
+         {:ok, _} <- Tags.edit(tag, %{slug: new_slug, description: desc}, user.id) do
       {:noreply, socket |> assign(editing: nil) |> load_tags()}
     else
       {:error, :destination_exists} ->
@@ -153,21 +152,10 @@ defmodule AvelineWeb.TagsLive do
          {:ok, _} <- Tags.delete(tag, user.id) do
       {:noreply, socket |> assign(deleting: nil) |> load_tags()}
     else
-      {:error, {:would_orphan_docs, n}} ->
-        {:noreply,
-         put_flash(
-           socket,
-           :error,
-           "Can't delete — #{n} #{plural("doc", n)} would be left with no tags. Add another tag to those docs first."
-         )}
-
       _ ->
         {:noreply, put_flash(socket, :error, "Couldn't delete.")}
     end
   end
-
-  defp maybe_rename(%Tag{slug: same} = tag, same, _user_id), do: {:ok, tag}
-  defp maybe_rename(tag, new_slug, user_id), do: Tags.rename(tag, new_slug, user_id)
 
   defp format_error(%Ecto.Changeset{} = cs) do
     cs
@@ -282,8 +270,13 @@ defmodule AvelineWeb.TagsLive do
                 <div class="tag-row-body">
                   <div class="tag-row-head">
                     <.link
-                      navigate={~p"/w/#{@workspace.slug}?#{[{"tag", [row.tag.slug]}]}"}
+                      navigate={~p"/w/#{@workspace.slug}/docs?#{[{"tag", [row.tag.slug]}]}"}
                       class="chip chip-tag tag-row-chip"
+                      style={
+                        if c = row.tag.color do
+                          "--tag: #{c}; --tag-dim: #{c}14; --tag-border: #{c}40"
+                        end
+                      }
                     >
                       {row.tag.slug}
                     </.link>
@@ -318,25 +311,15 @@ defmodule AvelineWeb.TagsLive do
         <div class="modal-backdrop">
           <div class="modal-card" phx-click-away="cancel_delete">
             <h2 class="modal-title">Delete tag “{@deleting.slug}”?</h2>
-            <%= if @deleting.blocking_count > 0 do %>
-              <p class="modal-body">
-                <strong>{@deleting.blocking_count}</strong>
-                {plural("doc", @deleting.blocking_count)} use
-                <strong>“{@deleting.slug}”</strong> as their only tag.
-                Add another tag to {if @deleting.blocking_count == 1, do: "that doc", else: "those docs"}
-                first — Aveline keeps every doc tagged so it stays
-                discoverable.
-              </p>
-            <% else %>
-              <p class="modal-body">
-                This will remove
-                <strong>“{@deleting.slug}”</strong>
-                from
-                <strong>{@deleting.count}</strong>
-                {plural("doc", @deleting.count)}
-                and delete the tag from the workspace. <strong>This can't be undone.</strong>
-              </p>
-            <% end %>
+            <p class="modal-body">
+              <strong>“{@deleting.slug}”</strong>
+              will disappear from
+              <strong>{@deleting.count}</strong>
+              {plural("doc", @deleting.count)}
+              and from every filter and board. Docs keep the tag under the
+              hood — restoring it brings everything back
+              (<code>aveline restore-tag {@deleting.slug}</code>).
+            </p>
             <div class="modal-actions">
               <button type="button" phx-click="cancel_delete" class="tag-btn-ghost">
                 Cancel
@@ -346,7 +329,6 @@ defmodule AvelineWeb.TagsLive do
                 phx-click="confirm_delete"
                 phx-value-slug={@deleting.slug}
                 class="modal-btn-danger"
-                disabled={@deleting.blocking_count > 0}
               >
                 Delete
               </button>

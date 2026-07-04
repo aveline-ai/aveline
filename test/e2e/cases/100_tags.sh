@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Tags — CRUD, validation, would_orphan_docs.
+# Tags — CRUD, validation, delete cascade.
 
 test_list_tags_empty() {
   local ws; ws="$(mk_workspace ws-t-empty)"
@@ -91,15 +91,65 @@ test_delete_tag_unattached_ok() {
   expect_ok "delete unattached tag ok"
 }
 
-test_delete_tag_would_orphan_docs() {
+test_delete_tag_leaves_docs_tagless() {
   local ws; ws="$(mk_workspace ws-t-orph)"
-  # Create tag, then a doc with ONLY that tag — deleting the tag would
-  # leave the doc with zero tags, which the API rejects.
+  # Tags are an optional lens: deleting a doc's only tag just leaves the
+  # doc untagged.
   run_cli -w "$ws" create-tag --name "lone" --description "lone tag with one doc"
   expect_ok "tag created"
   local blocks; blocks="[$(block_paragraph 'hi')]"
   run_cli -w "$ws" create-doc --title "OneTag" --tag lone --blocks "$blocks"
-  expect_ok "doc created with only one tag"
+  local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" delete-tag "lone"
-  expect_err "would_orphan_docs" 2 "deleting only tag → would_orphan_docs"
+  expect_ok "deleting a doc's only tag succeeds"
+  run_cli -w "$ws" get-doc "$slug"
+  expect_count ".doc.tags" "0" "doc is now tagless, not deleted"
+}
+
+test_tag_color_and_versioned_edits() {
+  local ws; ws="$(mk_workspace ws-t-color)"
+  run_cli -w "$ws" create-tag --name "status:done" --description "Status: shipped." --color "#22c55e"
+  expect_ok "create with color"
+  expect_eq ".tag.color" "#22c55e" "color echoed"
+  expect_eq ".tag.version_number" "1" "v1"
+
+  run_cli -w "$ws" edit-tag "status:done" --color "#16a34a"
+  expect_ok "recolor"
+  expect_eq ".tag.version_number" "2" "recolor made a new version"
+  expect_eq ".tag.color" "#16a34a" "new color"
+
+  run_cli -w "$ws" edit-tag "status:done" --color ""
+  expect_ok "clear color"
+  expect_eq ".tag.color" "null" "color cleared to default"
+  expect_eq ".tag.version_number" "3" "clearing versions too"
+
+  run_cli -w "$ws" edit-tag "status:done" --color "green"
+  expect_err "validation_failed" 2 "non-hex color rejected"
+}
+
+test_tag_restore_brings_attachments_back() {
+  local ws; ws="$(mk_workspace ws-t-restore)"
+  run_cli -w "$ws" create-tag --name "lone" --description "Restorable tag."
+  local blocks; blocks="[$(block_paragraph 'hi')]"
+  run_cli -w "$ws" create-doc --title "Tagged" --tag lone --blocks "$blocks"
+  local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
+
+  run_cli -w "$ws" delete-tag "lone"
+  expect_ok "soft delete"
+  run_cli -w "$ws" get-doc "$slug"
+  expect_count ".doc.tags" "0" "deleted tag hidden from the doc"
+  run_cli -w "$ws" list-tags
+  if jq -e '.tags | map(.slug) | index("lone") | not' <<<"$LAST_OUT_TEXT" >/dev/null 2>&1; then
+    pass "deleted tag hidden from list-tags"
+  else
+    fail "deleted tag still listed"
+  fi
+
+  run_cli -w "$ws" restore-tag "lone"
+  expect_ok "restore"
+  run_cli -w "$ws" get-doc "$slug"
+  expect_count ".doc.tags" "1" "attachment came back with the tag"
+
+  run_cli -w "$ws" restore-tag "lone"
+  expect_err "not_found" 4 "restoring a live tag → not_found (no deleted row)"
 }

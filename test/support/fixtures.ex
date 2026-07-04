@@ -62,7 +62,6 @@ defmodule Aveline.Fixtures do
           slug: Map.get(attrs, :slug),
           summary: Map.get(attrs, :summary),
           tags: Map.get(attrs, :tags, []),
-          pinned: Map.get(attrs, :pinned, false),
           blocks: Map.get(attrs, :blocks, [
             %{"type" => "paragraph", "content" => [%{"text" => "Body #{i}"}]}
           ]),

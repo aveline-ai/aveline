@@ -50,13 +50,6 @@ defmodule AvelineWeb.Api.FallbackController do
         %{unknown_tags: slugs}
       )
 
-  def call(conn, {:error, {:would_orphan_docs, n}}),
-    do:
-      err(conn, 422, "would_orphan_docs",
-        "Cannot delete this tag: #{n} #{pluralize("doc", n)} would be left with no tags. Add another tag to those docs first.",
-        %{orphan_count: n}
-      )
-
   # ===== Comment dispositions =====
 
   def call(conn, {:error, {:disposition_missing, missing}}),
@@ -119,6 +112,32 @@ defmodule AvelineWeb.Api.FallbackController do
     do:
       err(conn, 422, "not_user_deleted",
         "Doc was not user-deleted (it's the current live version or was superseded by a new version)."
+      )
+
+  def call(conn, {:error, :orientation_undeletable}),
+    do:
+      err(conn, 422, "orientation_undeletable",
+        "The workspace orientation doc can't be deleted — every workspace keeps one. Edit it instead."
+      )
+
+  def call(conn, {:error, :pin_limit_reached}),
+    do:
+      err(conn, 422, "pin_limit_reached",
+        "All #{Aveline.Docs.pin_limit()} home-page pin slots are taken. Unpin one first — pins are the curated front page, keep them scarce."
+      )
+
+  def call(conn, {:error, {:pin_slot_taken, slot, occupant}}),
+    do:
+      err(conn, 422, "pin_slot_taken",
+        "Pin slot #{slot} is held by \"#{occupant}\". Unpin or re-slot it first — slots never displace silently.",
+        %{slot: slot, occupant: occupant}
+      )
+
+  def call(conn, {:error, {:tag_scope_conflict, scope, tags}}),
+    do:
+      err(conn, 422, "tag_scope_conflict",
+        "A doc can carry at most one tag per scope — the set has #{Enum.join(tags, " and ")}. Scoped tags (#{scope}:*) are mutually exclusive options.",
+        %{scope: scope, tags: tags}
       )
 
   # ===== Workspace memberships =====
@@ -209,6 +228,4 @@ defmodule AvelineWeb.Api.FallbackController do
   defp maybe_add(map, _key, nil), do: map
   defp maybe_add(map, key, value), do: Map.put(map, key, value)
 
-  defp pluralize(noun, 1), do: noun
-  defp pluralize(noun, _), do: noun <> "s"
 end

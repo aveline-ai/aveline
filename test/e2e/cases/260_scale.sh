@@ -58,7 +58,7 @@ test_list_docs_with_many_docs() {
   done
   run_cli -w "$ws" list-docs
   expect_ok "list-docs ok"
-  expect_count ".docs" "25" "25 docs"
+  expect_count "$MY_DOCS" "25" "25 docs"
 }
 
 test_apply_ops_with_many_ops_in_one_call() {

@@ -110,7 +110,7 @@ defmodule Aveline.DocsApplyOpsTest do
       # to the new doc-version, with body / block_id / resolved_at all
       # carried forward verbatim.
       v1 = Repo.get!(Aveline.Comments.Comment, c.id)
-      assert v1.superseded_at != nil
+      assert v1.superseded
       assert v1.deleted_at == nil
 
       live = Aveline.Comments.get_current_by_base(c.base_comment_id)

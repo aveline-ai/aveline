@@ -8,7 +8,7 @@ defmodule AvelineWeb.Api.TagController do
   - Every tag carries a required description (6-280 chars) — the LLM
     needs it to understand what the tag covers when searching.
   - Renaming into a slug that's already taken returns `slug_taken`.
-  - Deleting a tag returns `would_orphan_docs` if any doc uses it
+  - Deleting a tag detaches it everywhere; docs may end up tagless
     as its only tag — we keep the "every doc has ≥1 tag" invariant.
   """
   use AvelineWeb, :controller
@@ -48,7 +48,8 @@ defmodule AvelineWeb.Api.TagController do
              ws.id,
              raw_slug |> to_string() |> String.trim() |> String.downcase(),
              params["description"] |> to_string() |> String.trim(),
-             user.id
+             user.id,
+             color: params["color"]
            ) do
       Envelope.ok(conn, %{tag: Views.tag(tag)})
     end
@@ -65,18 +66,45 @@ defmodule AvelineWeb.Api.TagController do
     user = conn.assigns.current_user
     # `name` accepted as an alias for `new_slug` (agent-friendly).
     raw_new = params["new_slug"] || params["name"]
-    new_slug = (raw_new || slug) |> to_string() |> String.trim() |> String.downcase()
-    # Distinguish "no description in payload" (skip) from "" (caller is
-    # trying to clear it — that's a validation error).
-    desc_param = params["description"]
+
+    changes =
+      %{}
+      |> then(fn c -> if raw_new, do: Map.put(c, :slug, raw_new), else: c end)
+      |> then(fn c ->
+        case params["description"] do
+          nil -> c
+          d -> Map.put(c, :description, to_string(d) |> String.trim())
+        end
+      end)
+      |> then(fn c ->
+        # "" clears the color back to the default; absent leaves it alone.
+        case params["color"] do
+          nil -> c
+          "" -> Map.put(c, :color, nil)
+          color -> Map.put(c, :color, color)
+        end
+      end)
 
     with %Tag{} = tag <- Tags.get(ws.id, slug) || {:error, :not_found},
-         {:ok, tag} <- maybe_rename(tag, new_slug, user.id),
-         {:ok, tag} <- maybe_update_desc(tag, desc_param, user.id) do
+         {:ok, tag} <- Tags.edit(tag, changes, user.id) do
       Envelope.ok(conn, %{tag: Views.tag(tag)})
     else
       {:error, :destination_exists} -> {:error, :slug_taken}
       {:error, _} = err -> err
+    end
+  end
+
+  @doc """
+  Restore a soft-deleted tag. Every doc that carried it shows it again
+  instantly — the attachments never left the doc rows.
+  """
+  def restore(conn, %{"slug" => slug}) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    with %Tag{} = tag <- Tags.get_deleted(ws.id, slug) || {:error, :not_found},
+         {:ok, tag} <- Tags.restore(tag, user.id) do
+      Envelope.ok(conn, %{tag: Views.tag(tag)})
     end
   end
 
@@ -90,15 +118,5 @@ defmodule AvelineWeb.Api.TagController do
     end
   end
 
-  defp maybe_rename(%Tag{slug: same} = tag, same, _user_id), do: {:ok, tag}
-  defp maybe_rename(tag, new_slug, user_id), do: Tags.rename(tag, new_slug, user_id)
 
-  # nil ⇒ caller didn't pass --description, leave as-is.
-  defp maybe_update_desc(tag, nil, _user_id), do: {:ok, tag}
-  defp maybe_update_desc(%Tag{description: same} = tag, same, _user_id), do: {:ok, tag}
-  defp maybe_update_desc(_tag, "", _user_id),
-    do: {:error, %Ecto.Changeset{errors: [description: {"can't be blank", []}]}}
-  defp maybe_update_desc(tag, desc, user_id) when is_binary(desc) do
-    Tags.update_description(tag, String.trim(desc), user_id)
-  end
 end

@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# apply-ops metadata round-trips — title/summary/tags/pinned modifiable
+# apply-ops metadata round-trips — title/summary/tags modifiable
 # via apply-ops without re-creating the doc.
 
 test_apply_ops_updates_title() {
@@ -40,28 +40,26 @@ test_apply_ops_updates_tags() {
   fi
 }
 
-test_apply_ops_pin_then_unpin() {
+test_pin_slot_survives_apply_ops() {
   local ws; ws="$(mk_workspace ws-am-pin)"
-  local slug; slug="$(mk_doc "$ws" "Movable")"
-  local ops; ops="[$(jq -nc --argjson b "$(block_paragraph 'x')" '{op:"append_block",block:$b}')]"
-  run_cli -w "$ws" apply-ops "$slug" --ops "$ops" --pin
-  expect_ok "pin"
+  local blocks; blocks="[$(block_paragraph 'm')]"
+  run_cli -w "$ws" create-doc --title "M" --blocks "$blocks"
+  local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
+  run_cli -w "$ws" pin-doc "$slug" --slot 3
+  expect_ok "pinned to slot 3"
+  local ops; ops="[$(jq -nc '{op: "append_block", block: {type: "paragraph", content: [{text: "v2"}]}}')]"
+  run_cli -w "$ws" apply-ops "$slug" --ops "$ops" --intent "edit"
+  expect_ok "new version shipped"
   run_cli -w "$ws" get-doc "$slug"
-  expect_eq ".doc.pinned" "true" "pinned now"
-  local ops2; ops2="[$(jq -nc --argjson b "$(block_paragraph 'y')" '{op:"append_block",block:$b}')]"
-  run_cli -w "$ws" apply-ops "$slug" --ops "$ops2" --unpin
-  expect_ok "unpin"
-  run_cli -w "$ws" get-doc "$slug"
-  expect_eq ".doc.pinned" "false" "unpinned now"
+  expect_eq ".doc.pin_slot" "3" "slot survives the new version"
 }
-
 test_apply_ops_no_metadata_preserves_current_values() {
   # Apply-ops with no --title/--summary/--tag should preserve previous
   # metadata.
   local ws; ws="$(mk_workspace ws-am-pres)"
   mk_tag "$ws" "stable" >/dev/null
   local blocks; blocks="[$(block_paragraph 'x')]"
-  run_cli -w "$ws" create-doc --title "Persistent" --summary "stays" --tag stable --pin --blocks "$blocks"
+  run_cli -w "$ws" create-doc --title "Persistent" --summary "stays" --tag stable --blocks "$blocks"
   expect_ok "create"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   local ops; ops="[$(jq -nc --argjson b "$(block_paragraph 'y')" '{op:"append_block",block:$b}')]"
@@ -70,7 +68,6 @@ test_apply_ops_no_metadata_preserves_current_values() {
   run_cli -w "$ws" get-doc "$slug"
   expect_eq ".doc.title" "Persistent" "title preserved"
   expect_eq ".doc.summary" "stays" "summary preserved"
-  expect_eq ".doc.pinned" "true" "pinned preserved"
   if jq -e '.doc.tags | index("stable")' <<<"$LAST_OUT_TEXT" >/dev/null 2>&1; then
     pass "tags preserved"
   else

@@ -30,8 +30,12 @@ defmodule AvelineWeb.Api.ErrorCodes do
   | already_member             | 422  | user is already a member                                                             |
   | not_member                 | 422  | user is not a member of the workspace                                                |
   | not_user_deleted           | 422  | tried to restore a doc that wasn't user-deleted (e.g. it was superseded)            |
-  | would_orphan_docs          | 422  | deleting this tag would leave one or more docs with no tags                          |
   | stale_version              | 422  | tried to edit/delete a comment row that's already superseded or deleted              |
+  | doc_link_target_not_found  | 422  | doc_link block references a doc that doesn't exist in this workspace                 |
+  | orientation_undeletable    | 422  | tried to delete the workspace orientation doc                                        |
+  | pin_limit_reached          | 422  | all 6 home-page pin slots are taken — unpin one first                                |
+  | pin_slot_taken             | 422  | that home-page pin slot is occupied by another doc                                   |
+  | tag_scope_conflict         | 422  | tag set carries two tags from the same scope (e.g. status:todo + status:done)        |
   | internal_error             | 500  | something unexpected blew up                                                          |
   """
 
@@ -58,8 +62,12 @@ defmodule AvelineWeb.Api.ErrorCodes do
       already_member
       not_member
       not_user_deleted
-      would_orphan_docs
       stale_version
+      doc_link_target_not_found
+      orientation_undeletable
+      pin_limit_reached
+      pin_slot_taken
+      tag_scope_conflict
       internal_error
     )
   end

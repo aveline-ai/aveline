@@ -29,16 +29,16 @@ defmodule Aveline.Docs do
 
   # ===== Read =====
 
+  # Live = current version (not superseded) and not human-deleted.
   def base_query do
-    from d in Doc, where: is_nil(d.deleted_at)
+    from d in Doc, where: not d.superseded and is_nil(d.deleted_at)
   end
 
   def list_current(workspace_id, opts \\ []) do
-    pinned = Keyword.get(opts, :pinned, nil)
-    pin_mode = Keyword.get(opts, :pin_mode, :pinned_first)
     sort = Keyword.get(opts, :sort, :recent)
     tags = Keyword.get(opts, :tags, []) || []
     owner_ids = Keyword.get(opts, :owner_ids, []) || []
+    has = Keyword.get(opts, :has, []) || []
     search = (Keyword.get(opts, :search) || "") |> to_string() |> String.trim()
     limit = Keyword.get(opts, :limit)
     offset = Keyword.get(opts, :offset, 0)
@@ -48,14 +48,58 @@ defmodule Aveline.Docs do
         where: d.workspace_id == ^workspace_id
 
     base
-    |> apply_pin_filter(pinned)
     |> maybe_filter_tags(tags)
     |> maybe_filter_owners(owner_ids)
+    |> maybe_filter_has(has)
     |> maybe_filter_search(search)
-    |> apply_sort(sort, pin_mode)
+    |> apply_sort(sort)
     |> maybe_paginate(limit, offset)
     |> Repo.all()
     |> Repo.preload([:owner, :actor_user])
+    |> scrub_deleted_tags(workspace_id)
+  end
+
+  # Soft-deleted tags stay on doc rows (so restoring a tag brings every
+  # attachment back) but are invisible to current reads — scrubbed here
+  # at the read boundary. Historical version reads keep raw tags. A doc
+  # edited while a tag is deleted persists the scrubbed set — the
+  # visible set at edit time is the honest one.
+  defp scrub_deleted_tags(docs, workspace_id) when is_list(docs) do
+    live = Tags.live_slug_set(workspace_id)
+
+    Enum.map(docs, fn d ->
+      %{d | tags: Enum.filter(d.tags || [], &MapSet.member?(live, &1))}
+    end)
+  end
+
+  defp scrub_deleted_tags(nil, _workspace_id), do: nil
+
+  defp scrub_deleted_tags(%Doc{} = doc, workspace_id),
+    do: docs_scrub_one(doc, workspace_id)
+
+  defp docs_scrub_one(doc, workspace_id) do
+    [scrubbed] = scrub_deleted_tags([doc], workspace_id)
+    scrubbed
+  end
+
+  @doc "Structural doc kinds the `has:` filter understands."
+  def has_kinds, do: ~w(links board)
+
+  # Structural kind filters — a doc is a trail/board because of what's
+  # in its blocks (jsonb containment; multiple values AND together).
+  defp maybe_filter_has(query, []), do: query
+
+  defp maybe_filter_has(query, kinds) when is_list(kinds) do
+    Enum.reduce(kinds, query, fn
+      "links", q ->
+        from(d in q, where: fragment("? @> '[{\"type\": \"doc_link\"}]'::jsonb", d.blocks))
+
+      "board", q ->
+        from(d in q, where: fragment("? @> '[{\"type\": \"board\"}]'::jsonb", d.blocks))
+
+      _, q ->
+        q
+    end)
   end
 
   # Postgres full-text: websearch_to_tsquery handles the user-facing syntax
@@ -81,41 +125,23 @@ defmodule Aveline.Docs do
   defp maybe_paginate(query, limit, offset),
     do: from(d in query, limit: ^limit, offset: ^offset)
 
-  # `:pinned` boolean is the legacy API knob (used by saved views that
-  # need to enforce pin filtering). Pin sorting is independent — see
-  # `pin_mode` below. Sorts only sort; they never filter.
-  defp apply_pin_filter(query, true), do: from(d in query, where: d.pinned == true)
-  defp apply_pin_filter(query, false), do: from(d in query, where: d.pinned == false)
-  defp apply_pin_filter(query, _), do: query
-
   # Sort modes:
   #   :recent → updated_at desc
   #   :kudos  → kudos count desc, then updated_at desc
   #   :views  → view count desc, then updated_at desc
-  # Each respects pin_mode: pinned bubble to top unless `:interleave`.
-  defp apply_sort(query, :recent, :interleave),
+  # Pins are a home-page concept; they don't influence list ordering.
+  defp apply_sort(query, :recent),
     do: from(d in query, order_by: [desc: d.updated_at])
 
-  defp apply_sort(query, :recent, _pin_mode),
-    do: from(d in query, order_by: [desc: d.pinned, desc: d.updated_at])
+  defp apply_sort(query, :kudos), do: count_join_sort(query, "doc_kudos")
+  defp apply_sort(query, :views), do: count_join_sort(query, "doc_views")
 
-  defp apply_sort(query, :kudos, pin_mode), do: count_join_sort(query, "doc_kudos", pin_mode)
-  defp apply_sort(query, :views, pin_mode), do: count_join_sort(query, "doc_views", pin_mode)
-
-  defp count_join_sort(query, table, pin_mode) do
-    q =
-      from d in query,
-        left_join: x in ^table,
-        on: x.base_doc_id == d.base_doc_id,
-        group_by: d.id
-
-    if pin_mode == :interleave do
-      from [d, x] in q,
-        order_by: [desc: count(x.id), desc: d.updated_at]
-    else
-      from [d, x] in q,
-        order_by: [desc: d.pinned, desc: count(x.id), desc: d.updated_at]
-    end
+  defp count_join_sort(query, table) do
+    from d in query,
+      left_join: x in ^table,
+      on: x.base_doc_id == d.base_doc_id,
+      group_by: d.id,
+      order_by: [desc: count(x.id), desc: d.updated_at]
   end
 
   defp maybe_filter_tags(query, []), do: query
@@ -130,6 +156,7 @@ defmodule Aveline.Docs do
       preload: [:owner, :actor_user]
     )
     |> Repo.one()
+    |> scrub_deleted_tags(workspace_id)
   end
 
   def get_current_by_base(base_doc_id) when is_binary(base_doc_id) do
@@ -138,16 +165,23 @@ defmodule Aveline.Docs do
       preload: [:owner, :actor_user]
     )
     |> Repo.one()
+    |> case do
+      nil -> nil
+      doc -> scrub_deleted_tags(doc, doc.workspace_id)
+    end
   end
 
-  # Distinct tags across all current (non-deleted) docs in a workspace,
-  # sorted alphabetically. Used by the chip row on All Docs.
+  # Distinct LIVE tags across all current (non-deleted) docs in a
+  # workspace, sorted alphabetically. Feeds the Docs filter dropdowns.
   def list_workspace_tags(workspace_id) do
+    live = Tags.live_slug_set(workspace_id)
+
     from(d in base_query(),
       where: d.workspace_id == ^workspace_id,
       select: fragment("DISTINCT UNNEST(?)", d.tags)
     )
     |> Repo.all()
+    |> Enum.filter(&MapSet.member?(live, &1))
     |> Enum.sort()
   end
   def list_versions(base_doc_id) when is_binary(base_doc_id) do
@@ -184,12 +218,295 @@ defmodule Aveline.Docs do
       from(d in base_query(),
         where: d.workspace_id == ^ws_id and d.base_doc_id != ^base,
         where: fragment("? && ?::varchar[]", d.tags, ^tags),
-        order_by: [desc: d.pinned, desc: d.updated_at],
+        order_by: [desc: d.updated_at],
         limit: ^limit,
         preload: [:owner]
       )
       |> Repo.all()
     end
+  end
+
+  # ===== Orientation doc =====
+  # Every workspace carries a doc at this well-known slug — "how we use
+  # Aveline here." It's an ordinary doc in every way (versioned,
+  # commentable, doc_links welcome) except it can't be deleted: it's the
+  # one stable thing a fresh agent can fetch to orient itself.
+
+  @orientation_slug "agents"
+
+  # Home-page pins: 6 numbered slots per workspace. Pinning means
+  # exactly one thing — this doc holds that slot on the home page, in
+  # that position. The orientation doc has its own card above the shelf
+  # and never takes a slot. Slot state lives on the current version row
+  # and is mutated in place (navigation metadata, not content — same
+  # treatment set_pinned always had).
+  @pin_limit 6
+
+  @doc "The well-known slug of the workspace orientation doc."
+  def orientation_slug, do: @orientation_slug
+
+  @doc "Number of home-page pin slots per workspace."
+  def pin_limit, do: @pin_limit
+
+  @doc "The workspace's pinned docs, in slot order."
+  def list_pinned(workspace_id) do
+    from(d in base_query(),
+      where: d.workspace_id == ^workspace_id and not is_nil(d.pin_slot),
+      order_by: [asc: d.pin_slot],
+      preload: [:owner, :actor_user]
+    )
+    |> Repo.all()
+    |> scrub_deleted_tags(workspace_id)
+  end
+
+  @doc """
+  Pin a doc to a home-page slot. With `slot: nil` the lowest free slot
+  is taken. Errors: `:pin_limit_reached` (no free slot),
+  `{:pin_slot_taken, occupant_slug}` (explicit slot occupied — unpin or
+  re-slot the occupant first; no silent displacement), and a plain
+  message for the orientation doc, which has its own card.
+  """
+  def pin(doc, slot \\ nil, actor_user_id \\ nil)
+
+  def pin(%Doc{slug: @orientation_slug}, _slot, _actor),
+    do: {:error, "the orientation doc has its own card on the home page; it can't take a pin slot"}
+
+  def pin(%Doc{} = doc, slot, actor_user_id) when is_nil(slot) or slot in 1..6 do
+    taken =
+      from(d in base_query(),
+        where:
+          d.workspace_id == ^doc.workspace_id and not is_nil(d.pin_slot) and
+            d.base_doc_id != ^doc.base_doc_id,
+        select: {d.pin_slot, d.slug}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    resolved_slot = slot || Enum.find(1..@pin_limit, &(not Map.has_key?(taken, &1)))
+
+    cond do
+      is_nil(resolved_slot) ->
+        {:error, :pin_limit_reached}
+
+      occupant = taken[resolved_slot] ->
+        {:error, {:pin_slot_taken, resolved_slot, occupant}}
+
+      true ->
+        update_pin_slot(doc, resolved_slot, actor_user_id)
+    end
+  end
+
+  def pin(%Doc{}, _slot, _actor), do: {:error, "pin slot must be between 1 and #{@pin_limit}"}
+
+  @doc "Free a doc's home-page slot. No-op error if it wasn't pinned."
+  def unpin(%Doc{pin_slot: nil}, _actor_user_id), do: {:error, "doc is not pinned"}
+  def unpin(%Doc{} = doc, actor_user_id), do: update_pin_slot(doc, nil, actor_user_id)
+
+  defp update_pin_slot(%Doc{} = doc, slot, actor_user_id) do
+    doc
+    |> Ecto.Changeset.change(%{pin_slot: slot})
+    |> Repo.update()
+    |> case do
+      {:ok, updated} ->
+        updated = Repo.preload(updated, [:owner, :actor_user])
+        Broadcasts.publish_doc_event(:doc_updated, updated)
+
+        Events.record(%{
+          workspace_id: updated.workspace_id,
+          actor: actor_user_id,
+          actor_type: "agent",
+          action: if(slot, do: "doc_pinned", else: "doc_unpinned"),
+          target_kind: "doc",
+          target_id: updated.base_doc_id,
+          target_slug: updated.slug,
+          target_label: updated.title,
+          data: if(slot, do: %{"slot" => slot}, else: %{})
+        })
+
+        {:ok, updated}
+
+      err ->
+        err
+    end
+  end
+
+  @doc "The workspace's orientation doc, or nil for pre-convention workspaces."
+  def get_orientation(workspace_id), do: get_current_by_slug(workspace_id, @orientation_slug)
+
+  @doc """
+  Seed the default orientation doc into a fresh workspace. The template
+  is a form to fill in, not prose — short prompts the team (or their
+  agents) replace as conventions emerge.
+  """
+  def seed_orientation_doc(workspace_id, owner_id) do
+    create_doc(%{
+      workspace_id: workspace_id,
+      owner_id: owner_id,
+      actor_user_id: owner_id,
+      actor_type: "human",
+      slug: @orientation_slug,
+      title: "How we use Aveline here",
+      summary:
+        "What lives in this workspace and how the team works. Agents fetch this first (aveline get-orientation --follow); humans keep it honest.",
+      intent: "seed the workspace orientation doc",
+      blocks: orientation_template_blocks()
+    })
+  end
+
+  defp orientation_template_blocks do
+    [
+      %{
+        "type" => "paragraph",
+        "content" => [
+          %{"text" => "Agent: read this before anything else. It explains what lives in this workspace and how the team works. It's a normal doc — when conventions change, update it (with intent) like any other doc."}
+        ]
+      },
+      %{"type" => "heading", "level" => 2, "text" => "What this workspace is for"},
+      %{
+        "type" => "paragraph",
+        "content" => [
+          %{"text" => "(Fill in: one or two lines on what this team does and what knowledge belongs here.)"}
+        ]
+      },
+      %{"type" => "heading", "level" => 2, "text" => "Read these first"},
+      %{
+        "type" => "paragraph",
+        "content" => [
+          %{"text" => "(Add "},
+          %{"text" => "doc_link", "marks" => ["code"]},
+          %{"text" => " blocks to the docs every new agent should read, in order. "},
+          %{"text" => "aveline get-orientation --follow", "marks" => ["code"]},
+          %{"text" => " then pulls the whole chain in one call.)"}
+        ]
+      },
+      %{"type" => "heading", "level" => 2, "text" => "Conventions"},
+      %{
+        "type" => "list",
+        "ordered" => false,
+        "items" => [
+          %{"content" => [%{"text" => "(Tags we use and what each means.)"}]},
+          %{"content" => [%{"text" => "(When to create a new doc vs. edit an existing one.)"}]},
+          %{"content" => [%{"text" => "(Where ideas and friction go — e.g. a wishlist doc humans triage.)"}]}
+        ]
+      },
+      %{"type" => "heading", "level" => 2, "text" => "How you interact"},
+      %{
+        "type" => "code",
+        "language" => "sh",
+        "content" =>
+          "aveline list-docs\naveline get-doc <slug>\naveline create-comment <slug> --body \"...\"\naveline apply-ops <slug> --ops ops.json --intent \"why\""
+      }
+    ]
+  end
+
+  @doc """
+  Read-time enrichment, never persisted — computed per read so there is
+  nothing to keep in sync:
+
+    * doc_link blocks gain a `"target"` map echoing the linked doc's
+      current slug/title/summary/state (soft-deleted targets echo their
+      latest metadata plus `"deleted" => true`)
+    * board blocks gain a `"view"` map — columns (the `by` scope's
+      members in creation order) and cards (docs matching the filter
+      tags, each with its column)
+  """
+  def enrich_blocks(blocks, workspace_id) when is_list(blocks) do
+    blocks
+    |> enrich_doc_links(workspace_id)
+    |> Enum.map(fn
+      %{"type" => "board"} = b -> Map.put(b, "view", board_view(b, workspace_id))
+      b -> b
+    end)
+  end
+
+  def enrich_blocks(blocks, _workspace_id), do: blocks
+
+  defp board_view(%{"tags" => filter, "by" => scope}, workspace_id) do
+    columns = Tags.list_scope_members(workspace_id, scope)
+
+    colors =
+      workspace_id
+      |> Tags.list_for_workspace()
+      |> Enum.filter(&(&1.slug in columns and not is_nil(&1.color)))
+      |> Map.new(&{&1.slug, &1.color})
+
+    cards =
+      workspace_id
+      |> list_current(tags: filter)
+      |> Enum.map(fn d ->
+        %{
+          "slug" => d.slug,
+          "title" => d.title,
+          "summary" => d.summary,
+          "owner" => d.owner && d.owner.username,
+          "updated_at" => d.updated_at && DateTime.to_iso8601(d.updated_at),
+          # Exclusivity guarantees at most one match.
+          "column" => Enum.find(columns, &(&1 in d.tags))
+        }
+      end)
+
+    %{"columns" => columns, "colors" => colors, "cards" => cards}
+  end
+
+  defp board_view(_block, _ws), do: %{"columns" => [], "cards" => []}
+
+  defp enrich_doc_links(blocks, workspace_id) when is_list(blocks) do
+    ids =
+      for %{"type" => "doc_link", "doc_id" => id} <- blocks,
+          is_binary(id),
+          uniq: true,
+          do: id
+
+    if ids == [] do
+      blocks
+    else
+      live =
+        from(d in base_query(),
+          where: d.workspace_id == ^workspace_id and d.base_doc_id in ^ids
+        )
+        |> Repo.all()
+        |> Map.new(&{&1.base_doc_id, &1})
+
+      dead =
+        case ids -- Map.keys(live) do
+          [] ->
+            %{}
+
+          missing ->
+            from(d in Doc,
+              where:
+                d.workspace_id == ^workspace_id and d.base_doc_id in ^missing and
+                  not d.superseded
+            )
+            |> Repo.all()
+            |> Map.new(&{&1.base_doc_id, &1})
+        end
+
+      Enum.map(blocks, fn
+        %{"type" => "doc_link", "doc_id" => id} = b ->
+          Map.put(b, "target", doc_link_target(live[id], dead[id]))
+
+        b ->
+          b
+      end)
+    end
+  end
+
+  defp enrich_doc_links(blocks, _workspace_id), do: blocks
+
+  defp doc_link_target(%Doc{} = live, _dead), do: doc_link_target_map(live, false)
+  defp doc_link_target(nil, %Doc{} = dead), do: doc_link_target_map(dead, true)
+  # Target vanished entirely (e.g. hard-cleaned in a test DB); render as deleted.
+  defp doc_link_target(nil, nil), do: %{"deleted" => true}
+
+  defp doc_link_target_map(%Doc{} = d, deleted?) do
+    %{
+      "slug" => d.slug,
+      "title" => d.title,
+      "summary" => d.summary,
+      "updated_at" => d.updated_at && DateTime.to_iso8601(d.updated_at),
+      "deleted" => deleted?
+    }
   end
 
   # ===== Write — single path =====
@@ -217,7 +534,6 @@ defmodule Aveline.Docs do
         title: title,
         summary: Map.get(attrs, :summary),
         tags: Map.get(attrs, :tags, []),
-        pinned: Map.get(attrs, :pinned, false),
         owner_id: Map.fetch!(attrs, :owner_id),
         actor_user_id: Map.fetch!(attrs, :actor_user_id),
         actor_type: Map.fetch!(attrs, :actor_type)
@@ -236,6 +552,8 @@ defmodule Aveline.Docs do
     tags = Map.get(base_attrs, :tags, []) || []
 
     with :ok <- Tags.ensure_all_exist(ws_id, tags),
+         :ok <- Tags.ensure_no_scope_conflict(tags),
+         {:ok, ops} <- resolve_doc_links(ops, ws_id),
          {:ok, new_blocks} <- run_document_apply([], ops) do
       insert_version(:new, new_blocks, ops, base_attrs, opts)
     end
@@ -246,10 +564,101 @@ defmodule Aveline.Docs do
     tags = Map.get(update_attrs, :tags, current.tags) || []
 
     with :ok <- Tags.ensure_all_exist(current.workspace_id, tags),
+         :ok <- Tags.ensure_no_scope_conflict(tags),
+         {:ok, ops} <- resolve_doc_links(ops, current.workspace_id),
          {:ok, new_blocks} <- run_document_apply(current.blocks || [], ops) do
       insert_version(current, new_blocks, ops, update_attrs, opts)
     end
   end
+
+  # ===== doc_link resolution =====
+  # doc_link blocks may arrive with `doc` (a slug) instead of `doc_id`.
+  # Resolve slugs against the workspace's current docs and verify every
+  # doc_id targets a doc that exists here — before Document.apply_ops, so
+  # Block validation only ever sees a canonical doc_id. The stored ops are
+  # the resolved ones: version replay stays deterministic even if a slug
+  # is later reused.
+
+  defp resolve_doc_links(ops, workspace_id) when is_list(ops) do
+    Enum.reduce_while(ops, {:ok, []}, fn op, {:ok, acc} ->
+      case resolve_op_doc_link(op, workspace_id) do
+        {:ok, resolved} -> {:cont, {:ok, acc ++ [resolved]}}
+        err -> {:halt, err}
+      end
+    end)
+  end
+
+  defp resolve_doc_links(ops, _workspace_id), do: {:ok, ops}
+
+  defp resolve_op_doc_link(%{"op" => o, "block" => %{} = block} = op, ws_id)
+       when o in ["append_block", "insert_block"] do
+    with {:ok, block} <- resolve_block_doc_link(block, ws_id) do
+      {:ok, Map.put(op, "block", block)}
+    end
+  end
+
+  defp resolve_op_doc_link(%{"op" => "modify_block", "patch" => %{} = patch} = op, ws_id) do
+    if Map.has_key?(patch, "doc") or Map.has_key?(patch, "doc_id") do
+      with {:ok, patch} <- resolve_block_doc_link(patch, ws_id) do
+        {:ok, Map.put(op, "patch", patch)}
+      end
+    else
+      {:ok, op}
+    end
+  end
+
+  defp resolve_op_doc_link(op, _ws_id), do: {:ok, op}
+
+  # Board blocks validate their filter tags at write time (same spirit
+  # as doc_link target checks): a board over unknown tags is a typo, not
+  # an empty board.
+  defp resolve_block_doc_link(%{"type" => "board", "tags" => tags} = block, ws_id)
+       when is_list(tags) do
+    case Tags.ensure_all_exist(ws_id, Enum.filter(tags, &is_binary/1)) do
+      :ok -> {:ok, block}
+      err -> err
+    end
+  end
+
+  defp resolve_block_doc_link(%{"type" => t} = block, _ws_id)
+       when is_binary(t) and t != "doc_link",
+       do: {:ok, block}
+
+  defp resolve_block_doc_link(%{"doc" => slug} = block, ws_id) when is_binary(slug) do
+    case get_current_by_slug(ws_id, slug) do
+      nil ->
+        {:error, :doc_link_target_not_found, "doc_link target not found in this workspace: #{slug}"}
+
+      %Doc{base_doc_id: base} ->
+        {:ok, block |> Map.delete("doc") |> Map.put("doc_id", base)}
+    end
+  end
+
+  defp resolve_block_doc_link(%{"doc_id" => doc_id} = block, ws_id) when is_binary(doc_id) do
+    case Ecto.UUID.cast(doc_id) do
+      # Not UUID-shaped: pass through so Block.validate rejects it with the
+      # schema error instead of this query raising a CastError.
+      :error ->
+        {:ok, block}
+
+      {:ok, _} ->
+        exists? =
+          from(d in base_query(),
+            where: d.workspace_id == ^ws_id and d.base_doc_id == ^doc_id,
+            select: true,
+            limit: 1
+          )
+          |> Repo.one()
+
+        if exists?,
+          do: {:ok, block},
+          else:
+            {:error, :doc_link_target_not_found,
+             "doc_link target not found in this workspace: #{doc_id}"}
+    end
+  end
+
+  defp resolve_block_doc_link(block, _ws_id), do: {:ok, block}
 
   defp run_document_apply(blocks, ops) do
     case Document.apply_ops(blocks, ops) do
@@ -288,7 +697,6 @@ defmodule Aveline.Docs do
 
     with {:ok, dispositions} <-
            resolve_dispositions(current, new_blocks, ops, actor_type, opts) do
-      now = DateTime.utc_now()
       resolves = derive_resolves(dispositions, opts)
 
       new_attrs = %{
@@ -299,7 +707,8 @@ defmodule Aveline.Docs do
         title: Map.get(update_attrs, :title, current.title),
         summary: Map.get(update_attrs, :summary, current.summary),
         tags: Map.get(update_attrs, :tags, current.tags),
-        pinned: Map.get(update_attrs, :pinned, current.pinned),
+        # Slot carries across edits — pin state is set only via pin/unpin.
+        pin_slot: current.pin_slot,
         owner_id: current.owner_id,
         actor_user_id: Map.fetch!(update_attrs, :actor_user_id),
         actor_type: actor_type,
@@ -319,10 +728,7 @@ defmodule Aveline.Docs do
       Multi.new()
       |> Multi.update(
         :supersede,
-        Ecto.Changeset.change(current,
-          deleted_at: now,
-          deleted_by_id: Map.get(update_attrs, :actor_user_id)
-        )
+        Ecto.Changeset.change(current, superseded: true)
       )
       |> Multi.insert(:doc, Doc.changeset(%Doc{}, new_attrs))
       |> Multi.run(:auto_forward_comments, &auto_forward_comments_step/2)
@@ -334,20 +740,18 @@ defmodule Aveline.Docs do
 
   # For every live comment on this base doc, insert a new comment-version
   # row pinned to the just-inserted new doc-version. Mark the prior row
-  # `superseded_at` in the same transaction. After this step runs, the
+  # `superseded` in the same transaction. After this step runs, the
   # "current" row for every base is the new auto-forwarded one — so the
   # disposition step below acts on the new rows (in-place: resolve sets
   # `resolved_at`, reanchor sets `block_id`).
   defp auto_forward_comments_step(repo, %{doc: %Doc{id: new_doc_id, base_doc_id: base_doc_id}}) do
-    now = DateTime.utc_now()
-
     live =
       from(c in Comment,
         join: d in Doc,
         on: d.id == c.doc_id,
         where:
           d.base_doc_id == ^base_doc_id and
-            is_nil(c.superseded_at) and
+            not c.superseded and
             is_nil(c.deleted_at)
       )
       |> repo.all()
@@ -370,10 +774,11 @@ defmodule Aveline.Docs do
         "edited_at" => current.edited_at
       }
 
-      with {:ok, _} <-
-             repo.insert(Comment.create_changeset(%Comment{id: new_id}, new_attrs)),
+      # Supersede FIRST — the one-current-per-base unique index rejects a
+      # second unsuperseded row for the base.
+      with {:ok, _} <- repo.update(Ecto.Changeset.change(current, superseded: true)),
            {:ok, _} <-
-             repo.update(Ecto.Changeset.change(current, superseded_at: now)) do
+             repo.insert(Comment.create_changeset(%Comment{id: new_id}, new_attrs)) do
         {:cont, {:ok, n + 1}}
       else
         {:error, err} -> {:halt, {:error, err}}
@@ -474,7 +879,7 @@ defmodule Aveline.Docs do
           is_nil(c.parent_comment_id) and
           is_nil(c.resolved_at) and
           is_nil(c.deleted_at) and
-          is_nil(c.superseded_at),
+          not c.superseded,
       select: %{id: c.base_comment_id, block_id: c.block_id}
     )
     |> Repo.all()
@@ -504,7 +909,7 @@ defmodule Aveline.Docs do
         from(c in Comment,
           where:
             c.base_comment_id in ^leftover and is_nil(c.resolved_at) and
-              is_nil(c.deleted_at) and is_nil(c.superseded_at)
+              is_nil(c.deleted_at) and not c.superseded
         )
         |> repo.update_all(set: [resolved_at: now, resolved_by_id: uid, resolved_by_doc_id: doc_id])
 
@@ -593,6 +998,10 @@ defmodule Aveline.Docs do
     [head, body] |> Enum.reject(&(&1 == "")) |> Enum.join(" ")
   end
 
+  # Only the note is the doc_link's own content; the target's title is
+  # searchable on the target itself.
+  defp block_to_text(%{"type" => "doc_link"} = b), do: spans_to_text(b["note"] || [])
+
   defp block_to_text(_), do: ""
 
   defp spans_to_text(spans) when is_list(spans) do
@@ -604,43 +1013,19 @@ defmodule Aveline.Docs do
 
   defp spans_to_text(_), do: ""
 
-  # Pin / unpin updates `pinned` on the current version in place. Pin
-  # state is workspace-navigation metadata, not content, so we don't mint
-  # a new version row each toggle.
-  def set_pinned(%Doc{} = current, pinned, actor_user_id \\ nil) when is_boolean(pinned) do
-    current
-    |> Ecto.Changeset.change(%{pinned: pinned})
-    |> Repo.update()
-    |> case do
-      {:ok, doc} ->
-        doc = Repo.preload(doc, [:owner, :actor_user])
-        Broadcasts.publish_doc_event(:doc_updated, doc)
-
-        Events.record(%{
-          workspace_id: doc.workspace_id,
-          actor: actor_user_id,
-          actor_type: "human",
-          action: if(pinned, do: "doc_pinned", else: "doc_unpinned"),
-          target_kind: "doc",
-          target_id: doc.base_doc_id,
-          target_slug: doc.slug,
-          target_label: doc.title
-        })
-
-        {:ok, doc}
-
-      err ->
-        err
-    end
-  end
-
   # ===== Delete / restore =====
+
+  def soft_delete(%Doc{slug: @orientation_slug}, _deleted_by_id) do
+    {:error, :orientation_undeletable}
+  end
 
   def soft_delete(%Doc{} = current, deleted_by_id) do
     current
     |> Ecto.Changeset.change(%{
       deleted_at: DateTime.utc_now(),
-      deleted_by_id: deleted_by_id
+      deleted_by_id: deleted_by_id,
+      # A deleted doc doesn't hold a home-page slot hostage.
+      pin_slot: nil
     })
     |> Repo.update()
     |> case do
@@ -666,17 +1051,19 @@ defmodule Aveline.Docs do
   end
 
   def restore(base_doc_id, actor_user_id \\ nil) when is_binary(base_doc_id) do
-    case Repo.one(
-           from d in Doc,
-             where: d.base_doc_id == ^base_doc_id,
-             order_by: [desc: d.version_number],
-             limit: 1
-         ) do
-      nil ->
-        {:error, :not_found}
+    # The restorable row is a predicate, not a sort: the CHECK constraint
+    # guarantees a deleted row is never superseded, so "the deleted row"
+    # is unique per base — and its absence means the doc is live (or the
+    # base doesn't exist), i.e. not user-deleted.
+    deleted_row =
+      Repo.one(from d in Doc, where: d.base_doc_id == ^base_doc_id and not is_nil(d.deleted_at))
 
-      %Doc{deleted_by_id: nil} ->
-        {:error, :not_user_deleted}
+    case deleted_row do
+      nil ->
+        exists? =
+          Repo.exists?(from d in Doc, where: d.base_doc_id == ^base_doc_id)
+
+        if exists?, do: {:error, :not_user_deleted}, else: {:error, :not_found}
 
       %Doc{} = latest ->
         latest

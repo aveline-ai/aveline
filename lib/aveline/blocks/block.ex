@@ -13,6 +13,15 @@ defmodule Aveline.Blocks.Block do
     * `code`      — `%{type, language: string|null, content: string}`
     * `list`      — `%{type, ordered: bool, items: [%{id, content: [<inline>]}]}`
     * `table`     — `%{type, headers: [string], rows: [[ [<inline>] ]]}`
+    * `board`     — `%{type, tags: [slug], by: scope}` — a live kanban:
+      docs carrying every filter tag, grouped into columns by the `by`
+      scope's tags (`status` groups by `status:*`). Reads gain a
+      computed `view`; never persisted.
+    * `doc_link`  — `%{type, doc_id: uuid, note?: [<inline>]}` — an ordered
+      reference to another doc in the same workspace. A doc whose body
+      chains doc_links is a story/trail. The API also accepts `doc` (a
+      slug); the Docs context resolves it to `doc_id` before validation
+      reaches here, and verifies the target exists in the workspace.
   Every block has an `id` (`b_<22>` for blocks, `li_<22>` for list items)
   and an optional `metadata` map (free-form jsonb).
   """
@@ -20,7 +29,9 @@ defmodule Aveline.Blocks.Block do
   alias Aveline.Blocks.Id
   alias Aveline.Blocks.Inline
 
-  @types ~w(heading paragraph code list table)
+  @types ~w(heading paragraph code list table doc_link board)
+
+  @uuid_re ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
   @doc "Returns the list of supported block types."
   def types, do: @types
@@ -190,6 +201,54 @@ defmodule Aveline.Blocks.Block do
 
   defp validate_type_fields("table", _) do
     {:error, "table requires headers (list of strings) and rows (list of cell lists)"}
+  end
+
+  # doc_link — `target` (the read-time echo) is intentionally not a field
+  # here: normalization rebuilds the block from known fields only, so an
+  # echoed block pasted back into a write is stripped of it automatically.
+  defp validate_type_fields("doc_link", %{"doc_id" => doc_id} = block) when is_binary(doc_id) do
+    cond do
+      not Regex.match?(@uuid_re, doc_id) ->
+        {:error,
+         "doc_link.doc_id must be a UUID (the target's base_doc_id); or pass doc: <slug> and the server resolves it"}
+
+      true ->
+        case Map.get(block, "note") do
+          nil ->
+            {:ok, %{"doc_id" => String.downcase(doc_id)}}
+
+          spans ->
+            case Inline.validate_spans(spans) do
+              {:ok, []} -> {:ok, %{"doc_id" => String.downcase(doc_id)}}
+              {:ok, normalized} -> {:ok, %{"doc_id" => String.downcase(doc_id), "note" => normalized}}
+              err -> err
+            end
+        end
+    end
+  end
+
+  defp validate_type_fields("doc_link", _) do
+    {:error, "doc_link requires doc_id (target base_doc_id) or doc (target slug, resolved server-side)"}
+  end
+
+  # board — the computed `view` (read-time echo) is not a field here, so
+  # an echoed block pasted back into a write sheds it automatically.
+  defp validate_type_fields("board", %{"tags" => tags, "by" => by} = _block)
+       when is_list(tags) and is_binary(by) do
+    cond do
+      tags == [] or Enum.any?(tags, &(not is_binary(&1))) ->
+        {:error, "board.tags must be a non-empty list of tag slugs"}
+
+      not Regex.match?(~r/^[a-z0-9][a-z0-9-]*$/, by) ->
+        {:error, "board.by must be a tag scope (a plain slug like \"status\" — its scope:value members become the columns)"}
+
+      true ->
+        {:ok, %{"tags" => tags, "by" => by}}
+    end
+  end
+
+  defp validate_type_fields("board", _) do
+    {:error, "board requires tags (filter, non-empty list) and by (the scope whose tags become columns)"}
   end
 
   # ===== Helpers (placed after all validate_type_fields clauses so the

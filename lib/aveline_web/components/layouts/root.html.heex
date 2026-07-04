@@ -360,7 +360,7 @@
       .content {
         max-width: 1200px;
         margin: 0 auto;
-        padding: 24px 28px 80px;
+        padding: 48px 28px 80px;
         flex: 1;
         width: 100%;
       }
@@ -433,9 +433,9 @@
       }
       h1.page-title {
         font-size: 28px; font-weight: 600; letter-spacing: -0.02em;
-        margin-bottom: 8px;
+        margin-bottom: 10px;
       }
-      .page-subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 32px; }
+      .page-subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 44px; }
 
       /* ===== Section labels ===== */
       .section-label {
@@ -690,9 +690,11 @@
         display: flex; align-items: flex-start; gap: 2px;
         margin-bottom: 4px;
       }
+      /* Same scale as h1.page-title so doc pages sit in the same type
+         system as every list page. */
       .article-title {
         flex: 1; min-width: 0;
-        font-size: 32px; font-weight: 600; letter-spacing: -0.02em;
+        font-size: 28px; font-weight: 600; letter-spacing: -0.02em;
         line-height: 1.2;
         margin: 0 10px 0 0;
       }
@@ -951,6 +953,498 @@
         padding: 10px 14px; border: 1px dashed var(--danger);
         border-radius: var(--radius); font-size: 13px; color: var(--danger);
       }
+      .blocks .doc-link-card {
+        display: block;
+        padding: 12px 16px;
+        background: var(--bg-card); border: 1px solid var(--border);
+        border-radius: var(--radius);
+        text-decoration: none;
+        transition: border-color 0.08s ease, background 0.08s ease;
+      }
+      a.doc-link-card:hover { border-color: var(--border-strong); background: var(--bg-elevated); }
+      .doc-link-card-title {
+        font-size: 14px; font-weight: 600; color: var(--text);
+        display: flex; align-items: center; gap: 8px;
+      }
+      .doc-link-card-title::before {
+        content: "→";
+        color: var(--accent); font-weight: 500; flex: none;
+      }
+      .doc-link-card-summary {
+        margin-top: 3px; font-size: 12.5px; line-height: 1.5;
+        color: var(--text-secondary);
+      }
+      .doc-link-card-dead {
+        border-style: dashed; opacity: 0.7;
+      }
+      .doc-link-card-dead .doc-link-card-title::before { content: "×"; color: var(--text-muted); }
+      .blocks .doc-link-note {
+        margin-top: 6px; font-size: 13px; line-height: 1.6;
+        color: var(--text-secondary); font-style: italic;
+      }
+
+      /* ===== Workspace home shelves ===== */
+      /* A faint accent glow at the top gives the page depth without
+         breaking the mono surface system. */
+      .home-content {
+        position: relative;
+      }
+      .home-content::before {
+        content: "";
+        position: absolute; inset: -40px -60px auto -60px; height: 340px;
+        background: radial-gradient(ellipse 70% 100% at 50% 0%,
+          rgba(59,130,246,0.07), transparent 70%);
+        pointer-events: none;
+      }
+      .home-content > * { position: relative; }
+      /* Same type as every other page-title; only the bottom margin is
+         set here, standing in for the page-subtitle other pages have. */
+      .home-title { margin-bottom: 44px; }
+
+      .orientation-card {
+        display: flex; align-items: center; gap: 14px;
+        margin-top: 4px; padding: 16px 18px;
+        background: linear-gradient(135deg, rgba(59,130,246,0.16), rgba(139,92,246,0.08) 60%, rgba(59,130,246,0.04));
+        border: 1px solid rgba(59,130,246,0.28);
+        border-radius: 12px;
+        text-decoration: none;
+        transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+      }
+      .orientation-card:hover {
+        border-color: rgba(59,130,246,0.55);
+        transform: translateY(-1px);
+        box-shadow: 0 8px 24px rgba(59,130,246,0.10);
+      }
+      .orientation-icon {
+        flex: none; width: 34px; height: 34px; border-radius: 9px;
+        display: inline-flex; align-items: center; justify-content: center;
+        color: var(--accent);
+        background: rgba(59,130,246,0.14);
+        border: 1px solid rgba(59,130,246,0.25);
+      }
+      .orientation-icon svg { width: 17px; height: 17px; }
+      .orientation-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+      .orientation-title { font-size: 14.5px; font-weight: 600; color: var(--text); }
+      .orientation-summary { font-size: 12.5px; color: var(--text-secondary); }
+      .orientation-cta {
+        flex: none; margin-left: auto;
+        font-size: 12.5px; font-weight: 500; color: var(--accent);
+        white-space: nowrap;
+      }
+
+      .shelf { margin-top: 34px; }
+      .shelf-head {
+        display: flex; align-items: center; gap: 8px;
+        margin-bottom: 12px;
+      }
+      /* Rule line after each shelf head gives the page rhythm. */
+      .shelf-head::after {
+        content: ""; flex: 1; height: 1px;
+        background: linear-gradient(90deg, var(--border), transparent);
+        margin-left: 6px;
+      }
+      .shelf-icon {
+        flex: none; width: 14px; height: 14px;
+        display: inline-flex; color: var(--text-muted);
+      }
+      .shelf-icon svg { width: 14px; height: 14px; }
+      .shelf-icon-attn { color: var(--tag); }
+      .shelf-label {
+        font-size: 11.5px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.09em;
+        color: var(--text-secondary);
+      }
+      .shelf-count {
+        font-size: 11px; color: var(--text-muted);
+        border: 1px solid var(--border-strong); border-radius: 999px;
+        padding: 0 7px; line-height: 16px;
+      }
+      .shelf-count-attn {
+        color: var(--tag); border-color: var(--tag-border);
+        background: var(--tag-dim);
+      }
+
+      /* Jump back in — the user's own recent reads, compact */
+      .jump-grid {
+        display: grid; gap: 10px;
+        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      }
+      .jump-card {
+        display: flex; flex-direction: column; gap: 2px;
+        padding: 10px 14px;
+        background: linear-gradient(180deg, rgba(255,255,255,0.025), transparent), var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        text-decoration: none;
+        transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+        min-width: 0;
+      }
+      .jump-card:hover {
+        border-color: var(--border-strong);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+      }
+      .jump-card-title {
+        font-size: 13px; font-weight: 500; color: var(--text);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .jump-card-time { font-size: 11px; color: var(--text-muted); }
+
+      /* Start here — pinned doc cards, each with its identity hue */
+      .story-grid {
+        display: grid; gap: 12px;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      }
+      .story-card {
+        position: relative; overflow: hidden;
+        display: block;
+        padding: 16px 18px;
+        background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent 55%), var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        text-decoration: none;
+        transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+      }
+      /* A whisper of the doc's own hue across the top edge. */
+      .story-card::before {
+        content: "";
+        position: absolute; top: 0; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg,
+          hsl(var(--h, 220) 70% 60% / 0.55), transparent 65%);
+      }
+      .story-card:hover {
+        border-color: hsl(var(--h, 220) 50% 45% / 0.45);
+        transform: translateY(-2px);
+        box-shadow: 0 10px 28px rgba(0,0,0,0.40);
+      }
+      .story-card-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+      /* Numbered pin slot — the card's position is a deliberate choice. */
+      .story-card-slot {
+        flex: none;
+        width: 18px; height: 18px; border-radius: 5px;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 10.5px; font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+        color: hsl(var(--h, 220) 70% 72%);
+        border: 1px solid hsl(var(--h, 220) 55% 40% / 0.4);
+        background: hsl(var(--h, 220) 50% 30% / 0.2);
+      }
+      .story-card-title {
+        font-size: 14px; font-weight: 600; color: var(--text);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .story-stops-badge {
+        flex: none; margin-left: auto;
+        font-size: 11px; color: hsl(var(--h, 220) 70% 72%);
+        border: 1px solid hsl(var(--h, 220) 55% 40% / 0.4);
+        background: hsl(var(--h, 220) 50% 30% / 0.2);
+        border-radius: 999px; padding: 1px 8px;
+        white-space: nowrap;
+      }
+      .story-card-summary {
+        margin-top: 8px; font-size: 12.5px; line-height: 1.55;
+        color: var(--text-secondary);
+      }
+      .story-card-path {
+        margin-top: 10px; font-size: 12px; line-height: 1.8;
+        color: var(--text-secondary);
+      }
+      .story-path-arrow { color: var(--text-muted); margin: 0 5px; }
+      .story-path-stop { white-space: nowrap; }
+      .story-path-dead { text-decoration: line-through; color: var(--text-muted); }
+      .story-card-tags { margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap; }
+      .story-card-tag {
+        font-size: 10.5px; color: var(--text-muted);
+        border: 1px solid var(--border); border-radius: 4px;
+        padding: 1px 6px;
+        background: rgba(255,255,255,0.02);
+      }
+
+      /* Needs you — open-thread rows */
+      .attn-list {
+        border: 1px solid var(--tag-border); border-radius: 12px;
+        background: linear-gradient(180deg, var(--tag-dim), transparent 30%), var(--bg-card);
+        overflow: hidden;
+      }
+      .attn-row {
+        display: flex; align-items: baseline; gap: 11px;
+        padding: 11px 16px; text-decoration: none;
+        border-bottom: 1px solid var(--border);
+        transition: background 0.08s ease;
+        min-width: 0;
+      }
+      .attn-row:last-child { border-bottom: none; }
+      .attn-row:hover { background: rgba(255,255,255,0.025); }
+      .attn-body {
+        font-size: 13px; color: var(--text);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .attn-meta {
+        flex: none; margin-left: auto; font-size: 11.5px; color: var(--text-muted);
+        white-space: nowrap;
+      }
+      .attn-via {
+        font-size: 10.5px; color: var(--text-muted);
+        border: 1px solid var(--border-strong); border-radius: 4px;
+        padding: 0 4px; margin-left: 2px;
+      }
+      .attn-doc { color: var(--text-secondary); }
+
+      /* Recently changed — digest rows with a timeline spine */
+      .recent-list { display: flex; flex-direction: column; }
+      .recent-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 4px; text-decoration: none;
+        border-bottom: 1px solid var(--border);
+        min-width: 0;
+        border-radius: 6px;
+        transition: background 0.08s ease;
+      }
+      .recent-row:last-child { border-bottom: none; }
+      .recent-row:hover { background: rgba(255,255,255,0.02); }
+      .recent-row:hover .recent-title { color: var(--accent); }
+      .recent-title {
+        flex: none; font-size: 13px; font-weight: 500; color: var(--text);
+        transition: color 0.08s ease;
+      }
+      .recent-version {
+        flex: none; font-size: 10.5px; color: var(--text-secondary);
+        font-family: 'JetBrains Mono', monospace;
+        border: 1px solid var(--border-strong); border-radius: 4px;
+        padding: 0 5px; line-height: 15px;
+        background: rgba(255,255,255,0.03);
+      }
+      .recent-intent {
+        font-size: 12.5px; color: var(--text-secondary); font-style: italic;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .recent-time {
+        flex: none; margin-left: auto; font-size: 11.5px; color: var(--text-muted);
+      }
+
+      .home-browse-all { margin-top: 12px; }
+      .home-browse-all-link {
+        font-size: 12.5px; color: var(--text-muted); text-decoration: none;
+      }
+      .home-browse-all-link:hover { color: var(--accent); }
+
+      /* Trail chip on ordinary doc cards */
+      .card-trail-chip {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: 11px; font-weight: 500; color: var(--accent);
+        border: 1px solid var(--accent-dim);
+        background: var(--accent-dim);
+        border-radius: 999px; padding: 1px 8px;
+        margin-left: 8px; vertical-align: 2px;
+        white-space: nowrap;
+      }
+      .card-trail-chip svg { width: 11px; height: 11px; }
+
+      /* ===== Docs filter bar (dropdowns + pills) ===== */
+      /* The Docs controls (search + dropdowns + pills) read as ONE zone:
+         tight 10px internal rhythm, one clear 22px break before the list.
+         Control-led pages also pull the header gap in (44 → 28px) — the
+         chrome isn't content, so the full content gap reads as a hole. */
+      .docs-subtitle { margin-bottom: 28px; }
+      .docs-controls {
+        display: flex; flex-direction: column; gap: 10px;
+        margin-bottom: 22px;
+      }
+      .docs-controls .filter-bar { margin-bottom: 0; }
+      .fbar {
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      }
+      .fdd { position: relative; display: inline-flex; }
+      .fdd-btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        height: 30px; padding: 0 10px 0 12px;
+        font-size: 12.5px; font-weight: 500; color: var(--text-secondary);
+        background: var(--bg-card);
+        border: 1px solid var(--border); border-radius: 7px;
+        cursor: pointer;
+        transition: border-color 0.08s ease, color 0.08s ease;
+      }
+      .fdd-btn:hover { border-color: var(--border-strong); color: var(--text); }
+      .fdd-btn-active { color: var(--text); border-color: var(--accent-dim); background: var(--accent-dim); }
+      .fdd-badge {
+        min-width: 16px; height: 16px; padding: 0 4px;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 10.5px; font-weight: 600;
+        color: var(--accent);
+        background: rgba(59,130,246,0.18);
+        border-radius: 999px;
+      }
+      .fdd-chev { width: 12px; height: 12px; opacity: 0.6; }
+      .fdd-menu {
+        position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
+        min-width: 220px; max-height: 60vh; overflow-y: auto;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-strong);
+        border-radius: 9px;
+        padding: 5px;
+        box-shadow: 0 12px 28px rgba(0,0,0,0.55);
+      }
+      .fdd-item {
+        display: flex; align-items: center; gap: 9px;
+        width: 100%; text-align: left;
+        padding: 6px 8px; border: none; border-radius: 6px;
+        background: none; cursor: pointer;
+        font-size: 13px; color: var(--text);
+      }
+      .fdd-item:hover { background: rgba(255,255,255,0.05); }
+      .fdd-check {
+        flex: none; width: 14px; height: 14px;
+        border: 1px solid var(--border-strong); border-radius: 4px;
+        position: relative;
+      }
+      .fdd-check.on { background: var(--accent); border-color: var(--accent); }
+      .fdd-check.on::after {
+        content: "";
+        position: absolute; left: 4px; top: 1px;
+        width: 4px; height: 8px;
+        border: solid #fff; border-width: 0 1.5px 1.5px 0;
+        transform: rotate(45deg);
+      }
+      .fdd-radio { border-radius: 50%; }
+      .fdd-radio.on::after {
+        left: 3px; top: 3px; width: 6px; height: 6px;
+        border: none; border-radius: 50%; background: #fff;
+        transform: none;
+      }
+      .fdd-item-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .fdd-item-count, .fdd-item-hint {
+        margin-left: auto; font-size: 11px; color: var(--text-muted);
+        white-space: nowrap;
+      }
+      .fdd-section {
+        font-size: 10.5px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.08em;
+        color: var(--text-muted);
+        padding: 8px 8px 4px;
+        border-top: 1px solid var(--border);
+        margin-top: 4px;
+      }
+      .fbar-clear {
+        margin-left: auto;
+        background: none; border: none; cursor: pointer;
+        font-size: 12px; color: var(--text-muted);
+        transition: color 0.08s ease;
+      }
+      .fbar-clear:hover { color: var(--danger); }
+      .fpills { display: flex; gap: 6px; flex-wrap: wrap; }
+      .fpill {
+        display: inline-flex; align-items: center; gap: 5px;
+        height: 24px; padding: 0 8px;
+        font-size: 12px; color: var(--text);
+        background: var(--accent-dim);
+        border: 1px solid rgba(59,130,246,0.25); border-radius: 999px;
+        cursor: pointer;
+        transition: border-color 0.08s ease;
+      }
+      .fpill:hover { border-color: var(--accent); }
+      .fpill-x { color: var(--text-muted); font-size: 13px; line-height: 1; }
+      .fpill:hover .fpill-x { color: var(--danger); }
+
+      /* ===== Board (tag-driven kanban) ===== */
+      .board {
+        display: flex; gap: 12px; align-items: flex-start;
+        overflow-x: auto; padding-bottom: 12px;
+      }
+      .board-col {
+        flex: 1 0 240px; max-width: 320px; min-width: 220px;
+        background: rgba(255,255,255,0.015);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px;
+      }
+      .board-col-none { border-style: dashed; }
+      .board-col-head {
+        display: flex; align-items: center; gap: 7px;
+        padding: 2px 4px 10px;
+      }
+      .board-col-dot {
+        width: 8px; height: 8px; border-radius: 50%;
+        background: hsl(var(--h, 220) 65% 60%);
+      }
+      .board-col-name {
+        font-size: 12px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.07em;
+        color: var(--text-secondary);
+      }
+      .board-col-count {
+        margin-left: auto; font-size: 11px; color: var(--text-muted);
+        border: 1px solid var(--border-strong); border-radius: 999px;
+        padding: 0 7px; line-height: 16px;
+      }
+      .board-col-cards { display: flex; flex-direction: column; gap: 8px; }
+      .board-col-empty {
+        text-align: center; color: var(--text-muted); font-size: 12px;
+        padding: 14px 0 8px;
+      }
+      .board-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        padding: 10px 12px;
+        transition: border-color 0.1s ease;
+      }
+      .board-card:hover { border-color: var(--border-strong); }
+      .board-card-title {
+        display: block;
+        font-size: 13px; font-weight: 500; color: var(--text);
+        text-decoration: none; line-height: 1.45;
+      }
+      .board-card-title:hover { color: var(--accent); }
+      .board-card-summary {
+        margin-top: 4px; font-size: 11.5px; line-height: 1.5;
+        color: var(--text-secondary);
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .board-card-foot {
+        display: flex; align-items: center; gap: 8px;
+        margin-top: 8px;
+        font-size: 11px; color: var(--text-muted);
+      }
+
+      .blk-board { margin: 6px 0; }
+      .blk-board-meta {
+        display: flex; align-items: center; gap: 8px;
+        margin-bottom: 10px;
+      }
+      .blk-board-by, .board-dir-by {
+        font-size: 11px; color: var(--text-muted);
+        font-family: 'JetBrains Mono', monospace;
+      }
+      .blk-board-empty {
+        padding: 12px 14px; border: 1px dashed var(--border-strong);
+        border-radius: var(--radius); font-size: 12.5px;
+        color: var(--text-secondary); line-height: 1.6;
+      }
+      .blk-board-empty code {
+        font-family: 'JetBrains Mono', monospace; font-size: 11px;
+        background: var(--bg-input); border: 1px solid var(--border);
+        border-radius: 3px; padding: 1px 5px;
+      }
+      .board-picker-code {
+        font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+        line-height: 1.7; color: var(--text-secondary);
+        background: var(--bg-input); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 12px 14px;
+        overflow-x: auto;
+      }
+
+      /* Scoped tags (status:todo) — scope dim, value bright */
+      .scoped-tag {
+        display: inline-flex; align-items: center;
+        font-size: 11px; line-height: 1;
+        border: 1px solid var(--tag-border); border-radius: 4px;
+        background: var(--tag-dim);
+        padding: 2.5px 6px; margin-right: 4px;
+        white-space: nowrap;
+      }
+      .scoped-tag-scope { color: var(--text-muted); }
+      .scoped-tag-value { color: var(--tag); font-weight: 500; }
 
       /* ===== Version switcher (dropdown next to v{n} chip) ===== */
       .version-switcher { position: relative; display: inline-flex; }
@@ -1094,12 +1588,12 @@
       .thread-content-resolved { opacity: 0.7; }
 
       /* ===== Doc detail layout (single column, inline comments) =====
-         Outer container shares width with `.content` so the chrome on the
-         doc page matches every other tab. */
+         Outer container shares width AND padding with `.content` so the
+         doc title sits at the same height as every other page's title. */
       .doc-layout {
         max-width: 1200px;
         margin: 0 auto;
-        padding: 24px 28px 80px;
+        padding: 48px 28px 80px;
         width: 100%;
       }
       .doc-article { min-width: 0; }

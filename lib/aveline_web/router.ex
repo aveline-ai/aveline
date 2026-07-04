@@ -37,7 +37,8 @@ defmodule AvelineWeb.Router do
     get "/logout", SessionController, :delete
 
     live "/", SignupLive, :index
-    live "/w/:slug", WorkspaceShowLive, :index
+    live "/w/:slug", HomeLive, :index
+    live "/w/:slug/docs", WorkspaceShowLive, :index
     live "/w/:slug/d/:doc_slug", DocShowLive, :show
     live "/w/:slug/d/:doc_slug/v/:version", DocShowLive, :show_version
     live "/w/:slug/activity", ActivityLive, :index
@@ -70,6 +71,7 @@ defmodule AvelineWeb.Router do
     pipe_through [:api_auth, :workspace_scoped]
 
     # Docs
+    get "/orientation", DocController, :orientation
     get "/docs", DocController, :index
     post "/docs", DocController, :create
     get "/docs/:doc_slug", DocController, :show
@@ -78,6 +80,10 @@ defmodule AvelineWeb.Router do
     delete "/docs/:doc_slug", DocController, :delete
     post "/docs/:doc_slug/restore", DocController, :restore
     post "/docs/:doc_slug/kudos", DocController, :kudos
+
+    # Home-page pin slots
+    post "/docs/:doc_slug/pin", DocController, :pin
+    delete "/docs/:doc_slug/pin", DocController, :unpin
 
     # Doc versions
     get "/docs/:doc_slug/versions", VersionController, :index
@@ -100,6 +106,7 @@ defmodule AvelineWeb.Router do
     patch "/tags/:slug", TagController, :update
     put "/tags/:slug", TagController, :update
     delete "/tags/:slug", TagController, :delete
+    post "/tags/:slug/restore", TagController, :restore
 
     # Team / members
     get "/members", TeamController, :index

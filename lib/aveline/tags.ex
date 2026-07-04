@@ -14,9 +14,17 @@ defmodule Aveline.Tags do
   alias Aveline.Tags.Tag
 
   # ===== Read =====
+  # All reads are LIVE-only: a soft-deleted tag is invisible everywhere
+  # (lists, filters, board columns, doc tag arrays) until restored.
+
+  # Live = neither superseded (an edit made a newer version) nor
+  # user-deleted. The partial unique index matches this predicate.
+  def base_query do
+    from t in Tag, where: not t.superseded and is_nil(t.deleted_at)
+  end
 
   def list_for_workspace(workspace_id) when is_binary(workspace_id) do
-    from(t in Tag,
+    from(t in base_query(),
       where: t.workspace_id == ^workspace_id,
       order_by: [asc: t.slug]
     )
@@ -24,16 +32,35 @@ defmodule Aveline.Tags do
   end
 
   def get(workspace_id, slug) when is_binary(workspace_id) and is_binary(slug) do
-    Repo.get_by(Tag, workspace_id: workspace_id, slug: slug)
+    from(t in base_query(), where: t.workspace_id == ^workspace_id and t.slug == ^slug)
+    |> Repo.one()
+  end
+
+  @doc """
+  The user-deleted row for a slug — the restore target. A predicate,
+  not a sort: superseded rows are history, never restorable.
+  """
+  def get_deleted(workspace_id, slug) when is_binary(workspace_id) and is_binary(slug) do
+    from(t in Tag,
+      where:
+        t.workspace_id == ^workspace_id and t.slug == ^slug and
+          not is_nil(t.deleted_at)
+    )
+    |> Repo.one()
   end
 
   def list_slugs(workspace_id) when is_binary(workspace_id) do
-    from(t in Tag,
+    from(t in base_query(),
       where: t.workspace_id == ^workspace_id,
       select: t.slug,
       order_by: [asc: t.slug]
     )
     |> Repo.all()
+  end
+
+  @doc "Live tag slugs as a set — used to scrub deleted tags from doc reads."
+  def live_slug_set(workspace_id) do
+    workspace_id |> list_slugs() |> MapSet.new()
   end
 
   @doc """
@@ -75,12 +102,17 @@ defmodule Aveline.Tags do
 
   # ===== Write =====
 
-  def create(workspace_id, slug, description, actor_user_id) do
-    case %Tag{}
+  def create(workspace_id, slug, description, actor_user_id, opts \\ []) do
+    id = Ecto.UUID.generate()
+
+    case %Tag{id: id}
          |> Tag.create_changeset(%{
            workspace_id: workspace_id,
+           base_tag_id: id,
+           version_number: 1,
            slug: slug,
            description: description,
+           color: Keyword.get(opts, :color),
            created_by_id: actor_user_id
          })
          |> Repo.insert() do
@@ -103,24 +135,114 @@ defmodule Aveline.Tags do
   end
 
   @doc """
-  Update a tag's description (and only the description). For renaming,
-  use `rename/3` so the cascade across docs happens atomically.
+  Edit a tag — rename, redescribe, and/or recolor. Every edit inserts a
+  NEW VERSION row sharing `base_tag_id` (the prior row is superseded),
+  so tag history is first-class like doc history. Renames additionally
+  cascade the slug across every doc carrying it, atomically — docs keep
+  the tag through the rename.
+
+  `changes` keys: `:slug`, `:description`, `:color` (`:color` accepts
+  nil to clear back to the default). Returns `{:error, :destination_exists}`
+  if a rename targets a slug another live tag owns.
   """
-  def update_description(%Tag{} = tag, description, actor_user_id) do
-    case tag
-         |> Tag.update_changeset(%{slug: tag.slug, description: description})
-         |> Repo.update() do
-      {:ok, updated} ->
-        Events.record(%{
-          workspace_id: tag.workspace_id,
-          actor: actor_user_id,
-          actor_type: "human",
-          action: "tag_description_updated",
-          target_kind: "tag",
-          target_label: tag.slug
+  def edit(%Tag{} = tag, changes, actor_user_id) when is_map(changes) do
+    new_slug =
+      changes |> Map.get(:slug, tag.slug) |> to_string() |> String.trim() |> String.downcase()
+
+    new_description = Map.get(changes, :description, tag.description)
+    new_color = if Map.has_key?(changes, :color), do: changes.color, else: tag.color
+
+    cond do
+      {new_slug, new_description, new_color} == {tag.slug, tag.description, tag.color} ->
+        {:ok, tag}
+
+      new_slug != tag.slug and get(tag.workspace_id, new_slug) != nil ->
+        {:error, :destination_exists}
+
+      true ->
+        insert_tag_version(tag, new_slug, new_description, new_color, actor_user_id)
+    end
+  end
+
+  defp insert_tag_version(%Tag{} = current, slug, description, color, actor_user_id) do
+    renamed? = slug != current.slug
+
+    Repo.transaction(fn ->
+      # Supersede the current row FIRST — mechanism, not deletion; the
+      # one-current-per-base index rejects a second unsuperseded row.
+      {:ok, _} = current |> Ecto.Changeset.change(%{superseded: true}) |> Repo.update()
+
+      changeset =
+        %Tag{id: Ecto.UUID.generate()}
+        |> Tag.create_changeset(%{
+          workspace_id: current.workspace_id,
+          base_tag_id: current.base_tag_id,
+          version_number: current.version_number + 1,
+          slug: slug,
+          description: description,
+          color: color,
+          created_by_id: actor_user_id
         })
 
-        {:ok, updated}
+      case Repo.insert(changeset) do
+        {:ok, updated} ->
+          affected =
+            if renamed?, do: cascade_slug_change(current.workspace_id, current.slug, slug), else: 0
+
+          Events.record(%{
+            workspace_id: current.workspace_id,
+            actor: actor_user_id,
+            actor_type: "human",
+            action: if(renamed?, do: "tag_renamed", else: "tag_updated"),
+            target_kind: "tag",
+            target_label: slug,
+            data:
+              %{"version" => updated.version_number}
+              |> then(fn d ->
+                if renamed?,
+                  do: Map.merge(d, %{"from" => current.slug, "to" => slug, "affected" => affected}),
+                  else: d
+              end)
+          })
+
+          updated
+
+        {:error, cs} ->
+          Repo.rollback(cs)
+      end
+    end)
+  end
+
+  @doc "Rename a tag (compat shim over edit/3)."
+  def rename(%Tag{} = tag, new_slug, actor_user_id),
+    do: edit(tag, %{slug: new_slug}, actor_user_id)
+
+  @doc "Update a tag's description (compat shim over edit/3)."
+  def update_description(%Tag{} = tag, description, actor_user_id),
+    do: edit(tag, %{description: description}, actor_user_id)
+
+  @doc """
+  Soft-delete a tag. Doc rows KEEP the slug in their tags array — the
+  tag simply turns invisible to every current read (lists, filters,
+  board columns, doc tag arrays) until restored, making delete and
+  restore perfect inverses. No cascade touches any doc.
+  """
+  def delete(%Tag{workspace_id: ws_id, slug: slug} = tag, actor_user_id) do
+    tag
+    |> Ecto.Changeset.change(%{deleted_at: DateTime.utc_now(), deleted_by_id: actor_user_id})
+    |> Repo.update()
+    |> case do
+      {:ok, deleted} ->
+        Events.record(%{
+          workspace_id: ws_id,
+          actor: actor_user_id,
+          actor_type: "human",
+          action: "tag_deleted",
+          target_kind: "tag",
+          target_label: slug
+        })
+
+        {:ok, deleted}
 
       err ->
         err
@@ -128,84 +250,45 @@ defmodule Aveline.Tags do
   end
 
   @doc """
-  Rename a tag — both the row and every doc carrying its old slug. If
-  another tag already owns the new slug, returns
-  `{:error, :destination_exists}`. Resolve manually by deleting one of
-  the two tags first.
+  Restore a soft-deleted tag: every doc that carried it shows it again
+  instantly (the attachments never left). Errors with `:slug_taken` if a
+  live tag reclaimed the slug in the meantime.
   """
-  def rename(%Tag{workspace_id: ws_id, slug: old_slug} = tag, new_slug, actor_user_id) do
-    new_slug = new_slug |> to_string() |> String.trim() |> String.downcase()
+  def restore(%Tag{deleted_at: nil}, _actor_user_id), do: {:error, "tag is not deleted"}
 
-    cond do
-      new_slug == old_slug ->
-        {:ok, tag}
+  def restore(%Tag{superseded: true}, _actor_user_id),
+    do: {:error, "tag row was superseded by a newer version, not user-deleted"}
 
-      get(ws_id, new_slug) != nil ->
-        {:error, :destination_exists}
-
-      true ->
-        Repo.transaction(fn ->
-          changeset = Tag.update_changeset(tag, %{slug: new_slug, description: tag.description})
-
-          case Repo.update(changeset) do
-            {:ok, updated} ->
-              affected = cascade_slug_change(ws_id, old_slug, new_slug)
-
-              Events.record(%{
-                workspace_id: ws_id,
-                actor: actor_user_id,
-                actor_type: "human",
-                action: "tag_renamed",
-                target_kind: "tag",
-                target_label: new_slug,
-                data: %{"from" => old_slug, "to" => new_slug, "affected" => affected}
-              })
-
-              updated
-
-            {:error, cs} ->
-              Repo.rollback(cs)
-          end
-        end)
-    end
-  end
-
-  @doc """
-  Delete a tag. Strips it from every doc that carries it and removes the
-  Tag row. Refuses (`{:error, {:would_orphan_docs, count}}`) if any doc's
-  only tag is this one — we keep the "every doc has ≥1 tag" invariant
-  intact instead of orphaning docs as a side effect of a tag cleanup.
-  Audit event records the affected count.
-  """
-  def delete(%Tag{workspace_id: ws_id, slug: slug} = tag, actor_user_id) do
-    case docs_with_only_this_tag_count(ws_id, slug) do
-      0 ->
-        Repo.transaction(fn ->
-          affected = strip_from_docs(ws_id, slug)
-          Repo.delete!(tag)
-
+  def restore(%Tag{workspace_id: ws_id, slug: slug} = tag, actor_user_id) do
+    if get(ws_id, slug) do
+      {:error, :slug_taken}
+    else
+      tag
+      |> Ecto.Changeset.change(%{deleted_at: nil, deleted_by_id: nil})
+      |> Repo.update()
+      |> case do
+        {:ok, restored} ->
           Events.record(%{
             workspace_id: ws_id,
             actor: actor_user_id,
             actor_type: "human",
-            action: "tag_deleted",
+            action: "tag_restored",
             target_kind: "tag",
-            target_label: slug,
-            data: %{"affected" => affected}
+            target_label: slug
           })
 
-          :ok
-        end)
+          {:ok, restored}
 
-      n when n > 0 ->
-        {:error, {:would_orphan_docs, n}}
+        err ->
+          err
+      end
     end
   end
 
   @doc """
   Count of (non-deleted) docs in this workspace whose only tag is `slug`.
-  Used by the delete flow to surface a blocking message in the UI before
-  the user even tries to confirm.
+  Surfaced in the delete-confirm UI as a heads-up (those docs go
+  tagless), not a blocker.
   """
   def docs_with_only_this_tag_count(workspace_id, slug) do
     Repo.one(
@@ -229,13 +312,77 @@ defmodule Aveline.Tags do
 
   def ensure_all_exist(workspace_id, slugs) when is_list(slugs) do
     existing =
-      from(t in Tag, where: t.workspace_id == ^workspace_id and t.slug in ^slugs, select: t.slug)
+      from(t in base_query(),
+        where: t.workspace_id == ^workspace_id and t.slug in ^slugs,
+        select: t.slug
+      )
       |> Repo.all()
       |> MapSet.new()
 
     missing = slugs |> Enum.uniq() |> Enum.reject(&MapSet.member?(existing, &1))
 
     if missing == [], do: :ok, else: {:error, {:unknown_tags, missing}}
+  end
+
+  # ===== Scoped tags =====
+  # A tag slug of the form `scope:value` (e.g. `status:todo`) is an enum
+  # member: a doc's tag set may carry at most one tag per scope. Plain
+  # tags are unaffected. The scope lives in the slug — no extra state.
+
+  @doc ~S(The scope of a scoped tag — "status" for "status:todo"; nil for plain tags.)
+  def scope_of(slug) when is_binary(slug) do
+    case String.split(slug, ":", parts: 2) do
+      [scope, _value] -> scope
+      _ -> nil
+    end
+  end
+
+  def scope_of(_), do: nil
+
+  @doc ~S(The value of a scoped tag — "todo" for "status:todo"; the slug itself for plain tags.)
+  def value_of(slug) when is_binary(slug) do
+    case String.split(slug, ":", parts: 2) do
+      [_scope, value] -> value
+      _ -> slug
+    end
+  end
+
+  @doc """
+  Scoped-tag exclusivity: at most one tag per scope in a tag set.
+  Pure — runs on the doc write path next to `ensure_all_exist/2`.
+  """
+  def ensure_no_scope_conflict(slugs) when is_list(slugs) do
+    slugs
+    |> Enum.group_by(&scope_of/1)
+    |> Map.delete(nil)
+    |> Enum.find(fn {_scope, tags} -> length(Enum.uniq(tags)) > 1 end)
+    |> case do
+      nil -> :ok
+      {scope, tags} -> {:error, {:tag_scope_conflict, scope, Enum.sort(Enum.uniq(tags))}}
+    end
+  end
+
+  @doc """
+  Members of a scope in creation order — deterministic board columns
+  (`status:backlog` before `status:done` because it was created first).
+  Ordered by the BASE's first version, so renames/recolors (which insert
+  new version rows) never reshuffle a board's columns.
+  """
+  def list_scope_members(workspace_id, scope) when is_binary(scope) do
+    first_at =
+      from(t in Tag,
+        group_by: t.base_tag_id,
+        select: %{base_tag_id: t.base_tag_id, first_at: min(t.inserted_at)}
+      )
+
+    from(t in base_query(),
+      join: f in subquery(first_at),
+      on: f.base_tag_id == t.base_tag_id,
+      where: t.workspace_id == ^workspace_id and like(t.slug, ^"#{scope}:%"),
+      order_by: [asc: f.first_at],
+      select: t.slug
+    )
+    |> Repo.all()
   end
 
   # ===== Internal cascade helpers =====
@@ -257,22 +404,6 @@ defmodule Aveline.Tags do
 
       doc
       |> Ecto.Changeset.change(%{tags: new_tags})
-      |> Repo.update!()
-    end)
-
-    length(docs)
-  end
-
-  defp strip_from_docs(workspace_id, slug) do
-    docs =
-      from(d in Doc,
-        where: d.workspace_id == ^workspace_id and ^slug in d.tags
-      )
-      |> Repo.all()
-
-    Enum.each(docs, fn doc ->
-      doc
-      |> Ecto.Changeset.change(%{tags: List.delete(doc.tags, slug)})
       |> Repo.update!()
     end)
 
