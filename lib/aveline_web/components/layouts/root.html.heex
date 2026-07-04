@@ -1240,6 +1240,111 @@
       }
       .card-trail-chip svg { width: 11px; height: 11px; }
 
+      /* ===== Docs filter bar (dropdowns + pills) ===== */
+      /* The Docs controls (search + dropdowns + pills) read as ONE zone:
+         tight 10px internal rhythm, one clear 22px break before the list.
+         Control-led pages also pull the header gap in (44 → 28px) — the
+         chrome isn't content, so the full content gap reads as a hole. */
+      .docs-subtitle { margin-bottom: 28px; }
+      .docs-controls {
+        display: flex; flex-direction: column; gap: 10px;
+        margin-bottom: 22px;
+      }
+      .docs-controls .filter-bar { margin-bottom: 0; }
+      .fbar {
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      }
+      .fdd { position: relative; display: inline-flex; }
+      .fdd-btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        height: 30px; padding: 0 10px 0 12px;
+        font-size: 12.5px; font-weight: 500; color: var(--text-secondary);
+        background: var(--bg-card);
+        border: 1px solid var(--border); border-radius: 7px;
+        cursor: pointer;
+        transition: border-color 0.08s ease, color 0.08s ease;
+      }
+      .fdd-btn:hover { border-color: var(--border-strong); color: var(--text); }
+      .fdd-btn-active { color: var(--text); border-color: var(--accent-dim); background: var(--accent-dim); }
+      .fdd-badge {
+        min-width: 16px; height: 16px; padding: 0 4px;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 10.5px; font-weight: 600;
+        color: var(--accent);
+        background: rgba(59,130,246,0.18);
+        border-radius: 999px;
+      }
+      .fdd-chev { width: 12px; height: 12px; opacity: 0.6; }
+      .fdd-menu {
+        position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
+        min-width: 220px; max-height: 60vh; overflow-y: auto;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-strong);
+        border-radius: 9px;
+        padding: 5px;
+        box-shadow: 0 12px 28px rgba(0,0,0,0.55);
+      }
+      .fdd-item {
+        display: flex; align-items: center; gap: 9px;
+        width: 100%; text-align: left;
+        padding: 6px 8px; border: none; border-radius: 6px;
+        background: none; cursor: pointer;
+        font-size: 13px; color: var(--text);
+      }
+      .fdd-item:hover { background: rgba(255,255,255,0.05); }
+      .fdd-check {
+        flex: none; width: 14px; height: 14px;
+        border: 1px solid var(--border-strong); border-radius: 4px;
+        position: relative;
+      }
+      .fdd-check.on { background: var(--accent); border-color: var(--accent); }
+      .fdd-check.on::after {
+        content: "";
+        position: absolute; left: 4px; top: 1px;
+        width: 4px; height: 8px;
+        border: solid #fff; border-width: 0 1.5px 1.5px 0;
+        transform: rotate(45deg);
+      }
+      .fdd-radio { border-radius: 50%; }
+      .fdd-radio.on::after {
+        left: 3px; top: 3px; width: 6px; height: 6px;
+        border: none; border-radius: 50%; background: #fff;
+        transform: none;
+      }
+      .fdd-item-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .fdd-item-count, .fdd-item-hint {
+        margin-left: auto; font-size: 11px; color: var(--text-muted);
+        white-space: nowrap;
+      }
+      .fdd-section {
+        font-size: 10.5px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.08em;
+        color: var(--text-muted);
+        padding: 8px 8px 4px;
+        border-top: 1px solid var(--border);
+        margin-top: 4px;
+      }
+      .fbar-clear {
+        margin-left: auto;
+        background: none; border: none; cursor: pointer;
+        font-size: 12px; color: var(--text-muted);
+        transition: color 0.08s ease;
+      }
+      .fbar-clear:hover { color: var(--danger); }
+      .fpills { display: flex; gap: 6px; flex-wrap: wrap; }
+      .fpill {
+        display: inline-flex; align-items: center; gap: 5px;
+        height: 24px; padding: 0 8px;
+        font-size: 12px; color: var(--text);
+        background: var(--accent-dim);
+        border: 1px solid rgba(59,130,246,0.25); border-radius: 999px;
+        cursor: pointer;
+        transition: border-color 0.08s ease;
+      }
+      .fpill:hover { border-color: var(--accent); }
+      .fpill-x { color: var(--text-muted); font-size: 13px; line-height: 1; }
+      .fpill:hover .fpill-x { color: var(--danger); }
+
       /* ===== Board (tag-driven kanban) ===== */
       .board {
         display: flex; gap: 12px; align-items: flex-start;

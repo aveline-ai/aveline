@@ -96,3 +96,25 @@ test_board_forged_view_stripped() {
   run_cli -w "$ws" get-doc "$slug"
   expect_eq '.doc.blocks[0].view.cards | length' "0" "view is computed, not the pasted one"
 }
+
+test_list_docs_has_filter() {
+  local ws; ws="$(mk_workspace st-has)"
+  mk_board_tags "$ws"
+  local blocks; blocks="[$(block_paragraph 'plain')]"
+  run_cli -w "$ws" create-doc --title "Plain" --blocks "$blocks"
+  local plain; plain="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
+  run_cli -w "$ws" create-doc --title "A board" \
+    --blocks "$(jq -nc '[{type: "board", tags: ["feature-x"], by: "status"}]')"
+  run_cli -w "$ws" create-doc --title "A trail" \
+    --blocks "$(jq -nc --arg doc "$plain" '[{type: "doc_link", doc: $doc}]')"
+
+  run_cli -w "$ws" list-docs --has board
+  expect_ok "list --has board ok"
+  expect_count ".docs" "1" "one board"
+  expect_eq ".docs[0].title" "A board" "the board"
+
+  run_cli -w "$ws" list-docs --has links
+  expect_ok "list --has links ok"
+  expect_count ".docs" "1" "one trail"
+  expect_eq ".docs[0].title" "A trail" "the trail"
+}

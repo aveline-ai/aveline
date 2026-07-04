@@ -37,6 +37,7 @@ defmodule Aveline.Docs do
     sort = Keyword.get(opts, :sort, :recent)
     tags = Keyword.get(opts, :tags, []) || []
     owner_ids = Keyword.get(opts, :owner_ids, []) || []
+    has = Keyword.get(opts, :has, []) || []
     search = (Keyword.get(opts, :search) || "") |> to_string() |> String.trim()
     limit = Keyword.get(opts, :limit)
     offset = Keyword.get(opts, :offset, 0)
@@ -48,11 +49,32 @@ defmodule Aveline.Docs do
     base
     |> maybe_filter_tags(tags)
     |> maybe_filter_owners(owner_ids)
+    |> maybe_filter_has(has)
     |> maybe_filter_search(search)
     |> apply_sort(sort)
     |> maybe_paginate(limit, offset)
     |> Repo.all()
     |> Repo.preload([:owner, :actor_user])
+  end
+
+  @doc "Structural doc kinds the `has:` filter understands."
+  def has_kinds, do: ~w(links board)
+
+  # Structural kind filters — a doc is a trail/board because of what's
+  # in its blocks (jsonb containment; multiple values AND together).
+  defp maybe_filter_has(query, []), do: query
+
+  defp maybe_filter_has(query, kinds) when is_list(kinds) do
+    Enum.reduce(kinds, query, fn
+      "links", q ->
+        from(d in q, where: fragment("? @> '[{\"type\": \"doc_link\"}]'::jsonb", d.blocks))
+
+      "board", q ->
+        from(d in q, where: fragment("? @> '[{\"type\": \"board\"}]'::jsonb", d.blocks))
+
+      _, q ->
+        q
+    end)
   end
 
   # Postgres full-text: websearch_to_tsquery handles the user-facing syntax

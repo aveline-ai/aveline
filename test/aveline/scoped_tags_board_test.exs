@@ -135,6 +135,23 @@ defmodule Aveline.ScopedTagsBoardTest do
       refute Map.has_key?(block, "view")
     end
 
+    test "list_current has: filters by structural kind", %{user: user, ws: ws} do
+      plain = Fixtures.doc_fixture(ws, user, title: "Plain")
+      {:ok, board} = create_board(ws, user)
+
+      trail =
+        Fixtures.doc_fixture(ws, user,
+          title: "Trail",
+          blocks: [%{"type" => "doc_link", "doc" => plain.slug}]
+        )
+
+      slugs = fn opts -> ws.id |> Docs.list_current(opts) |> Enum.map(& &1.slug) |> Enum.sort() end
+
+      assert slugs.(has: ["board"]) == [board.slug]
+      assert slugs.(has: ["links"]) == [trail.slug]
+      assert slugs.(has: ["bogus"]) == slugs.(has: [])
+    end
+
     test "board block shape is validated", %{user: user, ws: ws} do
       assert {:error, msg} = create_board(ws, user, [])
       assert msg =~ "non-empty"

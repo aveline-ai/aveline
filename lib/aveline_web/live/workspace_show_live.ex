@@ -4,6 +4,8 @@ defmodule AvelineWeb.WorkspaceShowLive do
 
   alias Aveline.Docs
   alias Aveline.DocViews
+  alias Aveline.Tags
+  alias Phoenix.LiveView.JS
   alias Aveline.Kudos
   alias Aveline.Workspaces
   alias AvelineWeb.LiveSession
@@ -31,6 +33,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
            author_counts: %{},
            selected_tags: [],
            selected_authors: [],
+           selected_has: [],
            sort: :recent,
            search: "",
            items: [],
@@ -58,8 +61,11 @@ defmodule AvelineWeb.WorkspaceShowLive do
   @impl true
   def handle_params(params, _uri, socket) do
     selected_tags = parse_tags(params["tag"])
+
     selected_authors =
       parse_authors(params["author"], socket.assigns.workspace_authors)
+
+    selected_has = parse_has(params["has"])
     sort = parse_sort(params["sort"])
     search = params["q"] || ""
 
@@ -74,6 +80,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
         sort: sort,
         tags: selected_tags,
         owner_ids: owner_ids,
+        has: selected_has,
         search: search,
         limit: page_size + 1
       )
@@ -90,6 +97,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
     # every doc; unselected ones with count 0 mean "no overlap — adding
     # this would empty the page," and we render those disabled.
     chip_counts = items |> Enum.flat_map(& &1.tags) |> Enum.frequencies()
+
     author_counts =
       items
       |> Enum.flat_map(fn i -> if i.owner, do: [i.owner.username], else: [] end)
@@ -99,6 +107,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
      assign(socket,
        selected_tags: selected_tags,
        selected_authors: selected_authors,
+       selected_has: selected_has,
        sort: sort,
        search: search,
        items: items,
@@ -134,20 +143,29 @@ defmodule AvelineWeb.WorkspaceShowLive do
   defp parse_authors(nil, _users), do: []
   defp parse_authors("", _users), do: []
   defp parse_authors(s, users) when is_binary(s), do: parse_authors([s], users)
+
   defp parse_authors(list, users) when is_list(list) do
     known = MapSet.new(users, & &1.username)
     list |> Enum.filter(&(is_binary(&1) and &1 != "" and MapSet.member?(known, &1))) |> Enum.uniq()
   end
 
   defp author_ids([], _users), do: []
+
   defp author_ids(usernames, users) do
     lookup = Map.new(users, &{&1.username, &1.id})
     Enum.flat_map(usernames, fn u -> if id = lookup[u], do: [id], else: [] end)
   end
 
+  defp parse_has(nil), do: []
+  defp parse_has(""), do: []
+  defp parse_has(s) when is_binary(s), do: parse_has([s])
+
+  defp parse_has(list) when is_list(list),
+    do: list |> Enum.filter(&(&1 in Docs.has_kinds())) |> Enum.uniq()
+
   defp parse_sort("kudos"), do: :kudos
   defp parse_sort("views"), do: :views
-  defp parse_sort(_),       do: :recent
+  defp parse_sort(_), do: :recent
 
   @impl true
   def handle_event("toggle_tag", %{"tag" => tag}, socket) do
@@ -172,6 +190,24 @@ defmodule AvelineWeb.WorkspaceShowLive do
     {:noreply, push_patch(socket, to: build_path(socket, %{author: new_authors}))}
   end
 
+  def handle_event("toggle_has", %{"kind" => kind}, socket) do
+    new_has =
+      if kind in socket.assigns.selected_has do
+        List.delete(socket.assigns.selected_has, kind)
+      else
+        socket.assigns.selected_has ++ [kind]
+      end
+
+    {:noreply, push_patch(socket, to: build_path(socket, %{has: new_has}))}
+  end
+
+  def handle_event("clear_filters", _params, socket) do
+    {:noreply,
+     push_patch(socket,
+       to: build_path(socket, %{tag: [], author: [], has: [], q: nil})
+     )}
+  end
+
   def handle_event("search", %{"value" => v}, socket) do
     {:noreply, push_patch(socket, to: build_path(socket, %{q: v}))}
   end
@@ -185,6 +221,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
       workspace: ws,
       selected_tags: tags,
       selected_authors: authors,
+      selected_has: has,
       workspace_authors: ws_authors,
       sort: sort,
       items: existing,
@@ -196,6 +233,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
         sort: sort,
         tags: tags,
         owner_ids: author_ids(authors, ws_authors),
+        has: has,
         search: socket.assigns.search,
         limit: page_size + 1,
         offset: length(existing)
@@ -231,6 +269,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
     base = %{
       tag: socket.assigns.selected_tags,
       author: socket.assigns.selected_authors,
+      has: socket.assigns.selected_has,
       sort: sort_param(socket.assigns.sort),
       q: nz(socket.assigns.search)
     }
@@ -242,10 +281,11 @@ defmodule AvelineWeb.WorkspaceShowLive do
     # as a list and Plug handles the [] syntax for us.
     tags = Map.get(merged, :tag, [])
     authors = Map.get(merged, :author, [])
+    has = Map.get(merged, :has, [])
 
     scalars =
       merged
-      |> Map.drop([:tag, :author])
+      |> Map.drop([:tag, :author, :has])
       |> Enum.reject(fn {_k, v} -> v in [nil, "", false] end)
       |> Enum.map(fn {k, v} -> {Atom.to_string(k), v} end)
 
@@ -253,6 +293,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
       scalars
       |> maybe_append_list("tag", tags)
       |> maybe_append_list("author", authors)
+      |> maybe_append_list("has", has)
 
     if query == [] do
       ~p"/w/#{socket.assigns.workspace.slug}/docs"
@@ -271,6 +312,70 @@ defmodule AvelineWeb.WorkspaceShowLive do
   defp sort_param(:views), do: "views"
   defp sort_param(_), do: nil
 
+  # ===== Filter dropdown machinery =====
+  # LiveView-native dropdowns: JS.toggle shows the menu, phx-click-away
+  # hides it, Escape hides it. LiveView tracks JS-command changes across
+  # patches, so multi-select menus stay open while the list re-renders.
+
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  attr :count, :integer, default: 0
+  slot :inner_block, required: true
+
+  defp fdd(assigns) do
+    ~H"""
+    <div
+      class="fdd"
+      id={@id}
+      phx-click-away={JS.hide(to: "##{@id}-menu")}
+      phx-window-keydown={JS.hide(to: "##{@id}-menu")}
+      phx-key="escape"
+    >
+      <button
+        type="button"
+        class={"fdd-btn " <> if @count > 0, do: "fdd-btn-active", else: ""}
+        phx-click={JS.toggle(to: "##{@id}-menu")}
+      >
+        {@label}
+        <span :if={@count > 0} class="fdd-badge">{@count}</span>
+        <svg class="fdd-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      <div class="fdd-menu" id={@id <> "-menu"} hidden>
+        {render_slot(@inner_block)}
+      </div>
+    </div>
+    """
+  end
+
+  # Plain tags first, then one section per scope (status, priority, …).
+  defp grouped_tags(tags) do
+    {plain, scoped} = Enum.split_with(tags, &is_nil(Tags.scope_of(&1)))
+
+    grouped =
+      scoped
+      |> Enum.group_by(&Tags.scope_of/1)
+      |> Enum.sort_by(&elem(&1, 0))
+
+    {plain, grouped}
+  end
+
+  defp type_options do
+    [
+      {"links", "Trails", "has doc links"},
+      {"board", "Boards", "has a kanban"}
+    ]
+  end
+
+  defp has_label("links"), do: "Trails"
+  defp has_label("board"), do: "Boards"
+  defp has_label(other), do: other
+
+  defp sort_label(:recent), do: "Recent"
+  defp sort_label(:kudos), do: "Kudos"
+  defp sort_label(:views), do: "Views"
+
   @impl true
   def render(assigns) do
     # All filtering — tags, authors, search (Postgres FTS) — happens
@@ -280,10 +385,11 @@ defmodule AvelineWeb.WorkspaceShowLive do
     ~H"""
     <div class="content">
       <h1 class="page-title">Docs</h1>
-      <p class="page-subtitle">
-        Everything written in <span class="mono">{@workspace.slug}</span> — filter by tag or author, search title and content.
+      <p class="page-subtitle docs-subtitle">
+        Everything written in <span class="mono">{@workspace.slug}</span> — filter, search, sort.
       </p>
 
+      <div class="docs-controls">
       <div class="filter-bar">
         <div class="filter-row">
           <span class="filter-row-icon" title="Search">
@@ -303,92 +409,123 @@ defmodule AvelineWeb.WorkspaceShowLive do
             />
           </form>
         </div>
-        <%= if @workspace_tags != [] do %>
-          <div class="filter-row">
-            <span class="filter-row-icon" title="Filter by tag">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M2 7l5-5h6v6l-5 5z" stroke-linejoin="round" />
-                <circle cx="9.5" cy="6.5" r="0.9" fill="currentColor" />
-              </svg>
-            </span>
-            <div class="chip-row">
-              <%= for tag <- @workspace_tags do %>
-                <% selected = tag in @selected_tags %>
-                <% count = Map.get(@chip_counts, tag, 0) %>
-                <% disabled = not selected and count == 0 %>
-                <button
-                  phx-click={unless disabled, do: "toggle_tag"}
-                  phx-value-tag={tag}
-                  disabled={disabled}
-                  class={"chip chip-tag " <> cond do
-                    selected -> "chip-active"
-                    disabled -> "chip-disabled"
-                    true -> ""
-                  end}
-                  title={if disabled, do: "No overlap with current filter", else: nil}
-                >
-                  <span class="chip-text">{tag}</span>
-                  <span class="chip-meta">{if selected, do: "•", else: count}</span>
-                </button>
-              <% end %>
-            </div>
-          </div>
-        <% end %>
+      </div>
 
-        <%= if @workspace_authors != [] do %>
-          <div class="filter-row">
-            <span class="filter-row-icon" title="Filter by author">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-                <circle cx="8" cy="6" r="2.6" />
-                <path d="M3 13.5c0-2.2 2.2-3.5 5-3.5s5 1.3 5 3.5" stroke-linecap="round" />
-              </svg>
-            </span>
-            <div class="chip-row">
-              <%= for u <- @workspace_authors do %>
-                <% selected = u.username in @selected_authors %>
-                <% count = Map.get(@author_counts, u.username, 0) %>
-                <% disabled = not selected and count == 0 %>
-                <button
-                  phx-click={unless disabled, do: "toggle_author"}
-                  phx-value-author={u.username}
-                  disabled={disabled}
-                  class={"chip chip-author " <> cond do
-                    selected -> "chip-active"
-                    disabled -> "chip-disabled"
-                    true -> ""
-                  end}
-                  title={if disabled, do: "No overlap with current filter", else: nil}
-                >
-                  <span class="chip-text">{u.username}</span>
-                  <span class="chip-meta">{if selected, do: "•", else: count}</span>
-                </button>
-              <% end %>
-            </div>
-          </div>
-        <% end %>
+      <div class="fbar">
+        <.fdd :if={@workspace_tags != []} id="fdd-tag" label="Tag" count={length(@selected_tags)}>
+          <% {plain, scoped} = grouped_tags(@workspace_tags) %>
+          <button
+            :for={tag <- plain}
+            type="button"
+            class="fdd-item"
+            phx-click="toggle_tag"
+            phx-value-tag={tag}
+          >
+            <span class={"fdd-check " <> if tag in @selected_tags, do: "on", else: ""}></span>
+            <span class="fdd-item-label">{tag}</span>
+            <span class="fdd-item-count">{Map.get(@chip_counts, tag, 0)}</span>
+          </button>
+          <%= for {scope, values} <- scoped do %>
+            <div class="fdd-section">{scope}</div>
+            <button
+              :for={tag <- values}
+              type="button"
+              class="fdd-item"
+              phx-click="toggle_tag"
+              phx-value-tag={tag}
+            >
+              <span class={"fdd-check " <> if tag in @selected_tags, do: "on", else: ""}></span>
+              <span class="fdd-item-label">{Tags.value_of(tag)}</span>
+              <span class="fdd-item-count">{Map.get(@chip_counts, tag, 0)}</span>
+            </button>
+          <% end %>
+        </.fdd>
 
-        <div class="filter-row">
-          <span class="filter-row-icon" title="Sort">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 3v10" />
-              <path d="M2 11l2 2 2-2" />
-              <path d="M12 13V3" />
-              <path d="M10 5l2-2 2 2" />
-            </svg>
-          </span>
-          <div class="seg-row">
-            <div class="seg" role="group" aria-label="Sort">
-              <button
-                :for={{label, s} <- [{"Recent", :recent}, {"Kudos", :kudos}, {"Views", :views}]}
-                phx-click="set_sort"
-                phx-value-sort={Atom.to_string(s)}
-                class={"seg-btn " <> if @sort == s, do: "seg-btn-active", else: ""}
-              >
-                {label}
-              </button>
-            </div>
-          </div>
-        </div>
+        <.fdd :if={@workspace_authors != []} id="fdd-author" label="Author" count={length(@selected_authors)}>
+          <button
+            :for={u <- @workspace_authors}
+            type="button"
+            class="fdd-item"
+            phx-click="toggle_author"
+            phx-value-author={u.username}
+          >
+            <span class={"fdd-check " <> if u.username in @selected_authors, do: "on", else: ""}></span>
+            <span class="fdd-item-label">{u.username}</span>
+            <span class="fdd-item-count">{Map.get(@author_counts, u.username, 0)}</span>
+          </button>
+        </.fdd>
+
+        <.fdd id="fdd-type" label="Type" count={length(@selected_has)}>
+          <button
+            :for={{kind, label, hint} <- type_options()}
+            type="button"
+            class="fdd-item"
+            phx-click="toggle_has"
+            phx-value-kind={kind}
+          >
+            <span class={"fdd-check " <> if kind in @selected_has, do: "on", else: ""}></span>
+            <span class="fdd-item-label">{label}</span>
+            <span class="fdd-item-hint">{hint}</span>
+          </button>
+        </.fdd>
+
+        <.fdd id="fdd-sort" label={"Sort · " <> sort_label(@sort)} count={0}>
+          <button
+            :for={{label, s} <- [{"Recent", :recent}, {"Kudos", :kudos}, {"Views", :views}]}
+            type="button"
+            class="fdd-item"
+            phx-click={JS.hide(to: "#fdd-sort-menu") |> JS.push("set_sort", value: %{sort: Atom.to_string(s)})}
+          >
+            <span class={"fdd-check fdd-radio " <> if @sort == s, do: "on", else: ""}></span>
+            <span class="fdd-item-label">{label}</span>
+          </button>
+        </.fdd>
+
+        <button
+          :if={@selected_tags != [] or @selected_authors != [] or @selected_has != [] or @search != ""}
+          type="button"
+          class="fbar-clear"
+          phx-click="clear_filters"
+        >
+          Clear all
+        </button>
+      </div>
+
+      <div
+        :if={@selected_tags != [] or @selected_authors != [] or @selected_has != []}
+        class="fpills"
+      >
+        <button
+          :for={tag <- @selected_tags}
+          type="button"
+          class="fpill"
+          phx-click="toggle_tag"
+          phx-value-tag={tag}
+          title="Remove filter"
+        >
+          {tag} <span class="fpill-x">×</span>
+        </button>
+        <button
+          :for={a <- @selected_authors}
+          type="button"
+          class="fpill"
+          phx-click="toggle_author"
+          phx-value-author={a}
+          title="Remove filter"
+        >
+          @{a} <span class="fpill-x">×</span>
+        </button>
+        <button
+          :for={kind <- @selected_has}
+          type="button"
+          class="fpill"
+          phx-click="toggle_has"
+          phx-value-kind={kind}
+          title="Remove filter"
+        >
+          {has_label(kind)} <span class="fpill-x">×</span>
+        </button>
+      </div>
       </div>
 
       <%= if @shown_items == [] do %>
