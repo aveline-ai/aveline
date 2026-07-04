@@ -982,125 +982,215 @@
       }
 
       /* ===== Workspace home shelves ===== */
+      /* A faint accent glow at the top gives the page depth without
+         breaking the mono surface system. */
+      .home-content {
+        position: relative;
+      }
+      .home-content::before {
+        content: "";
+        position: absolute; inset: -40px -60px auto -60px; height: 340px;
+        background: radial-gradient(ellipse 70% 100% at 50% 0%,
+          rgba(59,130,246,0.07), transparent 70%);
+        pointer-events: none;
+      }
+      .home-content > * { position: relative; }
+      .home-hero { margin-bottom: 22px; }
+      .home-greeting {
+        font-size: 13px; color: var(--text-muted); margin-bottom: 2px;
+      }
+      .home-title {
+        font-family: 'Fraunces', serif;
+        font-size: 32px; letter-spacing: -0.01em;
+      }
+
+      /* Identity tiles + avatars — hue is hashed from the slug/username,
+         so every doc and person keeps a stable personal color. */
+      .doc-tile {
+        flex: none;
+        width: 28px; height: 28px; border-radius: 7px;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 13px; font-weight: 700;
+        background: hsl(var(--h, 220) 45% 22% / 0.9);
+        color: hsl(var(--h, 220) 80% 74%);
+        border: 1px solid hsl(var(--h, 220) 55% 34% / 0.5);
+      }
+      .doc-tile svg { width: 13px; height: 13px; }
+      .doc-tile-sm { width: 24px; height: 24px; border-radius: 6px; font-size: 11.5px; }
+      .doc-tile-xs { width: 18px; height: 18px; border-radius: 5px; font-size: 10px; }
+      .avatar {
+        flex: none; align-self: center;
+        width: 20px; height: 20px; border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 10px; font-weight: 700;
+        background: hsl(var(--h, 220) 40% 24%);
+        color: hsl(var(--h, 220) 75% 76%);
+      }
+
       .orientation-card {
         display: flex; align-items: center; gap: 14px;
-        margin-top: 4px; padding: 14px 16px;
-        background: var(--accent-dim);
-        border: 1px solid rgba(59,130,246,0.25);
-        border-radius: var(--radius);
+        margin-top: 4px; padding: 16px 18px;
+        background: linear-gradient(135deg, rgba(59,130,246,0.16), rgba(139,92,246,0.08) 60%, rgba(59,130,246,0.04));
+        border: 1px solid rgba(59,130,246,0.28);
+        border-radius: 12px;
         text-decoration: none;
-        transition: border-color 0.08s ease;
+        transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
       }
-      .orientation-card:hover { border-color: var(--accent); }
+      .orientation-card:hover {
+        border-color: rgba(59,130,246,0.55);
+        transform: translateY(-1px);
+        box-shadow: 0 8px 24px rgba(59,130,246,0.10);
+      }
       .orientation-icon {
-        flex: none; width: 18px; height: 18px; color: var(--accent);
-        display: inline-flex;
+        flex: none; width: 34px; height: 34px; border-radius: 9px;
+        display: inline-flex; align-items: center; justify-content: center;
+        color: var(--accent);
+        background: rgba(59,130,246,0.14);
+        border: 1px solid rgba(59,130,246,0.25);
       }
-      .orientation-icon svg { width: 18px; height: 18px; }
+      .orientation-icon svg { width: 17px; height: 17px; }
       .orientation-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-      .orientation-title { font-size: 14px; font-weight: 600; color: var(--text); }
+      .orientation-title { font-size: 14.5px; font-weight: 600; color: var(--text); }
       .orientation-summary { font-size: 12.5px; color: var(--text-secondary); }
       .orientation-cta {
         flex: none; margin-left: auto;
         font-size: 12.5px; font-weight: 500; color: var(--accent);
         white-space: nowrap;
       }
-      .shelf { margin-top: 28px; }
+
+      .shelf { margin-top: 34px; }
       .shelf-head {
-        display: flex; align-items: baseline; gap: 8px;
-        margin-bottom: 10px;
+        display: flex; align-items: center; gap: 8px;
+        margin-bottom: 12px;
       }
+      /* Rule line after each shelf head gives the page rhythm. */
+      .shelf-head::after {
+        content: ""; flex: 1; height: 1px;
+        background: linear-gradient(90deg, var(--border), transparent);
+        margin-left: 6px;
+      }
+      .shelf-icon {
+        flex: none; width: 14px; height: 14px;
+        display: inline-flex; color: var(--text-muted);
+      }
+      .shelf-icon svg { width: 14px; height: 14px; }
+      .shelf-icon-attn { color: var(--tag); }
       .shelf-label {
         font-size: 11.5px; font-weight: 600;
         text-transform: uppercase; letter-spacing: 0.09em;
-        color: var(--text-muted);
+        color: var(--text-secondary);
       }
-      .shelf-count { font-size: 11.5px; color: var(--text-muted); }
+      .shelf-count {
+        font-size: 11px; color: var(--text-muted);
+        border: 1px solid var(--border-strong); border-radius: 999px;
+        padding: 0 7px; line-height: 16px;
+      }
+      .shelf-count-attn {
+        color: var(--tag); border-color: var(--tag-border);
+        background: var(--tag-dim);
+      }
 
       /* Jump back in — the user's own recent reads, compact */
       .jump-grid {
-        display: grid; gap: 8px;
-        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        display: grid; gap: 10px;
+        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
       }
       .jump-card {
-        display: flex; flex-direction: column; gap: 2px;
+        display: flex; align-items: center; gap: 10px;
         padding: 10px 14px;
-        background: var(--bg-card);
+        background: linear-gradient(180deg, rgba(255,255,255,0.025), transparent), var(--bg-card);
         border: 1px solid var(--border);
-        border-radius: var(--radius);
+        border-radius: 10px;
         text-decoration: none;
-        transition: border-color 0.08s ease, background 0.08s ease;
+        transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
         min-width: 0;
       }
-      .jump-card:hover { border-color: var(--border-strong); background: var(--bg-card-hover); }
+      .jump-card:hover {
+        border-color: var(--border-strong);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+      }
+      .jump-card-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
       .jump-card-title {
         font-size: 13px; font-weight: 500; color: var(--text);
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       }
       .jump-card-time { font-size: 11px; color: var(--text-muted); }
 
-      /* Start here — story/trail cards */
+      /* Start here — pinned doc cards, each with its identity hue */
       .story-grid {
-        display: grid; gap: 10px;
+        display: grid; gap: 12px;
         grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
       }
       .story-card {
+        position: relative; overflow: hidden;
         display: block;
-        padding: 14px 16px;
-        background: var(--bg-card);
+        padding: 16px 18px;
+        background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent 55%), var(--bg-card);
         border: 1px solid var(--border);
-        border-radius: var(--radius);
+        border-radius: 12px;
         text-decoration: none;
-        transition: border-color 0.08s ease, background 0.08s ease;
+        transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
       }
-      .story-card:hover { border-color: var(--border-strong); background: var(--bg-card-hover); }
-      .story-card-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
-      .story-icon {
-        flex: none; width: 14px; height: 14px; color: var(--accent);
-        display: inline-flex;
+      /* A whisper of the doc's own hue across the top edge. */
+      .story-card::before {
+        content: "";
+        position: absolute; top: 0; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg,
+          hsl(var(--h, 220) 70% 60% / 0.55), transparent 65%);
       }
-      .story-icon svg { width: 14px; height: 14px; }
+      .story-card:hover {
+        border-color: hsl(var(--h, 220) 50% 45% / 0.45);
+        transform: translateY(-2px);
+        box-shadow: 0 10px 28px rgba(0,0,0,0.40);
+      }
+      .story-card-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
       .story-card-title {
         font-size: 14px; font-weight: 600; color: var(--text);
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       }
       .story-stops-badge {
         flex: none; margin-left: auto;
-        font-size: 11px; color: var(--text-muted);
-        border: 1px solid var(--border-strong);
+        font-size: 11px; color: hsl(var(--h, 220) 70% 72%);
+        border: 1px solid hsl(var(--h, 220) 55% 40% / 0.4);
+        background: hsl(var(--h, 220) 50% 30% / 0.2);
         border-radius: 999px; padding: 1px 8px;
         white-space: nowrap;
       }
       .story-card-summary {
-        margin-top: 5px; font-size: 12.5px; line-height: 1.5;
+        margin-top: 8px; font-size: 12.5px; line-height: 1.55;
         color: var(--text-secondary);
       }
       .story-card-path {
-        margin-top: 10px; font-size: 12px; line-height: 1.7;
+        margin-top: 10px; font-size: 12px; line-height: 1.8;
         color: var(--text-secondary);
       }
       .story-path-arrow { color: var(--text-muted); margin: 0 5px; }
       .story-path-stop { white-space: nowrap; }
       .story-path-dead { text-decoration: line-through; color: var(--text-muted); }
+      .story-card-tags { margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap; }
+      .story-card-tag {
+        font-size: 10.5px; color: var(--text-muted);
+        border: 1px solid var(--border); border-radius: 4px;
+        padding: 1px 6px;
+        background: rgba(255,255,255,0.02);
+      }
 
       /* Needs you — open-thread rows */
       .attn-list {
-        border: 1px solid var(--border); border-radius: var(--radius);
-        background: var(--bg-card); overflow: hidden;
+        border: 1px solid var(--tag-border); border-radius: 12px;
+        background: linear-gradient(180deg, var(--tag-dim), transparent 30%), var(--bg-card);
+        overflow: hidden;
       }
       .attn-row {
-        display: flex; align-items: baseline; gap: 10px;
-        padding: 10px 14px; text-decoration: none;
+        display: flex; align-items: baseline; gap: 11px;
+        padding: 11px 16px; text-decoration: none;
         border-bottom: 1px solid var(--border);
         transition: background 0.08s ease;
         min-width: 0;
       }
       .attn-row:last-child { border-bottom: none; }
-      .attn-row:hover { background: var(--bg-card-hover); }
-      .attn-dot {
-        flex: none; width: 6px; height: 6px; border-radius: 50%;
-        background: var(--tag); align-self: center;
-      }
+      .attn-row:hover { background: rgba(255,255,255,0.025); }
       .attn-body {
         font-size: 13px; color: var(--text);
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -1116,23 +1206,29 @@
       }
       .attn-doc { color: var(--text-secondary); }
 
-      /* Recently changed — digest rows */
+      /* Recently changed — digest rows with a timeline spine */
       .recent-list { display: flex; flex-direction: column; }
       .recent-row {
-        display: flex; align-items: baseline; gap: 10px;
-        padding: 7px 2px; text-decoration: none;
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 4px; text-decoration: none;
         border-bottom: 1px solid var(--border);
         min-width: 0;
+        border-radius: 6px;
+        transition: background 0.08s ease;
       }
       .recent-row:last-child { border-bottom: none; }
+      .recent-row:hover { background: rgba(255,255,255,0.02); }
       .recent-row:hover .recent-title { color: var(--accent); }
       .recent-title {
         flex: none; font-size: 13px; font-weight: 500; color: var(--text);
         transition: color 0.08s ease;
       }
       .recent-version {
-        flex: none; font-size: 11px; color: var(--text-muted);
+        flex: none; font-size: 10.5px; color: var(--text-secondary);
         font-family: 'JetBrains Mono', monospace;
+        border: 1px solid var(--border-strong); border-radius: 4px;
+        padding: 0 5px; line-height: 15px;
+        background: rgba(255,255,255,0.03);
       }
       .recent-intent {
         font-size: 12.5px; color: var(--text-secondary); font-style: italic;
