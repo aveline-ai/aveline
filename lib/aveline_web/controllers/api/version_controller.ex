@@ -36,7 +36,7 @@ defmodule AvelineWeb.Api.VersionController do
     with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
          {n, ""} <- Integer.parse(to_string(n_raw)),
          %_{} = doc <- Docs.get_version(current.base_doc_id, n) || {:error, :not_found} do
-      doc = %{doc | blocks: Docs.enrich_doc_links(doc.blocks || [], ws.id)}
+      doc = %{doc | blocks: Docs.enrich_blocks(doc.blocks || [], ws.id)}
       Envelope.ok(conn, %{doc: Views.doc_full(doc)})
     else
       :error -> {:error, :not_found}

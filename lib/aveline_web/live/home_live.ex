@@ -58,7 +58,7 @@ defmodule AvelineWeb.HomeLive do
     |> Enum.map(fn doc ->
       stops =
         doc.blocks
-        |> Docs.enrich_doc_links(ws.id)
+        |> Docs.enrich_blocks(ws.id)
         |> Enum.flat_map(fn
           %{"type" => "doc_link", "target" => t} -> [t]
           _ -> []

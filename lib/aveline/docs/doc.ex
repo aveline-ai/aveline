@@ -134,12 +134,21 @@ defmodule Aveline.Docs.Doc do
       length(tags) > @max_tags ->
         add_error(changeset, :tags, "too many tags (max #{@max_tags})")
 
-      Enum.any?(tags, fn t -> not is_binary(t) or Slug.validate(t) != :ok end) ->
+      Enum.any?(tags, fn t -> not is_binary(t) or not valid_tag_slug?(t) end) ->
         add_error(changeset, :tags, "tag_invalid")
 
       true ->
         normalized = tags |> Enum.map(&String.downcase/1) |> Enum.uniq()
         put_change(changeset, :tags, normalized)
+    end
+  end
+
+  # Plain slug or scoped `scope:value` — mirrors Tag.validate_slug_format.
+  defp valid_tag_slug?(slug) do
+    case String.split(slug, ":") do
+      [plain] -> Slug.validate(plain) == :ok
+      [scope, value] -> Slug.validate(scope) == :ok and Slug.validate(value) == :ok
+      _ -> false
     end
   end
 end

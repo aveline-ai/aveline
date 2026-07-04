@@ -183,12 +183,13 @@ tag_specs = [
   {"onboarding", "Read-these-first content for new teammates."},
   {"runbook", "Operational playbooks for live incidents."},
   {"stack", "The components Aveline runs on and how they fit together."},
-  # Kanban status tags — the Board view groups docs by these.
-  {"backlog", "Board status: captured, not started."},
-  {"todo", "Board status: next up."},
-  {"in-progress", "Board status: being worked on now."},
-  {"done", "Board status: shipped."},
-  {"kanban-feature", "Board scope: work on the kanban board feature itself."}
+  # Scoped status tags — enum members (a doc carries at most one
+  # status:*). Creation order here IS board column order.
+  {"status:backlog", "Status: captured, not started."},
+  {"status:todo", "Status: next up."},
+  {"status:in-progress", "Status: being worked on now."},
+  {"status:done", "Status: shipped."},
+  {"kanban-feature", "Work on the kanban board feature itself."}
 ]
 
 Enum.each(tag_specs, fn {slug, description} ->
@@ -426,7 +427,7 @@ issue = fn title, body, owner, status ->
     title: title,
     summary: body,
     owner: owner,
-    tags: ["kanban-feature", status],
+    tags: ["kanban-feature", "status:" <> status],
     blocks: [para.([t.(body)])]
   }
 end
@@ -434,10 +435,30 @@ end
 doc_specs =
   doc_specs ++
     [
-      issue.("Kanban: column drag & drop", "Arrows work; dragging would feel better. Needs a JS hook.", carol, "backlog"),
-      issue.("Kanban: saved board presets", "Remember scope+columns per workspace instead of URL-only.", bob, "todo"),
-      issue.("Kanban: ship the board view", "Tag-driven columns, URL-defined boards, moves via retag.", alice, "in-progress"),
-      issue.("Kanban: settle the tag conventions", "Scope tag + backlog/todo/in-progress/done. Decided — see board.", alice, "done")
+      issue.("Kanban: drag & drop in the web", "Web is read-only for now (humans comment); revisit if pointing at cards ever beats asking your agent.", carol, "backlog"),
+      issue.("Kanban: board block inside worklogs", "Embed a feature's own board under its worklog prose. Should already work — verify and demo it.", bob, "todo"),
+      issue.("Kanban: ship boards-as-docs", "board block + scoped status tags + the Boards directory tab.", alice, "in-progress"),
+      issue.("Kanban: settle the tag model", "Scoped tags (status:todo) with per-scope exclusivity. Decided.", alice, "done"),
+      %{
+        slug: "board-kanban-feature",
+        title: "Kanban feature — board",
+        summary: "Live board for the kanban feature work. Cards are docs tagged kanban-feature; columns come from the status scope.",
+        owner: alice,
+        # Deliberately NOT tagged kanban-feature — a board carrying its
+        # own filter tag becomes one of its own cards.
+        tags: [],
+        blocks: [
+          para.([
+            t.("Everything tagged "),
+            b.("kanban-feature", ["code"]),
+            t.(" below, grouped by "),
+            b.("status", ["code"]),
+            t.(". Agents move cards by retagging: "),
+            b.("aveline apply-ops <slug> --tag kanban-feature --tag status:done --ops \"[]\"", ["code"])
+          ]),
+          %{"type" => "board", "tags" => ["kanban-feature"], "by" => "status"}
+        ]
+      }
     ]
 
 # Create docs if they don't already exist (idempotent).

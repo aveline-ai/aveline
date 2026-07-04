@@ -135,7 +135,7 @@ defmodule Aveline.DocLinksTest do
           %{"type" => "doc_link", "doc_id" => target.base_doc_id, "note" => [%{"text" => "start"}]}
         ])
 
-      assert [%{"target" => t}] = Docs.enrich_doc_links(doc.blocks, ws.id)
+      assert [%{"target" => t}] = Docs.enrich_blocks(doc.blocks, ws.id)
       assert t["slug"] == "target-doc"
       assert t["title"] == "Target doc"
       assert t["deleted"] == false
@@ -149,7 +149,7 @@ defmodule Aveline.DocLinksTest do
 
       {:ok, _} = Docs.soft_delete(target, user.id)
 
-      assert [%{"target" => t}] = Docs.enrich_doc_links(doc.blocks, ws.id)
+      assert [%{"target" => t}] = Docs.enrich_blocks(doc.blocks, ws.id)
       assert t["deleted"] == true
       assert t["title"] == "Target doc"
     end
@@ -157,7 +157,7 @@ defmodule Aveline.DocLinksTest do
     test "non-doc_link blocks pass through untouched" do
       %{ws: ws} = setup_ws()
       blocks = [%{"id" => "b_x", "type" => "paragraph", "content" => [%{"text" => "hi"}]}]
-      assert Docs.enrich_doc_links(blocks, ws.id) == blocks
+      assert Docs.enrich_blocks(blocks, ws.id) == blocks
     end
   end
 

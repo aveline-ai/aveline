@@ -344,14 +344,51 @@ defmodule Aveline.Docs do
   end
 
   @doc """
-  Read-time enrichment: every doc_link block gains a `"target"` map
-  echoing the linked doc's current slug/title/summary/state. Computed per
-  read, never persisted — there is nothing to keep in sync. A target with
-  no live version (soft-deleted) echoes its latest metadata plus
-  `"deleted" => true` so callers can render a removed stop instead of an
-  error.
+  Read-time enrichment, never persisted — computed per read so there is
+  nothing to keep in sync:
+
+    * doc_link blocks gain a `"target"` map echoing the linked doc's
+      current slug/title/summary/state (soft-deleted targets echo their
+      latest metadata plus `"deleted" => true`)
+    * board blocks gain a `"view"` map — columns (the `by` scope's
+      members in creation order) and cards (docs matching the filter
+      tags, each with its column)
   """
-  def enrich_doc_links(blocks, workspace_id) when is_list(blocks) do
+  def enrich_blocks(blocks, workspace_id) when is_list(blocks) do
+    blocks
+    |> enrich_doc_links(workspace_id)
+    |> Enum.map(fn
+      %{"type" => "board"} = b -> Map.put(b, "view", board_view(b, workspace_id))
+      b -> b
+    end)
+  end
+
+  def enrich_blocks(blocks, _workspace_id), do: blocks
+
+  defp board_view(%{"tags" => filter, "by" => scope}, workspace_id) do
+    columns = Tags.list_scope_members(workspace_id, scope)
+
+    cards =
+      workspace_id
+      |> list_current(tags: filter)
+      |> Enum.map(fn d ->
+        %{
+          "slug" => d.slug,
+          "title" => d.title,
+          "summary" => d.summary,
+          "owner" => d.owner && d.owner.username,
+          "updated_at" => d.updated_at && DateTime.to_iso8601(d.updated_at),
+          # Exclusivity guarantees at most one match.
+          "column" => Enum.find(columns, &(&1 in d.tags))
+        }
+      end)
+
+    %{"columns" => columns, "cards" => cards}
+  end
+
+  defp board_view(_block, _ws), do: %{"columns" => [], "cards" => []}
+
+  defp enrich_doc_links(blocks, workspace_id) when is_list(blocks) do
     ids =
       for %{"type" => "doc_link", "doc_id" => id} <- blocks,
           is_binary(id),
@@ -393,7 +430,7 @@ defmodule Aveline.Docs do
     end
   end
 
-  def enrich_doc_links(blocks, _workspace_id), do: blocks
+  defp enrich_doc_links(blocks, _workspace_id), do: blocks
 
   defp doc_link_target(%Doc{} = live, _dead), do: doc_link_target_map(live, false)
   defp doc_link_target(nil, %Doc{} = dead), do: doc_link_target_map(dead, true)
@@ -453,6 +490,7 @@ defmodule Aveline.Docs do
     tags = Map.get(base_attrs, :tags, []) || []
 
     with :ok <- Tags.ensure_all_exist(ws_id, tags),
+         :ok <- Tags.ensure_no_scope_conflict(tags),
          {:ok, ops} <- resolve_doc_links(ops, ws_id),
          {:ok, new_blocks} <- run_document_apply([], ops) do
       insert_version(:new, new_blocks, ops, base_attrs, opts)
@@ -464,6 +502,7 @@ defmodule Aveline.Docs do
     tags = Map.get(update_attrs, :tags, current.tags) || []
 
     with :ok <- Tags.ensure_all_exist(current.workspace_id, tags),
+         :ok <- Tags.ensure_no_scope_conflict(tags),
          {:ok, ops} <- resolve_doc_links(ops, current.workspace_id),
          {:ok, new_blocks} <- run_document_apply(current.blocks || [], ops) do
       insert_version(current, new_blocks, ops, update_attrs, opts)
@@ -507,6 +546,17 @@ defmodule Aveline.Docs do
   end
 
   defp resolve_op_doc_link(op, _ws_id), do: {:ok, op}
+
+  # Board blocks validate their filter tags at write time (same spirit
+  # as doc_link target checks): a board over unknown tags is a typo, not
+  # an empty board.
+  defp resolve_block_doc_link(%{"type" => "board", "tags" => tags} = block, ws_id)
+       when is_list(tags) do
+    case Tags.ensure_all_exist(ws_id, Enum.filter(tags, &is_binary/1)) do
+      :ok -> {:ok, block}
+      err -> err
+    end
+  end
 
   defp resolve_block_doc_link(%{"type" => t} = block, _ws_id)
        when is_binary(t) and t != "doc_link",

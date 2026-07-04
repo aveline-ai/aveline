@@ -140,6 +140,13 @@ defmodule AvelineWeb.Api.FallbackController do
         %{slot: slot, occupant: occupant}
       )
 
+  def call(conn, {:error, {:tag_scope_conflict, scope, tags}}),
+    do:
+      err(conn, 422, "tag_scope_conflict",
+        "A doc can carry at most one tag per scope — the set has #{Enum.join(tags, " and ")}. Scoped tags (#{scope}:*) are mutually exclusive options.",
+        %{scope: scope, tags: tags}
+      )
+
   # ===== Workspace memberships =====
 
   def call(conn, {:error, :self_remove}),

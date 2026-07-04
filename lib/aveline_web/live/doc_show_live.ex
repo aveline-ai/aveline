@@ -52,7 +52,7 @@ defmodule AvelineWeb.DocShowLive do
                   {current_doc, false}
               end
 
-            showing = %{showing | blocks: Docs.enrich_doc_links(showing.blocks || [], ws.id)}
+            showing = %{showing | blocks: Docs.enrich_blocks(showing.blocks || [], ws.id)}
 
             # Comment view — single 3-state toggle:
             #   :open → open + non-deleted (default, working view)
@@ -409,7 +409,7 @@ defmodule AvelineWeb.DocShowLive do
           %{
             new_current
             | blocks:
-                Docs.enrich_doc_links(new_current.blocks || [], new_current.workspace_id)
+                Docs.enrich_blocks(new_current.blocks || [], new_current.workspace_id)
           }
         end
 

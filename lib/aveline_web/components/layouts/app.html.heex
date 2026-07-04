@@ -65,17 +65,6 @@
           <% end %>
         </.link>
         <.link
-          navigate={~p"/w/#{@workspace.slug}/board"}
-          class={"sidebar-item " <> if assigns[:nav_active] == :board, do: "active", else: ""}
-        >
-          <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
-            <rect x="2" y="2.5" width="3.4" height="11" rx="1" />
-            <rect x="6.3" y="2.5" width="3.4" height="7.5" rx="1" />
-            <rect x="10.6" y="2.5" width="3.4" height="5" rx="1" />
-          </svg>
-          <span class="label">Board</span>
-        </.link>
-        <.link
           navigate={~p"/w/#{@workspace.slug}/tags"}
           class={"sidebar-item " <> if assigns[:nav_active] == :tags, do: "active", else: ""}
         >

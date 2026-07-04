@@ -59,16 +59,23 @@ defmodule Aveline.Tags.Tag do
     end)
   end
 
+  # Plain tag (`runbook`) or scoped tag (`status:todo`) — one `:` max,
+  # both halves ordinary slugs. Scoped tags are enums: a doc carries at
+  # most one tag per scope (enforced on the doc write path).
   defp validate_slug_format(changeset) do
     case get_field(changeset, :slug) do
       nil ->
         changeset
 
       slug ->
-        case Slug.validate(slug) do
-          :ok -> changeset
-          {:error, _} -> add_error(changeset, :slug, "tag_invalid")
-        end
+        valid? =
+          case String.split(slug, ":") do
+            [plain] -> Slug.validate(plain) == :ok
+            [scope, value] -> Slug.validate(scope) == :ok and Slug.validate(value) == :ok
+            _ -> false
+          end
+
+        if valid?, do: changeset, else: add_error(changeset, :slug, "tag_invalid")
     end
   end
 

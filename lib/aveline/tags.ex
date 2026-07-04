@@ -238,6 +238,57 @@ defmodule Aveline.Tags do
     if missing == [], do: :ok, else: {:error, {:unknown_tags, missing}}
   end
 
+  # ===== Scoped tags =====
+  # A tag slug of the form `scope:value` (e.g. `status:todo`) is an enum
+  # member: a doc's tag set may carry at most one tag per scope. Plain
+  # tags are unaffected. The scope lives in the slug — no extra state.
+
+  @doc ~S(The scope of a scoped tag — "status" for "status:todo"; nil for plain tags.)
+  def scope_of(slug) when is_binary(slug) do
+    case String.split(slug, ":", parts: 2) do
+      [scope, _value] -> scope
+      _ -> nil
+    end
+  end
+
+  def scope_of(_), do: nil
+
+  @doc ~S(The value of a scoped tag — "todo" for "status:todo"; the slug itself for plain tags.)
+  def value_of(slug) when is_binary(slug) do
+    case String.split(slug, ":", parts: 2) do
+      [_scope, value] -> value
+      _ -> slug
+    end
+  end
+
+  @doc """
+  Scoped-tag exclusivity: at most one tag per scope in a tag set.
+  Pure — runs on the doc write path next to `ensure_all_exist/2`.
+  """
+  def ensure_no_scope_conflict(slugs) when is_list(slugs) do
+    slugs
+    |> Enum.group_by(&scope_of/1)
+    |> Map.delete(nil)
+    |> Enum.find(fn {_scope, tags} -> length(Enum.uniq(tags)) > 1 end)
+    |> case do
+      nil -> :ok
+      {scope, tags} -> {:error, {:tag_scope_conflict, scope, Enum.sort(Enum.uniq(tags))}}
+    end
+  end
+
+  @doc """
+  Members of a scope in creation order — deterministic board columns
+  (`status:backlog` before `status:done` because it was created first).
+  """
+  def list_scope_members(workspace_id, scope) when is_binary(scope) do
+    from(t in Tag,
+      where: t.workspace_id == ^workspace_id and like(t.slug, ^"#{scope}:%"),
+      order_by: [asc: t.inserted_at],
+      select: t.slug
+    )
+    |> Repo.all()
+  end
+
   # ===== Internal cascade helpers =====
 
   # Walk every doc carrying `old_slug` and replace it with `new_slug` in
