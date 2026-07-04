@@ -278,10 +278,6 @@ defmodule AvelineWeb.SignupLive do
         </div>
 
         <h1 class="auth-title">You're in, {@user.username}</h1>
-        <p class="auth-subtitle">
-          One step: hand this to your Claude.
-        </p>
-
         <div class="onboarding-step">
           <div class="onboarding-step-body">
             <p class="onboarding-step-desc">
