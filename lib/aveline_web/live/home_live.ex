@@ -124,7 +124,6 @@ defmodule AvelineWeb.HomeLive do
             class="story-card"
           >
             <div class="story-card-top">
-              <span class="story-card-slot" title={"Pin slot #{s.doc.pin_slot}"}>{s.doc.pin_slot}</span>
               <span class="story-card-title">{s.doc.title}</span>
               <span :if={s.stops != []} class="story-stops-badge">{length(s.stops)} stops</span>
             </div>
