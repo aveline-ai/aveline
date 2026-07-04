@@ -29,6 +29,7 @@ defmodule Aveline.Docs.Doc do
              :blocks,
              :tags,
              :pin_slot,
+             :orientation,
              :actor_type,
              :operations,
              :intent,
@@ -47,6 +48,8 @@ defmodule Aveline.Docs.Doc do
     field :blocks, {:array, :map}, default: []
     field :tags, {:array, :string}, default: []
     field :pin_slot, :integer
+    # Exactly one per workspace; undeletable by CHECK. See Docs moduledoc.
+    field :orientation, :boolean, default: false
     field :actor_type, :string
     field :operations, {:array, :map}, default: []
     field :intent, :string
@@ -86,6 +89,7 @@ defmodule Aveline.Docs.Doc do
       :blocks,
       :tags,
       :pin_slot,
+      :orientation,
       :owner_id,
       :actor_user_id,
       :actor_type,
@@ -115,6 +119,10 @@ defmodule Aveline.Docs.Doc do
       message: "has already been taken"
     )
     |> unique_constraint([:base_doc_id, :version_number])
+    |> unique_constraint(:orientation,
+      name: :docs_one_orientation_per_workspace_idx,
+      message: "workspace already has an orientation doc"
+    )
   end
 
   defp validate_slug(changeset) do

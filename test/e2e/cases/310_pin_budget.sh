@@ -70,7 +70,9 @@ test_pin_invalid_slot_rejected() {
 
 test_orientation_cannot_take_a_slot() {
   local ws; ws="$(mk_workspace pin-orient)"
-  run_cli -w "$ws" pin-doc agents --slot 1
+  run_cli -w "$ws" get-orientation
+  local oslug; oslug="$(jq -r '.doc.slug' <<<"$LAST_OUT_TEXT")"
+  run_cli -w "$ws" pin-doc "$oslug" --slot 1
   expect_err "validation_failed" 2 "orientation doc can't be slotted"
 }
 

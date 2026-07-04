@@ -6,7 +6,7 @@ test_list_docs_empty_workspace() {
   run_cli -w "$ws" list-docs
   expect_ok "list-docs on empty ws ok"
   expect_count "$MY_DOCS" "0" "no docs beyond the seeded orientation doc"
-  expect_eq '.docs[0].slug' "agents" "orientation doc is the only one there"
+  expect_eq '.docs[0].orientation' "true" "orientation doc is the only one there"
 }
 
 test_list_docs_after_creating_three() {

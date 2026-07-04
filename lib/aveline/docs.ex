@@ -122,6 +122,7 @@ defmodule Aveline.Docs do
 
   defp maybe_paginate(query, nil, _offset), do: query
   defp maybe_paginate(query, limit, 0), do: from(d in query, limit: ^limit)
+
   defp maybe_paginate(query, limit, offset),
     do: from(d in query, limit: ^limit, offset: ^offset)
 
@@ -184,6 +185,7 @@ defmodule Aveline.Docs do
     |> Enum.filter(&MapSet.member?(live, &1))
     |> Enum.sort()
   end
+
   def list_versions(base_doc_id) when is_binary(base_doc_id) do
     from(d in Doc,
       where: d.base_doc_id == ^base_doc_id,
@@ -227,12 +229,12 @@ defmodule Aveline.Docs do
   end
 
   # ===== Orientation doc =====
-  # Every workspace carries a doc at this well-known slug — "how we use
-  # Aveline here." It's an ordinary doc in every way (versioned,
-  # commentable, doc_links welcome) except it can't be deleted: it's the
-  # one stable thing a fresh agent can fetch to orient itself.
-
-  @orientation_slug "agents"
+  # Every workspace carries exactly one orientation doc — "how we use
+  # Aveline here" — marked by the `orientation` boolean on the doc row.
+  # One per workspace (partial unique index) and undeletable by CHECK
+  # constraint, not convention. Ordinary in every other way: versioned,
+  # commentable, doc_links welcome. Seeded at workspace creation; it's
+  # the one stable thing a fresh agent can fetch to orient itself.
 
   # Home-page pins: 6 numbered slots per workspace. Pinning means
   # exactly one thing — this doc holds that slot on the home page, in
@@ -241,9 +243,6 @@ defmodule Aveline.Docs do
   # and is mutated in place (navigation metadata, not content — same
   # treatment set_pinned always had).
   @pin_limit 6
-
-  @doc "The well-known slug of the workspace orientation doc."
-  def orientation_slug, do: @orientation_slug
 
   @doc "Number of home-page pin slots per workspace."
   def pin_limit, do: @pin_limit
@@ -268,7 +267,7 @@ defmodule Aveline.Docs do
   """
   def pin(doc, slot \\ nil, actor_user_id \\ nil)
 
-  def pin(%Doc{slug: @orientation_slug}, _slot, _actor),
+  def pin(%Doc{orientation: true}, _slot, _actor),
     do: {:error, "the orientation doc has its own card on the home page; it can't take a pin slot"}
 
   def pin(%Doc{} = doc, slot, actor_user_id) when is_nil(slot) or slot in 1..6 do
@@ -330,8 +329,15 @@ defmodule Aveline.Docs do
     end
   end
 
-  @doc "The workspace's orientation doc, or nil for pre-convention workspaces."
-  def get_orientation(workspace_id), do: get_current_by_slug(workspace_id, @orientation_slug)
+  @doc "The workspace's orientation doc."
+  def get_orientation(workspace_id) do
+    from(d in base_query(),
+      where: d.workspace_id == ^workspace_id and d.orientation,
+      preload: [:owner, :actor_user]
+    )
+    |> Repo.one()
+    |> scrub_deleted_tags(workspace_id)
+  end
 
   @doc """
   Seed the default orientation doc into a fresh workspace. The template
@@ -344,7 +350,7 @@ defmodule Aveline.Docs do
       owner_id: owner_id,
       actor_user_id: owner_id,
       actor_type: "human",
-      slug: @orientation_slug,
+      orientation: true,
       title: "How we use Aveline here",
       summary:
         "What lives in this workspace and how the team works. Agents fetch this first (aveline get-orientation --follow); humans keep it honest.",
@@ -358,7 +364,10 @@ defmodule Aveline.Docs do
       %{
         "type" => "paragraph",
         "content" => [
-          %{"text" => "Agent: read this before anything else. It explains what lives in this workspace and how the team works. It's a normal doc — when conventions change, update it (with intent) like any other doc."}
+          %{
+            "text" =>
+              "Agent: read this before anything else. It explains what lives in this workspace and how the team works. It's a normal doc — when conventions change, update it (with intent) like any other doc."
+          }
         ]
       },
       %{"type" => "heading", "level" => 2, "text" => "What this workspace is for"},
@@ -534,6 +543,8 @@ defmodule Aveline.Docs do
         title: title,
         summary: Map.get(attrs, :summary),
         tags: Map.get(attrs, :tags, []),
+        # Internal-only (workspace seeding) — not exposed through the API.
+        orientation: Map.get(attrs, :orientation, false),
         owner_id: Map.fetch!(attrs, :owner_id),
         actor_user_id: Map.fetch!(attrs, :actor_user_id),
         actor_type: Map.fetch!(attrs, :actor_type)
@@ -652,9 +663,7 @@ defmodule Aveline.Docs do
 
         if exists?,
           do: {:ok, block},
-          else:
-            {:error, :doc_link_target_not_found,
-             "doc_link target not found in this workspace: #{doc_id}"}
+          else: {:error, :doc_link_target_not_found, "doc_link target not found in this workspace: #{doc_id}"}
     end
   end
 
@@ -707,8 +716,10 @@ defmodule Aveline.Docs do
         title: Map.get(update_attrs, :title, current.title),
         summary: Map.get(update_attrs, :summary, current.summary),
         tags: Map.get(update_attrs, :tags, current.tags),
-        # Slot carries across edits — pin state is set only via pin/unpin.
+        # Slot + orientation carry across edits; neither is editable
+        # through apply_ops.
         pin_slot: current.pin_slot,
+        orientation: current.orientation,
         owner_id: current.owner_id,
         actor_user_id: Map.fetch!(update_attrs, :actor_user_id),
         actor_type: actor_type,
@@ -1015,7 +1026,7 @@ defmodule Aveline.Docs do
 
   # ===== Delete / restore =====
 
-  def soft_delete(%Doc{slug: @orientation_slug}, _deleted_by_id) do
+  def soft_delete(%Doc{orientation: true}, _deleted_by_id) do
     {:error, :orientation_undeletable}
   end
 

@@ -10,11 +10,43 @@ defmodule Aveline.OrientationDocTest do
     %{user: user, ws: ws}
   end
 
-  test "every new workspace gets the orientation doc at the well-known slug", %{ws: ws} do
+  test "every new workspace gets exactly one orientation doc", %{ws: ws} do
     doc = Docs.get_orientation(ws.id)
     assert doc
-    assert doc.slug == Docs.orientation_slug()
+    assert doc.orientation
     assert doc.title == "How we use Aveline here"
+  end
+
+  test "a second orientation doc is unrepresentable", %{user: user, ws: ws} do
+    assert {:error, %Ecto.Changeset{} = cs} =
+             Docs.create_doc(%{
+               workspace_id: ws.id,
+               owner_id: user.id,
+               actor_user_id: user.id,
+               actor_type: "human",
+               orientation: true,
+               title: "Impostor orientation",
+               blocks: []
+             })
+
+    assert cs.errors != []
+  end
+
+  test "orientation survives edits", %{user: user, ws: ws} do
+    doc = Docs.get_orientation(ws.id)
+
+    ops = [
+      %{
+        "op" => "append_block",
+        "block" => %{"type" => "paragraph", "content" => [%{"text" => "conventions"}]}
+      }
+    ]
+
+    {:ok, v2} =
+      Docs.apply_ops(doc, ops, %{actor_user_id: user.id, actor_type: "agent"}, dispositions: [])
+
+    assert v2.orientation
+    assert Docs.get_orientation(ws.id).id == v2.id
   end
 
   test "the orientation doc cannot be soft-deleted", %{user: user, ws: ws} do
