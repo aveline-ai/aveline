@@ -76,7 +76,6 @@ defmodule AvelineWeb.DocShowLive do
                workspace: ws,
                sidebar_workspaces: Workspaces.list_for_user(user.id),
                total_count: length(all_items),
-               pinned_count: Enum.count(all_items, & &1.pinned),
                topbar_title: current_doc.title,
                # `current_doc` is always the latest (for nav, switcher,
                # comments). `item` is what we actually render — either
@@ -322,34 +321,6 @@ defmodule AvelineWeb.DocShowLive do
     end
   end
 
-  def handle_event("toggle_pin", _, socket) do
-    %{current_user: user, current_doc: current_doc} = socket.assigns
-
-    if user do
-      case Docs.set_pinned(current_doc, not current_doc.pinned, user.id) do
-        {:ok, _} ->
-          {:noreply, socket}
-
-        {:error, :pin_limit_reached} ->
-          {:noreply,
-           put_flash(
-             socket,
-             :error,
-             "All #{Docs.pin_limit()} pin slots are taken — unpin another doc first."
-           )}
-
-        {:error, :orientation_pin_required} ->
-          {:noreply,
-           put_flash(socket, :error, "The orientation doc always keeps its pin slot.")}
-
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Could not update pin.")}
-      end
-    else
-      {:noreply, put_flash(socket, :error, "Sign in to pin.")}
-    end
-  end
-
   def handle_event("delete_message", %{"id" => base_id}, socket) do
     %{current_user: user} = socket.assigns
 
@@ -545,28 +516,17 @@ defmodule AvelineWeb.DocShowLive do
                 </svg>
               </button>
             <% end %>
-            <%= if @current_user do %>
-              <button
-                type="button"
-                phx-click="toggle_pin"
-                class={"article-pin-btn " <> if @current_doc.pinned, do: "is-pinned", else: ""}
-                title={if @current_doc.pinned, do: "Pinned — click to unpin", else: "Pin this doc"}
-                aria-pressed={if @current_doc.pinned, do: "true", else: "false"}
-                aria-label={if @current_doc.pinned, do: "Unpin", else: "Pin"}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 17v5"/>
-                  <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
-                </svg>
-              </button>
-            <% else %>
-              <span :if={@current_doc.pinned} class="article-pin-btn is-pinned is-static" title="Pinned" aria-label="Pinned">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 17v5"/>
-                  <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
-                </svg>
-              </span>
-            <% end %>
+            <span
+              :if={@current_doc.pin_slot}
+              class="article-pin-btn is-pinned is-static"
+              title={"Home page pin — slot #{@current_doc.pin_slot} (managed via the CLI)"}
+              aria-label={"Pinned to home slot #{@current_doc.pin_slot}"}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 17v5"/>
+                <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
+              </svg>
+            </span>
           </div>
 
           <%= if @item.summary && @item.summary != "" do %>

@@ -19,26 +19,20 @@ test_list_docs_after_creating_three() {
   expect_count "$MY_DOCS" "3" "three docs listed"
 }
 
-test_list_docs_filter_pinned() {
+test_list_docs_shows_pin_slot() {
   local ws; ws="$(mk_workspace ws-pinned)"
-  # Create one pinned, one not. Pinning happens via apply-ops or
-  # create-doc --pin.
-  mk_tag "$ws" "ops" >/dev/null
   local blocks; blocks="[$(block_paragraph 'hi')]"
-  run_cli -w "$ws" create-doc --title "Pinned" --tag ops --pin --blocks "$blocks"
-  expect_ok "pinned doc created"
-  run_cli -w "$ws" create-doc --title "Unpinned" --tag ops --blocks "$blocks"
-  expect_ok "unpinned doc created"
-  run_cli -w "$ws" list-docs --pinned
-  expect_ok "list --pinned ok"
-  expect_count "$MY_DOCS" "1" "exactly one pinned doc (plus the pinned orientation doc)"
-  if jq -e '.docs | all(.pinned == true)' <<<"$LAST_OUT_TEXT" >/dev/null 2>&1; then
-    pass "every returned doc is pinned"
+  run_cli -w "$ws" create-doc --title "Pinned" --blocks "$blocks"
+  local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
+  run_cli -w "$ws" pin-doc "$slug" --slot 2
+  expect_ok "pin-doc ok"
+  run_cli -w "$ws" list-docs
+  if jq -e --arg s "$slug" '.docs[] | select(.slug == $s) | .pin_slot == 2' <<<"$LAST_OUT_TEXT" >/dev/null 2>&1; then
+    pass "pin_slot echoed in list-docs"
   else
-    fail "non-pinned doc leaked into --pinned"
+    fail "pin_slot missing from list-docs"
   fi
 }
-
 test_list_docs_filter_by_tag() {
   local ws; ws="$(mk_workspace ws-bytag)"
   mk_tag "$ws" "alpha" >/dev/null

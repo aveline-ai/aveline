@@ -1,40 +1,82 @@
 # shellcheck shell=bash
-# Pin budget — 6 manually pinned docs per workspace (GitHub-style).
-# The orientation doc is always pinned but has its own permanent slot
-# and doesn't count against the budget.
+# Home-page pin slots — 6 numbered slots per workspace, set via
+# pin-doc/unpin-doc. Occupied slots never displace silently. The
+# orientation doc has its own card and can't be slotted.
+
+# Creates a plain doc and echoes its slug.
+mk_plain() {
+  local ws="$1" title="$2"
+  run_cli -w "$ws" create-doc --title "$title" --blocks "[$(block_paragraph 'body')]"
+  jq -r '.slug' <<<"$LAST_OUT_TEXT"
+}
+
+test_pin_explicit_and_auto_slots() {
+  local ws; ws="$(mk_workspace pin-slots)"
+  local a b
+  a="$(mk_plain "$ws" "Doc A")"
+  b="$(mk_plain "$ws" "Doc B")"
+
+  run_cli -w "$ws" pin-doc "$a" --slot 3
+  expect_ok "explicit slot 3"
+  expect_eq ".pin_slot" "3" "slot echoed"
+
+  run_cli -w "$ws" pin-doc "$b"
+  expect_ok "auto-assign"
+  expect_eq ".pin_slot" "1" "lowest free slot taken"
+}
+
+test_pin_occupied_slot_rejected() {
+  local ws; ws="$(mk_workspace pin-occupied)"
+  local a b
+  a="$(mk_plain "$ws" "Holder")"
+  b="$(mk_plain "$ws" "Challenger")"
+
+  run_cli -w "$ws" pin-doc "$a" --slot 2
+  expect_ok "slot 2 taken"
+  run_cli -w "$ws" pin-doc "$b" --slot 2
+  expect_err "pin_slot_taken" 2 "occupied slot → pin_slot_taken"
+  if grep -q "$a" <<<"$LAST_ERR_TEXT"; then
+    pass "error names the occupant"
+  else
+    fail "occupant slug missing from error"
+  fi
+}
 
 test_pin_budget_caps_at_six() {
   local ws; ws="$(mk_workspace pin-cap)"
-  local blocks; blocks="[$(block_paragraph 'body')]"
-
-  # Orientation is pinned but has its own slot — all 6 manual slots free.
   for i in 1 2 3 4 5 6; do
-    run_cli -w "$ws" create-doc --title "Pin $i" --pin --blocks "$blocks"
-    expect_ok "pin slot filled ($i of 6)"
+    local s; s="$(mk_plain "$ws" "Pin $i")"
+    run_cli -w "$ws" pin-doc "$s"
+    expect_ok "slot filled ($i of 6)"
   done
 
-  run_cli -w "$ws" create-doc --title "One too many" --pin --blocks "$blocks"
-  expect_err "pin_limit_reached" 2 "7th manual pin rejected with pin_limit_reached"
-}
+  local extra; extra="$(mk_plain "$ws" "One too many")"
+  run_cli -w "$ws" pin-doc "$extra"
+  expect_err "pin_limit_reached" 2 "7th pin rejected with pin_limit_reached"
 
-test_pin_budget_frees_on_unpin() {
-  local ws; ws="$(mk_workspace pin-free)"
-  local blocks; blocks="[$(block_paragraph 'body')]"
-
-  for i in 1 2 3 4 5 6; do
-    run_cli -w "$ws" create-doc --title "Pin $i" --pin --blocks "$blocks"
-  done
-
-  # Budget full — unpin one, then the next pin succeeds.
-  run_cli -w "$ws" apply-ops pin-1 --unpin --intent "free a slot" --ops "[]"
+  # Unpin one → the next pin succeeds.
+  run_cli -w "$ws" unpin-doc "pin-3"
   expect_ok "unpin frees a slot"
-
-  run_cli -w "$ws" create-doc --title "Fits now" --pin --blocks "$blocks"
+  run_cli -w "$ws" pin-doc "$extra"
   expect_ok "pin succeeds after freeing a slot"
 }
 
-test_orientation_cannot_be_unpinned() {
+test_pin_invalid_slot_rejected() {
+  local ws; ws="$(mk_workspace pin-invalid)"
+  local s; s="$(mk_plain "$ws" "Doc")"
+  run_cli -w "$ws" pin-doc "$s" --slot 9
+  expect_err "validation_failed" 2 "slot 9 → validation_failed"
+}
+
+test_orientation_cannot_take_a_slot() {
   local ws; ws="$(mk_workspace pin-orient)"
-  run_cli -w "$ws" apply-ops agents --unpin --intent "try to unpin" --ops "[]"
-  expect_err "orientation_pin_required" 2 "unpinning orientation rejected"
+  run_cli -w "$ws" pin-doc agents --slot 1
+  expect_err "validation_failed" 2 "orientation doc can't be slotted"
+}
+
+test_unpin_unpinned_doc_rejected() {
+  local ws; ws="$(mk_workspace pin-nounpin)"
+  local s; s="$(mk_plain "$ws" "Loose")"
+  run_cli -w "$ws" unpin-doc "$s"
+  expect_err "validation_failed" 2 "unpinning an unpinned doc errors"
 }

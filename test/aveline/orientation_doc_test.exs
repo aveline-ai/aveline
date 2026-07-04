@@ -10,11 +10,10 @@ defmodule Aveline.OrientationDocTest do
     %{user: user, ws: ws}
   end
 
-  test "every new workspace gets the orientation doc, pinned at the well-known slug", %{ws: ws} do
+  test "every new workspace gets the orientation doc at the well-known slug", %{ws: ws} do
     doc = Docs.get_orientation(ws.id)
     assert doc
     assert doc.slug == Docs.orientation_slug()
-    assert doc.pinned
     assert doc.title == "How we use Aveline here"
   end
 
@@ -24,45 +23,72 @@ defmodule Aveline.OrientationDocTest do
     assert Docs.get_orientation(ws.id)
   end
 
-  test "the orientation doc cannot be unpinned", %{user: user, ws: ws} do
+  test "the orientation doc can't take a pin slot (it has its own card)", %{user: user, ws: ws} do
     doc = Docs.get_orientation(ws.id)
-    assert {:error, :orientation_pin_required} = Docs.set_pinned(doc, false, user.id)
+    assert {:error, msg} = Docs.pin(doc, 1, user.id)
+    assert msg =~ "own card"
   end
 
-  test "pin budget: #{Aveline.Docs.pin_limit()} manual pins; orientation doesn't count", %{
-    user: user,
-    ws: ws
-  } do
-    # Orientation is already pinned but has its own slot — the full
-    # manual budget is available on top of it.
-    free = Docs.pin_limit()
+  describe "pin slots" do
+    test "explicit slot, auto-assign, occupancy, and the budget", %{user: user, ws: ws} do
+      docs = for i <- 1..7, do: Fixtures.doc_fixture(ws, user, title: "Doc #{i}")
+      [a, b, c | _rest] = docs
 
-    docs =
-      for i <- 1..free do
-        Fixtures.doc_fixture(ws, user, title: "Pin #{i}", pinned: true)
-      end
+      # Explicit slot.
+      assert {:ok, %{pin_slot: 3}} = Docs.pin(a, 3, user.id)
 
-    assert length(docs) == free
+      # Occupied slot errors with the occupant — no silent displacement.
+      assert {:error, {:pin_slot_taken, 3, occupant}} = Docs.pin(b, 3, user.id)
+      assert occupant == a.slug
 
-    # Slot 7 — via create_doc...
-    assert {:error, :pin_limit_reached} =
-             Docs.create_doc(%{
-               workspace_id: ws.id,
-               owner_id: user.id,
-               actor_user_id: user.id,
-               actor_type: "agent",
-               title: "One too many",
-               pinned: true,
-               blocks: []
-             })
+      # Auto-assign takes the lowest free slot.
+      assert {:ok, %{pin_slot: 1}} = Docs.pin(b, nil, user.id)
+      assert {:ok, %{pin_slot: 2}} = Docs.pin(c, nil, user.id)
 
-    # ...and via set_pinned on an existing unpinned doc.
-    loose = Fixtures.doc_fixture(ws, user, title: "Loose")
-    assert {:error, :pin_limit_reached} = Docs.set_pinned(loose, true, user.id)
+      # Fill the rest; the 7th pin hits the budget.
+      [d, e, f, g] = Enum.drop(docs, 3)
+      assert {:ok, _} = Docs.pin(d, nil, user.id)
+      assert {:ok, _} = Docs.pin(e, nil, user.id)
+      assert {:ok, _} = Docs.pin(f, nil, user.id)
+      assert {:error, :pin_limit_reached} = Docs.pin(g, nil, user.id)
 
-    # Unpinning one frees the slot.
-    assert {:ok, _} = Docs.set_pinned(hd(docs), false, user.id)
-    assert {:ok, _} = Docs.set_pinned(loose, true, user.id)
+      # list_pinned comes back in slot order.
+      slots = ws.id |> Docs.list_pinned() |> Enum.map(& &1.pin_slot)
+      assert slots == Enum.sort(slots)
+
+      # Unpin frees the slot for the next pin.
+      assert {:ok, %{pin_slot: nil}} = Docs.unpin(Docs.get_current_by_slug(ws.id, a.slug), user.id)
+      assert {:ok, %{pin_slot: 3}} = Docs.pin(g, 3, user.id)
+    end
+
+    test "slot survives new versions; out-of-range and double-unpin rejected", %{
+      user: user,
+      ws: ws
+    } do
+      doc = Fixtures.doc_fixture(ws, user, title: "Slotted")
+      assert {:ok, %{pin_slot: 2}} = Docs.pin(doc, 2, user.id)
+
+      ops = [
+        %{
+          "op" => "append_block",
+          "block" => %{"type" => "paragraph", "content" => [%{"text" => "edit"}]}
+        }
+      ]
+
+      current = Docs.get_current_by_slug(ws.id, doc.slug)
+
+      {:ok, v2} =
+        Docs.apply_ops(current, ops, %{actor_user_id: user.id, actor_type: "agent"}, dispositions: [])
+
+      assert v2.pin_slot == 2
+
+      assert {:error, msg} = Docs.pin(v2, 9, user.id)
+      assert msg =~ "between 1 and"
+
+      assert {:ok, _} = Docs.unpin(v2, user.id)
+      unpinned = Docs.get_current_by_slug(ws.id, doc.slug)
+      assert {:error, "doc is not pinned"} = Docs.unpin(unpinned, user.id)
+    end
   end
 
   test "the orientation doc is editable like any other doc", %{user: user, ws: ws} do

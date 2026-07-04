@@ -57,7 +57,7 @@ defmodule AvelineWeb.Api.Views do
       "title" => d.title,
       "summary" => d.summary,
       "tags" => d.tags || [],
-      "pinned" => d.pinned,
+      "pin_slot" => d.pin_slot,
       "version_number" => d.version_number,
       "owner" => user(preload(d, :owner)),
       "updated_at" => iso(d.updated_at)

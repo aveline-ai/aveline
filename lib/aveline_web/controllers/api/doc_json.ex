@@ -16,7 +16,7 @@ defmodule AvelineWeb.Api.DocJSON do
       summary: i.summary,
       blocks: i.blocks || [],
       tags: i.tags || [],
-      pinned: i.pinned,
+      pin_slot: i.pin_slot,
       owner: UserJSON.summary(loaded(i.owner)),
       actor: %{
         user: UserJSON.summary(loaded(i.actor_user)),

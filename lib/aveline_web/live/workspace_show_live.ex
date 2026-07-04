@@ -31,14 +31,12 @@ defmodule AvelineWeb.WorkspaceShowLive do
            author_counts: %{},
            selected_tags: [],
            selected_authors: [],
-           pin_mode: :pinned_first,
            sort: :recent,
            search: "",
            items: [],
            view_counts: %{},
            kudos_counts: %{},
            total_count: 0,
-           pinned_count: 0,
            page_size: Aveline.Pagination.default_page_size(),
            has_more?: false
          )}
@@ -62,7 +60,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
     selected_tags = parse_tags(params["tag"])
     selected_authors =
       parse_authors(params["author"], socket.assigns.workspace_authors)
-    pin_mode = parse_pin_mode(params["pin"])
     sort = parse_sort(params["sort"])
     search = params["q"] || ""
 
@@ -74,7 +71,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
     # a separate COUNT(*).
     raw =
       Docs.list_current(ws.id,
-        pin_mode: pin_mode,
         sort: sort,
         tags: selected_tags,
         owner_ids: owner_ids,
@@ -103,7 +99,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
      assign(socket,
        selected_tags: selected_tags,
        selected_authors: selected_authors,
-       pin_mode: pin_mode,
        sort: sort,
        search: search,
        items: items,
@@ -112,7 +107,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
        view_counts: DocViews.counts_by_base(base_ids),
        kudos_counts: Kudos.counts_by_base(base_ids),
        total_count: length(items),
-       pinned_count: Enum.count(items, & &1.pinned),
        has_more?: has_more?,
        # Docs is THE docs tab — stay highlighted regardless of filter state
        # so it's clear what page you're on. Clicking the sidebar link
@@ -151,9 +145,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
     Enum.flat_map(usernames, fn u -> if id = lookup[u], do: [id], else: [] end)
   end
 
-  defp parse_pin_mode("interleave"), do: :interleave
-  defp parse_pin_mode(_),             do: :pinned_first
-
   defp parse_sort("kudos"), do: :kudos
   defp parse_sort("views"), do: :views
   defp parse_sort(_),       do: :recent
@@ -185,10 +176,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
     {:noreply, push_patch(socket, to: build_path(socket, %{q: v}))}
   end
 
-  def handle_event("set_pin_mode", %{"mode" => mode}, socket) do
-    {:noreply, push_patch(socket, to: build_path(socket, %{pin: mode_to_param(mode)}))}
-  end
-
   def handle_event("set_sort", %{"sort" => sort}, socket) do
     {:noreply, push_patch(socket, to: build_path(socket, %{sort: sort_to_param(sort)}))}
   end
@@ -199,7 +186,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
       selected_tags: tags,
       selected_authors: authors,
       workspace_authors: ws_authors,
-      pin_mode: pin_mode,
       sort: sort,
       items: existing,
       page_size: page_size
@@ -207,7 +193,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
 
     raw =
       Docs.list_current(ws.id,
-        pin_mode: pin_mode,
         sort: sort,
         tags: tags,
         owner_ids: author_ids(authors, ws_authors),
@@ -239,8 +224,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
      )}
   end
 
-  defp mode_to_param("pinned_first"), do: nil
-  defp mode_to_param("interleave"),   do: "interleave"
   defp sort_to_param("recent"), do: nil
   defp sort_to_param(other), do: other
 
@@ -248,7 +231,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
     base = %{
       tag: socket.assigns.selected_tags,
       author: socket.assigns.selected_authors,
-      pin: pin_param(socket.assigns.pin_mode),
       sort: sort_param(socket.assigns.sort),
       q: nz(socket.assigns.search)
     }
@@ -285,16 +267,13 @@ defmodule AvelineWeb.WorkspaceShowLive do
   defp nz(""), do: nil
   defp nz(s), do: s
 
-  defp pin_param(:interleave), do: "interleave"
-  defp pin_param(_), do: nil
-
   defp sort_param(:kudos), do: "kudos"
   defp sort_param(:views), do: "views"
   defp sort_param(_), do: nil
 
   @impl true
   def render(assigns) do
-    # All filtering — tags, authors, search (Postgres FTS), pin — happens
+    # All filtering — tags, authors, search (Postgres FTS) — happens
     # in SQL via Docs.list_current/2. The render just paints @items.
     assigns = assign(assigns, shown_items: assigns.items)
 
@@ -389,7 +368,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
         <% end %>
 
         <div class="filter-row">
-          <span class="filter-row-icon" title="Sort and pin behavior">
+          <span class="filter-row-icon" title="Sort">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 3v10" />
               <path d="M2 11l2 2 2-2" />
@@ -398,16 +377,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
             </svg>
           </span>
           <div class="seg-row">
-            <div class="seg" role="group" aria-label="Pin behaviour">
-              <button
-                :for={{label, mode} <- [{"Pinned first", :pinned_first}, {"Interleave", :interleave}]}
-                phx-click="set_pin_mode"
-                phx-value-mode={Atom.to_string(mode)}
-                class={"seg-btn " <> if @pin_mode == mode, do: "seg-btn-active", else: ""}
-              >
-                {label}
-              </button>
-            </div>
             <div class="seg" role="group" aria-label="Sort">
               <button
                 :for={{label, s} <- [{"Recent", :recent}, {"Kudos", :kudos}, {"Views", :views}]}
@@ -429,14 +398,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
           <li :for={i <- @shown_items}>
             <.link navigate={~p"/w/#{@workspace.slug}/d/#{i.slug}"} class="card">
               <div class="card-title">
-                <%= if i.pinned do %>
-                  <span class="card-pin" title="Pinned" aria-label="Pinned">
-                    <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M12 17v5"/>
-                      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
-                    </svg>
-                  </span>
-                <% end %>
                 {i.title}
                 <%= if (n = story_stop_count(i)) > 0 do %>
                   <span class="card-trail-chip" title="Story — a chain of linked docs">

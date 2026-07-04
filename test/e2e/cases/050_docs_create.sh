@@ -54,16 +54,17 @@ test_create_doc_unknown_tag() {
   expect_err "unknown_tags" 2 "tag not in workspace → unknown_tags"
 }
 
-test_create_doc_pinned_persists() {
+test_pin_doc_round_trips() {
   local ws; ws="$(mk_workspace ws-cd-pin)"
-  local blocks; blocks="[$(block_paragraph 'hi')]"
-  run_cli -w "$ws" create-doc --title "Pinned" --pin --blocks "$blocks"
-  expect_ok "create --pin ok"
+  local blocks; blocks="[$(block_paragraph 'p')]"
+  run_cli -w "$ws" create-doc --title "Pinned" --blocks "$blocks"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
+  run_cli -w "$ws" pin-doc "$slug"
+  expect_ok "pin-doc (auto slot) ok"
+  expect_eq ".pin_slot" "1" "lowest free slot taken"
   run_cli -w "$ws" get-doc "$slug"
-  expect_eq ".doc.pinned" "true" "pinned echoed back"
+  expect_eq ".doc.pin_slot" "1" "pin_slot echoed back"
 }
-
 test_create_doc_duplicate_slug() {
   local ws; ws="$(mk_workspace ws-cd-dup)"
   local slug; slug="$(us dup-doc)"

@@ -127,16 +127,17 @@ defmodule AvelineWeb.Api.FallbackController do
         "The workspace orientation doc can't be deleted — every workspace keeps one. Edit it instead."
       )
 
-  def call(conn, {:error, :orientation_pin_required}),
-    do:
-      err(conn, 422, "orientation_pin_required",
-        "The orientation doc is always pinned — it has its own permanent slot and can't be unpinned."
-      )
-
   def call(conn, {:error, :pin_limit_reached}),
     do:
       err(conn, 422, "pin_limit_reached",
-        "This workspace already has #{Aveline.Docs.pin_limit()} pinned docs (the orientation doc doesn't count). Unpin one first — pins are the curated front page, keep them scarce."
+        "All #{Aveline.Docs.pin_limit()} home-page pin slots are taken. Unpin one first — pins are the curated front page, keep them scarce."
+      )
+
+  def call(conn, {:error, {:pin_slot_taken, slot, occupant}}),
+    do:
+      err(conn, 422, "pin_slot_taken",
+        "Pin slot #{slot} is held by \"#{occupant}\". Unpin or re-slot it first — slots never displace silently.",
+        %{slot: slot, occupant: occupant}
       )
 
   # ===== Workspace memberships =====

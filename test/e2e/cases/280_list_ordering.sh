@@ -1,20 +1,7 @@
 # shellcheck shell=bash
-# List ordering — sort + pinned-first semantics.
+# List ordering — sort semantics (pins are a home-page concept, not a sort).
 
-test_list_docs_pinned_first() {
-  local ws; ws="$(mk_workspace ws-lo-pin)"
-  mk_doc "$ws" "Unpinned1" >/dev/null
-  local blocks; blocks="[$(block_paragraph 'b')]"
-  run_cli -w "$ws" create-doc --title "Pinned1" --pin --blocks "$blocks"
-  expect_ok "pinned1"
-  mk_doc "$ws" "Unpinned2" >/dev/null
-  run_cli -w "$ws" list-docs
-  expect_ok "list ok"
-  # First doc should be the pinned one.
-  expect_eq ".docs[0].title" "Pinned1" "pinned doc first"
-}
-
-test_list_docs_recent_first_among_unpinned() {
+test_list_docs_recent_first() {
   local ws; ws="$(mk_workspace ws-lo-rec)"
   mk_doc "$ws" "Old"  >/dev/null
   sleep 1
@@ -22,8 +9,8 @@ test_list_docs_recent_first_among_unpinned() {
   sleep 1
   mk_doc "$ws" "Last" >/dev/null
   run_cli -w "$ws" list-docs
-  # Last-modified should come first among unpinned.
-  expect_eq '.docs | map(select(.pinned | not)) | .[0].title' "Last" "newest first among unpinned"
+  # Last-modified comes first.
+  expect_eq "$MY_DOCS | .[0].title" "Last" "newest first"
 }
 
 test_list_versions_descending_by_number() {

@@ -28,7 +28,7 @@ defmodule Aveline.Docs.Doc do
              :summary,
              :blocks,
              :tags,
-             :pinned,
+             :pin_slot,
              :actor_type,
              :operations,
              :intent,
@@ -46,7 +46,7 @@ defmodule Aveline.Docs.Doc do
     field :summary, :string
     field :blocks, {:array, :map}, default: []
     field :tags, {:array, :string}, default: []
-    field :pinned, :boolean, default: false
+    field :pin_slot, :integer
     field :actor_type, :string
     field :operations, {:array, :map}, default: []
     field :intent, :string
@@ -82,7 +82,7 @@ defmodule Aveline.Docs.Doc do
       :summary,
       :blocks,
       :tags,
-      :pinned,
+      :pin_slot,
       :owner_id,
       :actor_user_id,
       :actor_type,

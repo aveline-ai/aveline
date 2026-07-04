@@ -81,6 +81,10 @@ defmodule AvelineWeb.Router do
     post "/docs/:doc_slug/restore", DocController, :restore
     post "/docs/:doc_slug/kudos", DocController, :kudos
 
+    # Home-page pin slots
+    post "/docs/:doc_slug/pin", DocController, :pin
+    delete "/docs/:doc_slug/pin", DocController, :unpin
+
     # Doc versions
     get "/docs/:doc_slug/versions", VersionController, :index
     get "/docs/:doc_slug/versions/:version_number", VersionController, :show

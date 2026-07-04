@@ -31,7 +31,7 @@ defmodule AvelineWeb.HomeLive do
            jump_back_in: (user && DocViews.recent_for_user(ws.id, user.id, 3)) || [],
            pinned_docs: load_pinned(ws),
            needs_you: (user && Comments.list_open_threads_for_owner(ws.id, user.id, 5)) || [],
-           recent_changes: Docs.list_current(ws.id, pin_mode: :interleave, sort: :recent, limit: 5)
+           recent_changes: Docs.list_current(ws.id, sort: :recent, limit: 5)
          )}
 
       :not_found ->
@@ -48,14 +48,13 @@ defmodule AvelineWeb.HomeLive do
     end
   end
 
-  # Start here = the workspace's pinned docs (GitHub-style: 6 slots,
-  # the orientation doc permanently holds one and renders as its own
-  # card above, so up to 5 show here). Docs with doc_link chains get
-  # the trail treatment; plain docs render as plain cards.
+  # Start here = the workspace's pinned docs in slot order (6 numbered
+  # slots; the orientation doc has its own card above and never takes
+  # one). Docs with doc_link chains get the trail treatment; plain docs
+  # render as plain cards.
   defp load_pinned(ws) do
     ws.id
-    |> Docs.list_current(pinned: true)
-    |> Enum.reject(&(&1.slug == Docs.orientation_slug()))
+    |> Docs.list_pinned()
     |> Enum.map(fn doc ->
       stops =
         doc.blocks
@@ -150,6 +149,7 @@ defmodule AvelineWeb.HomeLive do
             style={"--h: #{hue(s.doc.slug)}"}
           >
             <div class="story-card-top">
+              <span class="story-card-slot" title={"Pin slot #{s.doc.pin_slot}"}>{s.doc.pin_slot}</span>
               <span class="story-card-title">{s.doc.title}</span>
               <span :if={s.stops != []} class="story-stops-badge">{length(s.stops)} stops</span>
             </div>

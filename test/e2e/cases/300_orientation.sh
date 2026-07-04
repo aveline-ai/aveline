@@ -7,7 +7,6 @@ test_orientation_seeded_on_workspace_create() {
   run_cli -w "$ws" get-orientation
   expect_ok "get-orientation on a fresh workspace"
   expect_eq '.doc.slug' "agents" "well-known slug"
-  expect_eq '.doc.pinned' "true" "seeded pinned"
   expect_eq '.doc.version_number' "1" "fresh template at v1"
 }
 

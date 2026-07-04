@@ -34,8 +34,6 @@ defmodule Aveline.Docs do
   end
 
   def list_current(workspace_id, opts \\ []) do
-    pinned = Keyword.get(opts, :pinned, nil)
-    pin_mode = Keyword.get(opts, :pin_mode, :pinned_first)
     sort = Keyword.get(opts, :sort, :recent)
     tags = Keyword.get(opts, :tags, []) || []
     owner_ids = Keyword.get(opts, :owner_ids, []) || []
@@ -48,11 +46,10 @@ defmodule Aveline.Docs do
         where: d.workspace_id == ^workspace_id
 
     base
-    |> apply_pin_filter(pinned)
     |> maybe_filter_tags(tags)
     |> maybe_filter_owners(owner_ids)
     |> maybe_filter_search(search)
-    |> apply_sort(sort, pin_mode)
+    |> apply_sort(sort)
     |> maybe_paginate(limit, offset)
     |> Repo.all()
     |> Repo.preload([:owner, :actor_user])
@@ -81,41 +78,23 @@ defmodule Aveline.Docs do
   defp maybe_paginate(query, limit, offset),
     do: from(d in query, limit: ^limit, offset: ^offset)
 
-  # `:pinned` boolean is the legacy API knob (used by saved views that
-  # need to enforce pin filtering). Pin sorting is independent — see
-  # `pin_mode` below. Sorts only sort; they never filter.
-  defp apply_pin_filter(query, true), do: from(d in query, where: d.pinned == true)
-  defp apply_pin_filter(query, false), do: from(d in query, where: d.pinned == false)
-  defp apply_pin_filter(query, _), do: query
-
   # Sort modes:
   #   :recent → updated_at desc
   #   :kudos  → kudos count desc, then updated_at desc
   #   :views  → view count desc, then updated_at desc
-  # Each respects pin_mode: pinned bubble to top unless `:interleave`.
-  defp apply_sort(query, :recent, :interleave),
+  # Pins are a home-page concept; they don't influence list ordering.
+  defp apply_sort(query, :recent),
     do: from(d in query, order_by: [desc: d.updated_at])
 
-  defp apply_sort(query, :recent, _pin_mode),
-    do: from(d in query, order_by: [desc: d.pinned, desc: d.updated_at])
+  defp apply_sort(query, :kudos), do: count_join_sort(query, "doc_kudos")
+  defp apply_sort(query, :views), do: count_join_sort(query, "doc_views")
 
-  defp apply_sort(query, :kudos, pin_mode), do: count_join_sort(query, "doc_kudos", pin_mode)
-  defp apply_sort(query, :views, pin_mode), do: count_join_sort(query, "doc_views", pin_mode)
-
-  defp count_join_sort(query, table, pin_mode) do
-    q =
-      from d in query,
-        left_join: x in ^table,
-        on: x.base_doc_id == d.base_doc_id,
-        group_by: d.id
-
-    if pin_mode == :interleave do
-      from [d, x] in q,
-        order_by: [desc: count(x.id), desc: d.updated_at]
-    else
-      from [d, x] in q,
-        order_by: [desc: d.pinned, desc: count(x.id), desc: d.updated_at]
-    end
+  defp count_join_sort(query, table) do
+    from d in query,
+      left_join: x in ^table,
+      on: x.base_doc_id == d.base_doc_id,
+      group_by: d.id,
+      order_by: [desc: count(x.id), desc: d.updated_at]
   end
 
   defp maybe_filter_tags(query, []), do: query
@@ -184,7 +163,7 @@ defmodule Aveline.Docs do
       from(d in base_query(),
         where: d.workspace_id == ^ws_id and d.base_doc_id != ^base,
         where: fragment("? && ?::varchar[]", d.tags, ^tags),
-        order_by: [desc: d.pinned, desc: d.updated_at],
+        order_by: [desc: d.updated_at],
         limit: ^limit,
         preload: [:owner]
       )
@@ -200,43 +179,100 @@ defmodule Aveline.Docs do
 
   @orientation_slug "agents"
 
-  # GitHub-style pin budget. Pinned docs are the workspace's curated
-  # front page (the Home "Start here" shelf); humans and agents pick
-  # them. The orientation doc is always pinned but has its own permanent
-  # slot above the shelf — it doesn't count against the budget.
+  # Home-page pins: 6 numbered slots per workspace. Pinning means
+  # exactly one thing — this doc holds that slot on the home page, in
+  # that position. The orientation doc has its own card above the shelf
+  # and never takes a slot. Slot state lives on the current version row
+  # and is mutated in place (navigation metadata, not content — same
+  # treatment set_pinned always had).
   @pin_limit 6
 
   @doc "The well-known slug of the workspace orientation doc."
   def orientation_slug, do: @orientation_slug
 
-  @doc "Max manually pinned docs per workspace (orientation doc not counted)."
+  @doc "Number of home-page pin slots per workspace."
   def pin_limit, do: @pin_limit
 
-  defp count_pinned(workspace_id) do
+  @doc "The workspace's pinned docs, in slot order."
+  def list_pinned(workspace_id) do
     from(d in base_query(),
-      where:
-        d.workspace_id == ^workspace_id and d.pinned == true and
-          d.slug != @orientation_slug
+      where: d.workspace_id == ^workspace_id and not is_nil(d.pin_slot),
+      order_by: [asc: d.pin_slot],
+      preload: [:owner, :actor_user]
     )
-    |> Repo.aggregate(:count, :id)
+    |> Repo.all()
   end
 
-  # Validate a pin-state transition against the workspace pin budget and
-  # the orientation doc's permanent slot. `old == new` is always fine;
-  # the orientation doc pins freely (its slot is its own) and never
-  # unpins.
-  defp validate_pin_change(_ws_id, _slug, same, same), do: :ok
+  @doc """
+  Pin a doc to a home-page slot. With `slot: nil` the lowest free slot
+  is taken. Errors: `:pin_limit_reached` (no free slot),
+  `{:pin_slot_taken, occupant_slug}` (explicit slot occupied — unpin or
+  re-slot the occupant first; no silent displacement), and a plain
+  message for the orientation doc, which has its own card.
+  """
+  def pin(doc, slot \\ nil, actor_user_id \\ nil)
 
-  defp validate_pin_change(_ws_id, @orientation_slug, false, true), do: :ok
+  def pin(%Doc{slug: @orientation_slug}, _slot, _actor),
+    do: {:error, "the orientation doc has its own card on the home page; it can't take a pin slot"}
 
-  defp validate_pin_change(ws_id, _slug, false, true) do
-    if count_pinned(ws_id) >= @pin_limit, do: {:error, :pin_limit_reached}, else: :ok
+  def pin(%Doc{} = doc, slot, actor_user_id) when is_nil(slot) or slot in 1..6 do
+    taken =
+      from(d in base_query(),
+        where:
+          d.workspace_id == ^doc.workspace_id and not is_nil(d.pin_slot) and
+            d.base_doc_id != ^doc.base_doc_id,
+        select: {d.pin_slot, d.slug}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    resolved_slot = slot || Enum.find(1..@pin_limit, &(not Map.has_key?(taken, &1)))
+
+    cond do
+      is_nil(resolved_slot) ->
+        {:error, :pin_limit_reached}
+
+      occupant = taken[resolved_slot] ->
+        {:error, {:pin_slot_taken, resolved_slot, occupant}}
+
+      true ->
+        update_pin_slot(doc, resolved_slot, actor_user_id)
+    end
   end
 
-  defp validate_pin_change(_ws_id, @orientation_slug, true, false),
-    do: {:error, :orientation_pin_required}
+  def pin(%Doc{}, _slot, _actor), do: {:error, "pin slot must be between 1 and #{@pin_limit}"}
 
-  defp validate_pin_change(_ws_id, _slug, true, false), do: :ok
+  @doc "Free a doc's home-page slot. No-op error if it wasn't pinned."
+  def unpin(%Doc{pin_slot: nil}, _actor_user_id), do: {:error, "doc is not pinned"}
+  def unpin(%Doc{} = doc, actor_user_id), do: update_pin_slot(doc, nil, actor_user_id)
+
+  defp update_pin_slot(%Doc{} = doc, slot, actor_user_id) do
+    doc
+    |> Ecto.Changeset.change(%{pin_slot: slot})
+    |> Repo.update()
+    |> case do
+      {:ok, updated} ->
+        updated = Repo.preload(updated, [:owner, :actor_user])
+        Broadcasts.publish_doc_event(:doc_updated, updated)
+
+        Events.record(%{
+          workspace_id: updated.workspace_id,
+          actor: actor_user_id,
+          actor_type: "agent",
+          action: if(slot, do: "doc_pinned", else: "doc_unpinned"),
+          target_kind: "doc",
+          target_id: updated.base_doc_id,
+          target_slug: updated.slug,
+          target_label: updated.title,
+          data: if(slot, do: %{"slot" => slot}, else: %{})
+        })
+
+        {:ok, updated}
+
+      err ->
+        err
+    end
+  end
 
   @doc "The workspace's orientation doc, or nil for pre-convention workspaces."
   def get_orientation(workspace_id), do: get_current_by_slug(workspace_id, @orientation_slug)
@@ -256,7 +292,6 @@ defmodule Aveline.Docs do
       title: "How we use Aveline here",
       summary:
         "What lives in this workspace and how the team works. Agents fetch this first (aveline get-orientation --follow); humans keep it honest.",
-      pinned: true,
       intent: "seed the workspace orientation doc",
       blocks: orientation_template_blocks()
     })
@@ -400,7 +435,6 @@ defmodule Aveline.Docs do
         title: title,
         summary: Map.get(attrs, :summary),
         tags: Map.get(attrs, :tags, []),
-        pinned: Map.get(attrs, :pinned, false),
         owner_id: Map.fetch!(attrs, :owner_id),
         actor_user_id: Map.fetch!(attrs, :actor_user_id),
         actor_type: Map.fetch!(attrs, :actor_type)
@@ -417,10 +451,8 @@ defmodule Aveline.Docs do
   def apply_ops(:new, ops, base_attrs, opts) when is_list(ops) and is_map(base_attrs) do
     ws_id = Map.fetch!(base_attrs, :workspace_id)
     tags = Map.get(base_attrs, :tags, []) || []
-    pinned = Map.get(base_attrs, :pinned, false)
 
     with :ok <- Tags.ensure_all_exist(ws_id, tags),
-         :ok <- validate_pin_change(ws_id, Map.get(base_attrs, :slug), false, pinned),
          {:ok, ops} <- resolve_doc_links(ops, ws_id),
          {:ok, new_blocks} <- run_document_apply([], ops) do
       insert_version(:new, new_blocks, ops, base_attrs, opts)
@@ -430,10 +462,8 @@ defmodule Aveline.Docs do
   def apply_ops(%Doc{} = current, ops, update_attrs, opts)
       when is_list(ops) and is_map(update_attrs) do
     tags = Map.get(update_attrs, :tags, current.tags) || []
-    new_pinned = Map.get(update_attrs, :pinned, current.pinned)
 
     with :ok <- Tags.ensure_all_exist(current.workspace_id, tags),
-         :ok <- validate_pin_change(current.workspace_id, current.slug, current.pinned, new_pinned),
          {:ok, ops} <- resolve_doc_links(ops, current.workspace_id),
          {:ok, new_blocks} <- run_document_apply(current.blocks || [], ops) do
       insert_version(current, new_blocks, ops, update_attrs, opts)
@@ -566,7 +596,8 @@ defmodule Aveline.Docs do
         title: Map.get(update_attrs, :title, current.title),
         summary: Map.get(update_attrs, :summary, current.summary),
         tags: Map.get(update_attrs, :tags, current.tags),
-        pinned: Map.get(update_attrs, :pinned, current.pinned),
+        # Slot carries across edits — pin state is set only via pin/unpin.
+        pin_slot: current.pin_slot,
         owner_id: current.owner_id,
         actor_user_id: Map.fetch!(update_attrs, :actor_user_id),
         actor_type: actor_type,
@@ -874,42 +905,6 @@ defmodule Aveline.Docs do
   end
 
   defp spans_to_text(_), do: ""
-
-  # Pin / unpin updates `pinned` on the current version in place. Pin
-  # state is workspace-navigation metadata, not content, so we don't mint
-  # a new version row each toggle.
-  def set_pinned(%Doc{} = current, pinned, actor_user_id \\ nil) when is_boolean(pinned) do
-    with :ok <- validate_pin_change(current.workspace_id, current.slug, current.pinned, pinned) do
-      do_set_pinned(current, pinned, actor_user_id)
-    end
-  end
-
-  defp do_set_pinned(%Doc{} = current, pinned, actor_user_id) do
-    current
-    |> Ecto.Changeset.change(%{pinned: pinned})
-    |> Repo.update()
-    |> case do
-      {:ok, doc} ->
-        doc = Repo.preload(doc, [:owner, :actor_user])
-        Broadcasts.publish_doc_event(:doc_updated, doc)
-
-        Events.record(%{
-          workspace_id: doc.workspace_id,
-          actor: actor_user_id,
-          actor_type: "human",
-          action: if(pinned, do: "doc_pinned", else: "doc_unpinned"),
-          target_kind: "doc",
-          target_id: doc.base_doc_id,
-          target_slug: doc.slug,
-          target_label: doc.title
-        })
-
-        {:ok, doc}
-
-      err ->
-        err
-    end
-  end
 
   # ===== Delete / restore =====
 

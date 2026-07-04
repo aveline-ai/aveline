@@ -198,7 +198,6 @@ doc_specs = [
     title: "Stack overview",
     summary: "One-page tour of the Aveline stack — what runs where.",
     owner: alice,
-    pinned: true,
     tags: ["onboarding", "architecture", "stack"],
     blocks: [
       para.([
@@ -225,7 +224,6 @@ doc_specs = [
     title: "Architecture decisions",
     summary: "Running log of \"why we picked X\" so we don't re-litigate it.",
     owner: alice,
-    pinned: true,
     tags: ["onboarding", "architecture", "decisions"],
     blocks: [
       heading.(2, "Phoenix LiveView over a separate SPA"),
@@ -243,7 +241,6 @@ doc_specs = [
     title: "Oncall runbook",
     summary: "First things to do when an alert pages you.",
     owner: bob,
-    pinned: true,
     tags: ["oncall", "runbook"],
     blocks: [
       heading.(2, "1. Acknowledge"),
@@ -267,7 +264,6 @@ doc_specs = [
     title: "Deploy guide",
     summary: "How to ship the backend without breaking prod.",
     owner: bob,
-    pinned: false,
     tags: ["runbook", "deploys", "stack"],
     blocks: [
       heading.(2, "Local pre-flight"),
@@ -284,7 +280,6 @@ doc_specs = [
     title: "Local dev setup",
     summary: "Get the backend, API, and CLI talking on your laptop.",
     owner: alice,
-    pinned: true,
     tags: ["onboarding", "dev"],
     blocks: [
       heading.(2, "Prereqs"),
@@ -303,7 +298,6 @@ doc_specs = [
     title: "Sentry tips",
     summary: "Things that bit us while wiring Sentry 12.",
     owner: alice,
-    pinned: false,
     tags: ["stack", "observability", "runbook"],
     blocks: [
       heading.(2, "DSN gates everything"),
@@ -326,7 +320,6 @@ doc_specs = [
     title: "Database notes",
     summary: "Conventions and gotchas for the Postgres schema.",
     owner: bob,
-    pinned: false,
     tags: ["stack", "database"],
     blocks: [
       heading.(2, "UUIDs everywhere"),
@@ -350,10 +343,6 @@ doc_specs = [
     title: "Code blocks — every language at a glance",
     summary: "A grab-bag of snippets to sanity-check syntax highlighting + monospace rendering.",
     owner: alice,
-    # Not pinned: the manual pin budget is 6 (4 spec pins + the story
-    # + the deploy-guide pin-toggle below fills it; orientation doesn't
-    # count).
-    pinned: false,
     tags: ["stack", "examples"],
     blocks: [
       para.([
@@ -438,7 +427,6 @@ created_docs =
             title: spec.title,
             summary: spec.summary,
             tags: spec.tags,
-            pinned: spec.pinned,
             blocks: spec.blocks,
             intent: "initial seed: write the #{spec.slug} note"
           })
@@ -464,7 +452,6 @@ if is_nil(Docs.get_current_by_slug(workspace.id, "onboarding-story")) do
       title: "Story: new teammate onboarding",
       summary: "Guided trail through the docs a new teammate (or their agent) should read, in order.",
       tags: ["onboarding"],
-      pinned: true,
       blocks: [
         para.([
           t.("Read these in order. Each stop is a doc_link block — agents can pull the whole chain with "),
@@ -663,11 +650,20 @@ Enum.each(view_specs, fn {username, slug} ->
   if doc, do: DocViews.record(workspace.id, doc.base_doc_id, user.id, "human")
 end)
 
-# A pin toggle so doc_pinned shows up in history. Pin the deploy-guide
-# (it isn't pinned by default).
-if doc = current.("deploy-guide") do
-  unless doc.pinned, do: {:ok, _} = Docs.set_pinned(doc, true, bob.id)
-end
+# Home-page pin slots: a deliberate front page, in a deliberate order.
+# (Also seeds doc_pinned events for the Activity tab.)
+[
+  {1, "onboarding-story"},
+  {2, "stack-overview"},
+  {3, "architecture-decisions"},
+  {4, "oncall-runbook"},
+  {5, "deploy-guide"}
+]
+|> Enum.each(fn {slot, slug} ->
+  with %{pin_slot: nil} = doc <- current.(slug) do
+    {:ok, _} = Docs.pin(doc, slot, bob.id)
+  end
+end)
 
 # Resolve one of the open comment threads to seed a comment_resolved event.
 case Repo.one(

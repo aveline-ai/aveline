@@ -269,14 +269,18 @@ test_apply_ops_can_update_title() {
   expect_eq ".doc.title" "New Title" "title persisted"
 }
 
-test_apply_ops_unpin_via_flag() {
-  local ws; ws="$(mk_workspace ws-opsup)"
+test_unpin_doc_frees_slot() {
+  local ws; ws="$(mk_workspace ws-ao-unpin)"
   local blocks; blocks="[$(block_paragraph 'p')]"
-  run_cli -w "$ws" create-doc --title "P" --pin --blocks "$blocks"
-  expect_ok "pinned create"
+  run_cli -w "$ws" create-doc --title "P" --blocks "$blocks"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
-  local ops; ops="[$(jq -nc --argjson b "$(block_paragraph 'y')" \
-    '{op: "append_block", block: $b}')]"
+  run_cli -w "$ws" pin-doc "$slug" --slot 4
+  expect_ok "pinned to slot 4"
+  run_cli -w "$ws" unpin-doc "$slug"
+  expect_ok "unpin-doc ok"
+  run_cli -w "$ws" get-doc "$slug"
+  expect_eq ".doc.pin_slot" "null" "slot freed"
+})]"
   run_cli -w "$ws" apply-ops "$slug" --ops "$ops" --unpin
   expect_ok "apply-ops --unpin ok"
   run_cli -w "$ws" get-doc "$slug"
