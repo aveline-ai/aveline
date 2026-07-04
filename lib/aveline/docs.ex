@@ -381,11 +381,7 @@ defmodule Aveline.Docs do
       %{
         "type" => "paragraph",
         "content" => [
-          %{"text" => "(Add "},
-          %{"text" => "doc_link", "marks" => ["code"]},
-          %{"text" => " blocks to the docs every new agent should read, in order. "},
-          %{"text" => "aveline get-orientation --follow", "marks" => ["code"]},
-          %{"text" => " then pulls the whole chain in one call.)"}
+          %{"text" => "(Link the docs every newcomer should read, in order. Agents fetching this doc with --follow get the whole chain in one call.)"}
         ]
       },
       %{"type" => "heading", "level" => 2, "text" => "Conventions"},
@@ -397,13 +393,6 @@ defmodule Aveline.Docs do
           %{"content" => [%{"text" => "(When to create a new doc vs. edit an existing one.)"}]},
           %{"content" => [%{"text" => "(Where ideas and friction go — e.g. a wishlist doc humans triage.)"}]}
         ]
-      },
-      %{"type" => "heading", "level" => 2, "text" => "How you interact"},
-      %{
-        "type" => "code",
-        "language" => "sh",
-        "content" =>
-          "aveline list-docs\naveline get-doc <slug>\naveline create-comment <slug> --body \"...\"\naveline apply-ops <slug> --ops ops.json --intent \"why\""
       }
     ]
   end
