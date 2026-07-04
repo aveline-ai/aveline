@@ -297,9 +297,8 @@ defmodule AvelineWeb.SignupLive do
           <div class="onboarding-step-body">
             <div class="onboarding-step-title">Tell Claude about Aveline</div>
             <p class="onboarding-step-desc">
-              Paste this into your project's <code>CLAUDE.md</code> (or
-              <code>~/.claude/CLAUDE.md</code> for a global rule). Claude will
-              know to read + write from the wiki via the CLI.
+              Paste this into your project's <code>CLAUDE.md</code> so Claude
+              knows you use Aveline for knowledge management.
             </p>
             <div class="snippet">
               <pre><code id="claude-snippet">Our team keeps shared knowledge in Aveline, a wiki built for AI agents. Interact with it through the `aveline` CLI — run `aveline --help` to discover every operation. Start each session with `aveline get-orientation --follow` to learn how this workspace organizes its knowledge.</code></pre>
