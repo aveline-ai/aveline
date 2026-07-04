@@ -29,8 +29,9 @@ defmodule Aveline.Docs do
 
   # ===== Read =====
 
+  # Live = current version (not superseded) and not human-deleted.
   def base_query do
-    from d in Doc, where: is_nil(d.deleted_at)
+    from d in Doc, where: not d.superseded and is_nil(d.deleted_at)
   end
 
   def list_current(workspace_id, opts \\ []) do
@@ -55,6 +56,30 @@ defmodule Aveline.Docs do
     |> maybe_paginate(limit, offset)
     |> Repo.all()
     |> Repo.preload([:owner, :actor_user])
+    |> scrub_deleted_tags(workspace_id)
+  end
+
+  # Soft-deleted tags stay on doc rows (so restoring a tag brings every
+  # attachment back) but are invisible to current reads — scrubbed here
+  # at the read boundary. Historical version reads keep raw tags. A doc
+  # edited while a tag is deleted persists the scrubbed set — the
+  # visible set at edit time is the honest one.
+  defp scrub_deleted_tags(docs, workspace_id) when is_list(docs) do
+    live = Tags.live_slug_set(workspace_id)
+
+    Enum.map(docs, fn d ->
+      %{d | tags: Enum.filter(d.tags || [], &MapSet.member?(live, &1))}
+    end)
+  end
+
+  defp scrub_deleted_tags(nil, _workspace_id), do: nil
+
+  defp scrub_deleted_tags(%Doc{} = doc, workspace_id),
+    do: docs_scrub_one(doc, workspace_id)
+
+  defp docs_scrub_one(doc, workspace_id) do
+    [scrubbed] = scrub_deleted_tags([doc], workspace_id)
+    scrubbed
   end
 
   @doc "Structural doc kinds the `has:` filter understands."
@@ -131,6 +156,7 @@ defmodule Aveline.Docs do
       preload: [:owner, :actor_user]
     )
     |> Repo.one()
+    |> scrub_deleted_tags(workspace_id)
   end
 
   def get_current_by_base(base_doc_id) when is_binary(base_doc_id) do
@@ -139,16 +165,23 @@ defmodule Aveline.Docs do
       preload: [:owner, :actor_user]
     )
     |> Repo.one()
+    |> case do
+      nil -> nil
+      doc -> scrub_deleted_tags(doc, doc.workspace_id)
+    end
   end
 
-  # Distinct tags across all current (non-deleted) docs in a workspace,
-  # sorted alphabetically. Used by the chip row on All Docs.
+  # Distinct LIVE tags across all current (non-deleted) docs in a
+  # workspace, sorted alphabetically. Feeds the Docs filter dropdowns.
   def list_workspace_tags(workspace_id) do
+    live = Tags.live_slug_set(workspace_id)
+
     from(d in base_query(),
       where: d.workspace_id == ^workspace_id,
       select: fragment("DISTINCT UNNEST(?)", d.tags)
     )
     |> Repo.all()
+    |> Enum.filter(&MapSet.member?(live, &1))
     |> Enum.sort()
   end
   def list_versions(base_doc_id) when is_binary(base_doc_id) do
@@ -223,6 +256,7 @@ defmodule Aveline.Docs do
       preload: [:owner, :actor_user]
     )
     |> Repo.all()
+    |> scrub_deleted_tags(workspace_id)
   end
 
   @doc """
@@ -390,6 +424,12 @@ defmodule Aveline.Docs do
   defp board_view(%{"tags" => filter, "by" => scope}, workspace_id) do
     columns = Tags.list_scope_members(workspace_id, scope)
 
+    colors =
+      workspace_id
+      |> Tags.list_for_workspace()
+      |> Enum.filter(&(&1.slug in columns and not is_nil(&1.color)))
+      |> Map.new(&{&1.slug, &1.color})
+
     cards =
       workspace_id
       |> list_current(tags: filter)
@@ -405,7 +445,7 @@ defmodule Aveline.Docs do
         }
       end)
 
-    %{"columns" => columns, "cards" => cards}
+    %{"columns" => columns, "colors" => colors, "cards" => cards}
   end
 
   defp board_view(_block, _ws), do: %{"columns" => [], "cards" => []}
@@ -434,9 +474,9 @@ defmodule Aveline.Docs do
 
           missing ->
             from(d in Doc,
-              where: d.workspace_id == ^workspace_id and d.base_doc_id in ^missing,
-              distinct: d.base_doc_id,
-              order_by: [asc: d.base_doc_id, desc: d.version_number]
+              where:
+                d.workspace_id == ^workspace_id and d.base_doc_id in ^missing and
+                  not d.superseded
             )
             |> Repo.all()
             |> Map.new(&{&1.base_doc_id, &1})
@@ -657,7 +697,6 @@ defmodule Aveline.Docs do
 
     with {:ok, dispositions} <-
            resolve_dispositions(current, new_blocks, ops, actor_type, opts) do
-      now = DateTime.utc_now()
       resolves = derive_resolves(dispositions, opts)
 
       new_attrs = %{
@@ -689,10 +728,7 @@ defmodule Aveline.Docs do
       Multi.new()
       |> Multi.update(
         :supersede,
-        Ecto.Changeset.change(current,
-          deleted_at: now,
-          deleted_by_id: Map.get(update_attrs, :actor_user_id)
-        )
+        Ecto.Changeset.change(current, superseded: true)
       )
       |> Multi.insert(:doc, Doc.changeset(%Doc{}, new_attrs))
       |> Multi.run(:auto_forward_comments, &auto_forward_comments_step/2)
@@ -704,20 +740,18 @@ defmodule Aveline.Docs do
 
   # For every live comment on this base doc, insert a new comment-version
   # row pinned to the just-inserted new doc-version. Mark the prior row
-  # `superseded_at` in the same transaction. After this step runs, the
+  # `superseded` in the same transaction. After this step runs, the
   # "current" row for every base is the new auto-forwarded one — so the
   # disposition step below acts on the new rows (in-place: resolve sets
   # `resolved_at`, reanchor sets `block_id`).
   defp auto_forward_comments_step(repo, %{doc: %Doc{id: new_doc_id, base_doc_id: base_doc_id}}) do
-    now = DateTime.utc_now()
-
     live =
       from(c in Comment,
         join: d in Doc,
         on: d.id == c.doc_id,
         where:
           d.base_doc_id == ^base_doc_id and
-            is_nil(c.superseded_at) and
+            not c.superseded and
             is_nil(c.deleted_at)
       )
       |> repo.all()
@@ -740,10 +774,11 @@ defmodule Aveline.Docs do
         "edited_at" => current.edited_at
       }
 
-      with {:ok, _} <-
-             repo.insert(Comment.create_changeset(%Comment{id: new_id}, new_attrs)),
+      # Supersede FIRST — the one-current-per-base unique index rejects a
+      # second unsuperseded row for the base.
+      with {:ok, _} <- repo.update(Ecto.Changeset.change(current, superseded: true)),
            {:ok, _} <-
-             repo.update(Ecto.Changeset.change(current, superseded_at: now)) do
+             repo.insert(Comment.create_changeset(%Comment{id: new_id}, new_attrs)) do
         {:cont, {:ok, n + 1}}
       else
         {:error, err} -> {:halt, {:error, err}}
@@ -844,7 +879,7 @@ defmodule Aveline.Docs do
           is_nil(c.parent_comment_id) and
           is_nil(c.resolved_at) and
           is_nil(c.deleted_at) and
-          is_nil(c.superseded_at),
+          not c.superseded,
       select: %{id: c.base_comment_id, block_id: c.block_id}
     )
     |> Repo.all()
@@ -874,7 +909,7 @@ defmodule Aveline.Docs do
         from(c in Comment,
           where:
             c.base_comment_id in ^leftover and is_nil(c.resolved_at) and
-              is_nil(c.deleted_at) and is_nil(c.superseded_at)
+              is_nil(c.deleted_at) and not c.superseded
         )
         |> repo.update_all(set: [resolved_at: now, resolved_by_id: uid, resolved_by_doc_id: doc_id])
 
@@ -988,7 +1023,9 @@ defmodule Aveline.Docs do
     current
     |> Ecto.Changeset.change(%{
       deleted_at: DateTime.utc_now(),
-      deleted_by_id: deleted_by_id
+      deleted_by_id: deleted_by_id,
+      # A deleted doc doesn't hold a home-page slot hostage.
+      pin_slot: nil
     })
     |> Repo.update()
     |> case do
@@ -1014,17 +1051,19 @@ defmodule Aveline.Docs do
   end
 
   def restore(base_doc_id, actor_user_id \\ nil) when is_binary(base_doc_id) do
-    case Repo.one(
-           from d in Doc,
-             where: d.base_doc_id == ^base_doc_id,
-             order_by: [desc: d.version_number],
-             limit: 1
-         ) do
-      nil ->
-        {:error, :not_found}
+    # The restorable row is a predicate, not a sort: the CHECK constraint
+    # guarantees a deleted row is never superseded, so "the deleted row"
+    # is unique per base — and its absence means the doc is live (or the
+    # base doesn't exist), i.e. not user-deleted.
+    deleted_row =
+      Repo.one(from d in Doc, where: d.base_doc_id == ^base_doc_id and not is_nil(d.deleted_at))
 
-      %Doc{deleted_by_id: nil} ->
-        {:error, :not_user_deleted}
+    case deleted_row do
+      nil ->
+        exists? =
+          Repo.exists?(from d in Doc, where: d.base_doc_id == ^base_doc_id)
+
+        if exists?, do: {:error, :not_user_deleted}, else: {:error, :not_found}
 
       %Doc{} = latest ->
         latest

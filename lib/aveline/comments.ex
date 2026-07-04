@@ -24,7 +24,7 @@ defmodule Aveline.Comments do
   alias Ecto.Multi
 
   def base_query do
-    from c in Comment, where: is_nil(c.deleted_at) and is_nil(c.superseded_at)
+    from c in Comment, where: not c.superseded and is_nil(c.deleted_at)
   end
 
   @doc """
@@ -52,8 +52,8 @@ defmodule Aveline.Comments do
 
   Pass the doc-version row's `id` (NOT the base_doc_id).
 
-  We do NOT filter on `superseded_at IS NULL` here, because a row that's
-  the canonical snapshot for doc-version N may still get `superseded_at`
+  We do NOT filter on `superseded` here, because a row that's
+  the canonical snapshot for doc-version N may still get `superseded`
   set later (when doc-version N+1 ships and auto-forwards everything).
   Instead we use DISTINCT ON to pick the latest comment-version row per
   base within this doc-version (handles same-doc-version body edits).
@@ -113,7 +113,7 @@ defmodule Aveline.Comments do
   def get_current_by_base(base_id) when is_binary(base_id) do
     from(c in Comment,
       where:
-        c.base_comment_id == ^base_id and is_nil(c.superseded_at) and
+        c.base_comment_id == ^base_id and not c.superseded and
           is_nil(c.deleted_at)
     )
     |> Repo.one()
@@ -130,7 +130,7 @@ defmodule Aveline.Comments do
   """
   def get_latest_by_base(base_id) when is_binary(base_id) do
     from(c in Comment,
-      where: c.base_comment_id == ^base_id and is_nil(c.superseded_at)
+      where: c.base_comment_id == ^base_id and not c.superseded
     )
     |> Repo.one()
     |> case do
@@ -178,7 +178,7 @@ defmodule Aveline.Comments do
   Edit a comment's body — author-only. Inserts a new version row
   (v+1) carrying every other field forward (block_id, parent ref,
   resolved_at / resolved_by_doc_id, etc. — so a resolved comment stays
-  resolved across an edit). The prior row gets `superseded_at` set
+  resolved across an edit). The prior row gets `superseded` set
   (not `deleted_at`) in the same transaction; that's a mechanism flag,
   not a user-delete.
 
@@ -192,7 +192,7 @@ defmodule Aveline.Comments do
       current.actor_user_id != editor_id ->
         {:error, :forbidden}
 
-      not is_nil(current.deleted_at) or not is_nil(current.superseded_at) ->
+      not is_nil(current.deleted_at) or current.superseded ->
         {:error, :stale_version}
 
       true ->
@@ -214,12 +214,11 @@ defmodule Aveline.Comments do
           "edited_at" => now
         }
 
+        # Supersede FIRST: the one-current-per-base unique index rejects
+        # a second unsuperseded row, so order is load-bearing.
         Multi.new()
+        |> Multi.update(:supersede, Ecto.Changeset.change(current, superseded: true))
         |> Multi.insert(:new_version, Comment.create_changeset(%Comment{id: new_id}, new_attrs))
-        |> Multi.update(
-          :supersede,
-          Ecto.Changeset.change(current, superseded_at: now)
-        )
         |> Repo.transaction()
         |> case do
           {:ok, %{new_version: new_v}} -> preload_and_broadcast({:ok, new_v}, :comment_updated)
@@ -275,8 +274,7 @@ defmodule Aveline.Comments do
           {c.actor_user_id, c.actor_type, %{}}
 
         :comment_updated when not is_nil(c.resolved_at) and c.version_number == 1 ->
-          {c.resolved_by_id, "human",
-           %{"resolved_by_doc_id" => c.resolved_by_doc_id}}
+          {c.resolved_by_id, "human", %{"resolved_by_doc_id" => c.resolved_by_doc_id}}
 
         :comment_updated when c.version_number > 1 ->
           # Edit — author rewrote the body. Credit to the comment's actor.

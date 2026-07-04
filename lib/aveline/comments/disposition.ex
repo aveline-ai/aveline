@@ -220,7 +220,7 @@ defmodule Aveline.Comments.Disposition do
     repo.one(
       from c in Comment,
         where:
-          c.base_comment_id == ^base_id and is_nil(c.superseded_at) and
+          c.base_comment_id == ^base_id and not c.superseded and
             is_nil(c.deleted_at)
     )
   end

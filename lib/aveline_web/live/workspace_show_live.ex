@@ -23,6 +23,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
            workspace_tags: Docs.list_workspace_tags(ws.id),
+           tag_colors: tag_colors(ws.id),
            # Every workspace member appears as a chip — non-owners just
            # render disabled (count 0). Mirrors tag chip behaviour.
            workspace_authors:
@@ -129,6 +130,14 @@ defmodule AvelineWeb.WorkspaceShowLive do
            many -> Enum.map_join(many, " · ", &"##{&1}")
          end
      )}
+  end
+
+  # slug => custom color for every live tag that has one.
+  defp tag_colors(workspace_id) do
+    workspace_id
+    |> Tags.list_for_workspace()
+    |> Enum.reject(&is_nil(&1.color))
+    |> Map.new(&{&1.slug, &1.color})
   end
 
   defp story_stop_count(item) do
@@ -577,7 +586,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
                 <%= if i.tags != [] do %>
                   <span class="card-meta-dot">·</span>
                   <span style="display:flex;gap:4px;flex-wrap:wrap">
-                    <.tag :for={t <- i.tags} text={t} />
+                    <.tag :for={t <- i.tags} text={t} color={Map.get(@tag_colors, t)} />
                   </span>
                 <% end %>
               </div>

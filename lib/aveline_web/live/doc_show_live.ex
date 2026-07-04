@@ -33,6 +33,12 @@ defmodule AvelineWeb.DocShowLive do
             end
 
             all_items = Docs.list_current(ws.id)
+
+            tag_colors =
+              ws.id
+              |> Aveline.Tags.list_for_workspace()
+              |> Enum.reject(&is_nil(&1.color))
+              |> Map.new(&{&1.slug, &1.color})
             versions = Docs.list_versions(current_doc.base_doc_id)
 
             # Optional time-travel — `:version` param means we're showing a
@@ -81,6 +87,7 @@ defmodule AvelineWeb.DocShowLive do
                # comments). `item` is what we actually render — either
                # current or a historical version.
                current_doc: current_doc,
+               tag_colors: tag_colors,
                item: showing,
                historical?: is_historical,
                messages: messages,
@@ -591,6 +598,11 @@ defmodule AvelineWeb.DocShowLive do
                   :for={tag <- @item.tags}
                   navigate={~p"/w/#{@workspace.slug}/docs?tag=#{tag}"}
                   class="chip chip-tag"
+                  style={
+                    if c = Map.get(@tag_colors, tag) do
+                      "--tag: #{c}; --tag-dim: #{c}14; --tag-border: #{c}40"
+                    end
+                  }
                 >
                   {tag}
                 </.link>

@@ -17,11 +17,22 @@ defmodule AvelineWeb.Badges do
 
   attr :text, :string, required: true
   attr :meta, :any, default: nil
+  # Optional #rrggbb — overrides the default tag palette per chip by
+  # rebinding the chip's CSS variables (hex+alpha for dim/border).
+  attr :color, :string, default: nil
   attr :rest, :global
   slot :icon
 
   def tag(assigns) do
-    assigns = assign(assigns, :kind, "tag")
+    assigns =
+      assigns
+      |> assign(:kind, "tag")
+      |> assign(
+        :style,
+        assigns.color &&
+          "--tag: #{assigns.color}; --tag-dim: #{assigns.color}14; --tag-border: #{assigns.color}40"
+      )
+
     badge(assigns)
   end
 
@@ -31,13 +42,13 @@ defmodule AvelineWeb.Badges do
   slot :icon
 
   def author(assigns) do
-    assigns = assign(assigns, :kind, "author")
+    assigns = assigns |> assign(:kind, "author") |> assign(:style, nil)
     badge(assigns)
   end
 
   defp badge(assigns) do
     ~H"""
-    <span class={"chip chip-#{@kind}"} {@rest}>
+    <span class={"chip chip-#{@kind}"} style={@style} {@rest}>
       {render_slot(@icon)}
       <span class="chip-text">{@text}</span>
       <span :if={@meta != nil} class="chip-meta">{@meta}</span>

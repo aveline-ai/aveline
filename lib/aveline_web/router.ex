@@ -106,6 +106,7 @@ defmodule AvelineWeb.Router do
     patch "/tags/:slug", TagController, :update
     put "/tags/:slug", TagController, :update
     delete "/tags/:slug", TagController, :delete
+    post "/tags/:slug/restore", TagController, :restore
 
     # Team / members
     get "/members", TeamController, :index

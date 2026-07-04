@@ -47,7 +47,7 @@ defmodule Aveline.CommentsEditTest do
       # Prior row marked as superseded (mechanism flag), NOT deleted
       # (which is reserved for user-intent delete).
       reloaded_v1 = Repo.get!(Comment, c.id)
-      assert reloaded_v1.superseded_at != nil
+      assert reloaded_v1.superseded
       assert reloaded_v1.deleted_at == nil
     end
 

@@ -184,17 +184,24 @@ tag_specs = [
   {"runbook", "Operational playbooks for live incidents."},
   {"stack", "The components Aveline runs on and how they fit together."},
   # Scoped status tags — enum members (a doc carries at most one
-  # status:*). Creation order here IS board column order.
-  {"status:backlog", "Status: captured, not started."},
-  {"status:todo", "Status: next up."},
-  {"status:in-progress", "Status: being worked on now."},
-  {"status:done", "Status: shipped."},
+  # status:*). Creation order here IS board column order. Colors are
+  # optional; these demo the custom-color path.
+  {"status:backlog", "Status: captured, not started.", "#6b7280"},
+  {"status:todo", "Status: next up.", "#3b82f6"},
+  {"status:in-progress", "Status: being worked on now.", "#e09150"},
+  {"status:done", "Status: shipped.", "#22c55e"},
   {"kanban-feature", "Work on the kanban board feature itself."}
 ]
 
-Enum.each(tag_specs, fn {slug, description} ->
+Enum.each(tag_specs, fn spec ->
+  {slug, description, color} =
+    case spec do
+      {s, d} -> {s, d, nil}
+      {s, d, c} -> {s, d, c}
+    end
+
   case Tags.get(workspace.id, slug) do
-    nil -> {:ok, _} = Tags.create(workspace.id, slug, description, alice.id)
+    nil -> {:ok, _} = Tags.create(workspace.id, slug, description, alice.id, color: color)
     _ -> :ok
   end
 end)
@@ -634,7 +641,7 @@ Enum.each(thread_specs, fn spec ->
             m.actor_user_id == ^author.id and
             m.body == ^spec.body and
             is_nil(m.deleted_at) and
-            is_nil(m.superseded_at)
+            not m.superseded
     )
 
   unless exists? do
@@ -722,7 +729,7 @@ case Repo.one(
          where:
            d.slug == "stack-overview" and
              c.body == "Worth noting: keep an eye on pool utilization in the managed PG dashboard. If we ever start sitting near the cap during peak, that's the upgrade signal." and
-             is_nil(c.resolved_at) and is_nil(c.deleted_at) and is_nil(c.superseded_at),
+             is_nil(c.resolved_at) and is_nil(c.deleted_at) and not c.superseded,
          limit: 1
      ) do
   nil -> :ok
