@@ -76,10 +76,6 @@ defmodule AvelineWeb.HomeLive do
     if String.length(body) > max, do: String.slice(body, 0, max) <> "…", else: body
   end
 
-  # Deterministic identity hue for a doc or user — hashed, never stored.
-  # Gives every card/avatar a stable personal color, Notion-icon style.
-  defp hue(s), do: :erlang.phash2(s || "", 360)
-
   defp display_name(user) do
     (user && (user.display_name || user.username)) || "there"
   end
@@ -126,7 +122,6 @@ defmodule AvelineWeb.HomeLive do
             :for={s <- @pinned_docs}
             navigate={~p"/w/#{@workspace.slug}/d/#{s.doc.slug}"}
             class="story-card"
-            style={"--h: #{hue(s.doc.slug)}"}
           >
             <div class="story-card-top">
               <span class="story-card-slot" title={"Pin slot #{s.doc.pin_slot}"}>{s.doc.pin_slot}</span>

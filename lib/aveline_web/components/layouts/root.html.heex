@@ -1060,15 +1060,8 @@
         text-decoration: none;
         transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
       }
-      /* A whisper of the doc's own hue across the top edge. */
-      .story-card::before {
-        content: "";
-        position: absolute; top: 0; left: 0; right: 0; height: 2px;
-        background: linear-gradient(90deg,
-          hsl(var(--h, 220) 70% 60% / 0.55), transparent 65%);
-      }
       .story-card:hover {
-        border-color: hsl(var(--h, 220) 50% 45% / 0.45);
+        border-color: var(--border-strong);
         transform: translateY(-2px);
         box-shadow: 0 10px 28px rgba(0,0,0,0.40);
       }
@@ -1080,9 +1073,9 @@
         display: inline-flex; align-items: center; justify-content: center;
         font-size: 10.5px; font-weight: 700;
         font-family: 'JetBrains Mono', monospace;
-        color: hsl(var(--h, 220) 70% 72%);
-        border: 1px solid hsl(var(--h, 220) 55% 40% / 0.4);
-        background: hsl(var(--h, 220) 50% 30% / 0.2);
+        color: var(--text-secondary);
+        border: 1px solid var(--border-strong);
+        background: rgba(255,255,255,0.03);
       }
       .story-card-title {
         font-size: 14px; font-weight: 600; color: var(--text);
@@ -1090,9 +1083,8 @@
       }
       .story-stops-badge {
         flex: none; margin-left: auto;
-        font-size: 11px; color: hsl(var(--h, 220) 70% 72%);
-        border: 1px solid hsl(var(--h, 220) 55% 40% / 0.4);
-        background: hsl(var(--h, 220) 50% 30% / 0.2);
+        font-size: 11px; color: var(--text-muted);
+        border: 1px solid var(--border-strong);
         border-radius: 999px; padding: 1px 8px;
         white-space: nowrap;
       }
