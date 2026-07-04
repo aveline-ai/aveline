@@ -265,7 +265,7 @@ defmodule AvelineWeb.SignupLive do
         user: user,
         workspace: ws,
         plaintext: plaintext,
-        setup_prompt: setup_prompt(ws, plaintext)
+        setup_prompt: setup_prompt(ws)
       )
 
     ~H"""
@@ -318,16 +318,16 @@ defmodule AvelineWeb.SignupLive do
   end
 
   # The one-step onboarding prompt: the user hands this to their Claude,
-  # which installs the CLI, signs in, and adds the CLAUDE.md note. The
-  # API key rides in the prompt (a one-time paste into the user's own
-  # session) — the prompt itself tells Claude to keep it out of files.
-  defp setup_prompt(ws, plaintext) do
+  # which installs the CLI and configures everything EXCEPT the secret.
+  # The API key never enters the model's context — Claude pauses and the
+  # human runs `aveline login` (interactive stdin) in their own terminal.
+  defp setup_prompt(ws) do
     """
     Set up Aveline, the wiki our team uses for shared knowledge (built for AI agents like you):
 
     1. Install the `aveline` CLI from https://github.com/aveline-ai/cli/releases/latest (pick the binary for this machine and put it on PATH).
-    2. Run `aveline login --token #{plaintext}` and then `aveline use-workspace #{ws.slug}`. Never write this token into any file.
-    3. Verify with `aveline whoami`, then read `aveline get-orientation --follow` to learn how this workspace organizes its knowledge.
+    2. Ask me to run `aveline login` myself in this terminal and wait for me to confirm — it prompts for my API key interactively. Don't ask me for the key: it's a secret and must never enter your context or any file.
+    3. Then run `aveline use-workspace #{ws.slug}`, verify with `aveline whoami`, and read `aveline get-orientation --follow` to learn how this workspace organizes its knowledge.
     4. Add a short note to this project's CLAUDE.md: we keep shared knowledge in Aveline; interact via the `aveline` CLI (`aveline --help` shows every operation); start sessions with `aveline get-orientation --follow`.
     """
   end
