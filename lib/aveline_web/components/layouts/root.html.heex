@@ -66,9 +66,6 @@
         --author: #B8A78F;
         --author-dim: rgba(184,167,143,0.08);
         --author-border: rgba(184,167,143,0.24);
-        /* Pinned reuses text color — no gold (see article-pin-btn / card-pin). */
-        --pinned: var(--text);
-        --pinned-dim: rgba(255,255,255,0.06);
         --danger: #E5484D;
         --radius-sm: 4px;
         --radius: 6px;
@@ -343,11 +340,6 @@
         font-size: 14px; font-weight: 500;
         display: flex; align-items: center; gap: 8px;
       }
-      .topbar-title .star {
-        color: var(--text-muted); cursor: pointer;
-        width: 14px; height: 14px;
-      }
-      .topbar-title .star:hover { color: var(--pinned); }
       .topbar-spacer { flex: 1; }
       .topbar-meta {
         font-size: 12px; color: var(--text-muted);
@@ -513,16 +505,6 @@
 
       /* ===== Tooltip (browser-native via title attr) — no extra CSS ===== */
 
-      /* Pinned marker on card titles — filled solid in the text color,
-         matching the article-pin-btn pinned state. No gold. */
-      .card-pin {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 14px; height: 14px;
-        margin-right: 4px;
-        color: var(--text);
-        flex-shrink: 0;
-      }
-      .card-pin svg { width: 12px; height: 12px; }
 
       /* ===== Chips ===== */
       .chip {
@@ -698,35 +680,8 @@
         line-height: 1.2;
         margin: 0 10px 0 0;
       }
-      .article-pin-btn {
-        flex-shrink: 0;
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 36px; height: 36px;
-        margin-top: 4px;
-        border: none; background: transparent;
-        border-radius: 8px;
-        color: var(--text-muted);
-        cursor: pointer;
-        transition: color 0.1s ease, background 0.1s ease, transform 0.06s ease;
-      }
-      .article-pin-btn svg {
-        width: 20px; height: 20px;
-        fill: none; stroke: currentColor;
-        transition: fill 0.1s ease, color 0.1s ease;
-      }
-      .article-pin-btn:hover {
-        color: var(--text);
-        background: rgba(255,255,255,0.05);
-      }
-      .article-pin-btn:active { transform: scale(0.94); }
-      /* Pinned = clearly filled icon in the normal text color. No gold. */
-      .article-pin-btn.is-pinned { color: var(--text); }
-      .article-pin-btn.is-pinned svg { fill: currentColor; }
-      .article-pin-btn.is-static { cursor: default; }
-      .article-pin-btn.is-static:hover { background: transparent; }
 
-      /* Kudos toggle — same shape + active treatment as the pin. Icon-only,
-         no count (no social-proof bias). */
+      /* Kudos toggle — icon-only, no count (no social-proof bias). */
       .article-kudos-btn {
         flex-shrink: 0;
         display: inline-flex; align-items: center; justify-content: center;
