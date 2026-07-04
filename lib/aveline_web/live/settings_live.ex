@@ -27,7 +27,6 @@ defmodule AvelineWeb.SettingsLive do
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
            total_count: length(items),
-           pinned_count: Enum.count(items, & &1.pinned),
            topbar_title: "Settings",
            nav_active: :settings,
            display_name: user.display_name || "",
