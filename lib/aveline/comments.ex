@@ -76,6 +76,26 @@ defmodule Aveline.Comments do
     |> Repo.preload([:actor_user, :resolved_by, :resolved_by_doc, :doc, :deleted_by])
   end
 
+  @doc """
+  Open top-level threads across every live doc in a workspace, newest
+  first. This is the "needs a human" queue: unresolved questions agents
+  and teammates have left anywhere. Returns `{comment, doc}` pairs so
+  callers can link back to the doc (and block) the thread anchors to.
+  """
+  def list_open_threads_for_workspace(workspace_id, limit \\ 5) do
+    from(c in base_query(),
+      join: d in Doc,
+      on: d.id == c.doc_id,
+      where: d.workspace_id == ^workspace_id and is_nil(d.deleted_at),
+      where: is_nil(c.parent_comment_id) and is_nil(c.resolved_at),
+      order_by: [desc: c.inserted_at],
+      limit: ^limit,
+      preload: [:actor_user],
+      select: {c, d}
+    )
+    |> Repo.all()
+  end
+
   @doc "Fetch by row id (a specific version). Mostly for callers that already hold a row id."
   def get_comment(id) when is_binary(id) do
     Repo.get(Comment, id) |> Repo.preload([:actor_user, :resolved_by, :resolved_by_doc])

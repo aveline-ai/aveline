@@ -193,6 +193,22 @@ defmodule Aveline.Docs do
   end
 
   @doc """
+  Current docs whose body contains at least one doc_link block — i.e.
+  stories/trails. Detection is structural, not a flag: a doc is a story
+  because of what's in it.
+  """
+  def list_stories(workspace_id, limit \\ 6) do
+    from(d in base_query(),
+      where: d.workspace_id == ^workspace_id,
+      where: fragment("? @> '[{\"type\": \"doc_link\"}]'::jsonb", d.blocks),
+      order_by: [desc: d.pinned, desc: d.updated_at],
+      limit: ^limit,
+      preload: [:owner, :actor_user]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
   Read-time enrichment: every doc_link block gains a `"target"` map
   echoing the linked doc's current slug/title/summary/state. Computed per
   read, never persisted — there is nothing to keep in sync. A target with

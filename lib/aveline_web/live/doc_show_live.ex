@@ -614,7 +614,7 @@ defmodule AvelineWeb.DocShowLive do
               <span class="chip-row" style="gap:6px">
                 <.link
                   :for={tag <- @item.tags}
-                  navigate={~p"/w/#{@workspace.slug}?tag=#{tag}"}
+                  navigate={~p"/w/#{@workspace.slug}/docs?tag=#{tag}"}
                   class="chip chip-tag"
                 >
                   {tag}

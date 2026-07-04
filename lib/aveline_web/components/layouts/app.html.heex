@@ -43,6 +43,16 @@
       <div class="sidebar-section">
         <.link
           navigate={~p"/w/#{@workspace.slug}"}
+          class={"sidebar-item " <> if assigns[:nav_active] == :home, do: "active", else: ""}
+        >
+          <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+            <path d="M2.5 7.5L8 2.5l5.5 5v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" />
+            <path d="M6.5 14V9.5h3V14" />
+          </svg>
+          <span class="label">Home</span>
+        </.link>
+        <.link
+          navigate={~p"/w/#{@workspace.slug}/docs"}
           class={"sidebar-item " <> if assigns[:nav_active] == :all, do: "active", else: ""}
         >
           <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">

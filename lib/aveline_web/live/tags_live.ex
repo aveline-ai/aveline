@@ -282,7 +282,7 @@ defmodule AvelineWeb.TagsLive do
                 <div class="tag-row-body">
                   <div class="tag-row-head">
                     <.link
-                      navigate={~p"/w/#{@workspace.slug}?#{[{"tag", [row.tag.slug]}]}"}
+                      navigate={~p"/w/#{@workspace.slug}/docs?#{[{"tag", [row.tag.slug]}]}"}
                       class="chip chip-tag tag-row-chip"
                     >
                       {row.tag.slug}

@@ -981,6 +981,140 @@
         color: var(--text-secondary); font-style: italic;
       }
 
+      /* ===== Workspace home shelves ===== */
+      .shelf { margin-top: 28px; }
+      .shelf-head {
+        display: flex; align-items: baseline; gap: 8px;
+        margin-bottom: 10px;
+      }
+      .shelf-label {
+        font-size: 11.5px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.09em;
+        color: var(--text-muted);
+      }
+      .shelf-count { font-size: 11.5px; color: var(--text-muted); }
+
+      /* Start here — story/trail cards */
+      .story-grid {
+        display: grid; gap: 10px;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      }
+      .story-card {
+        display: block;
+        padding: 14px 16px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        text-decoration: none;
+        transition: border-color 0.08s ease, background 0.08s ease;
+      }
+      .story-card:hover { border-color: var(--border-strong); background: var(--bg-card-hover); }
+      .story-card-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+      .story-icon {
+        flex: none; width: 14px; height: 14px; color: var(--accent);
+        display: inline-flex;
+      }
+      .story-icon svg { width: 14px; height: 14px; }
+      .story-card-title {
+        font-size: 14px; font-weight: 600; color: var(--text);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .story-stops-badge {
+        flex: none; margin-left: auto;
+        font-size: 11px; color: var(--text-muted);
+        border: 1px solid var(--border-strong);
+        border-radius: 999px; padding: 1px 8px;
+        white-space: nowrap;
+      }
+      .story-card-summary {
+        margin-top: 5px; font-size: 12.5px; line-height: 1.5;
+        color: var(--text-secondary);
+      }
+      .story-card-path {
+        margin-top: 10px; font-size: 12px; line-height: 1.7;
+        color: var(--text-secondary);
+      }
+      .story-path-arrow { color: var(--text-muted); margin: 0 5px; }
+      .story-path-stop { white-space: nowrap; }
+      .story-path-dead { text-decoration: line-through; color: var(--text-muted); }
+
+      /* Needs you — open-thread rows */
+      .attn-list {
+        border: 1px solid var(--border); border-radius: var(--radius);
+        background: var(--bg-card); overflow: hidden;
+      }
+      .attn-row {
+        display: flex; align-items: baseline; gap: 10px;
+        padding: 10px 14px; text-decoration: none;
+        border-bottom: 1px solid var(--border);
+        transition: background 0.08s ease;
+        min-width: 0;
+      }
+      .attn-row:last-child { border-bottom: none; }
+      .attn-row:hover { background: var(--bg-card-hover); }
+      .attn-dot {
+        flex: none; width: 6px; height: 6px; border-radius: 50%;
+        background: var(--tag); align-self: center;
+      }
+      .attn-body {
+        font-size: 13px; color: var(--text);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .attn-meta {
+        flex: none; margin-left: auto; font-size: 11.5px; color: var(--text-muted);
+        white-space: nowrap;
+      }
+      .attn-via {
+        font-size: 10.5px; color: var(--text-muted);
+        border: 1px solid var(--border-strong); border-radius: 4px;
+        padding: 0 4px; margin-left: 2px;
+      }
+      .attn-doc { color: var(--text-secondary); }
+
+      /* Recently changed — digest rows */
+      .recent-list { display: flex; flex-direction: column; }
+      .recent-row {
+        display: flex; align-items: baseline; gap: 10px;
+        padding: 7px 2px; text-decoration: none;
+        border-bottom: 1px solid var(--border);
+        min-width: 0;
+      }
+      .recent-row:last-child { border-bottom: none; }
+      .recent-row:hover .recent-title { color: var(--accent); }
+      .recent-title {
+        flex: none; font-size: 13px; font-weight: 500; color: var(--text);
+        transition: color 0.08s ease;
+      }
+      .recent-version {
+        flex: none; font-size: 11px; color: var(--text-muted);
+        font-family: 'JetBrains Mono', monospace;
+      }
+      .recent-intent {
+        font-size: 12.5px; color: var(--text-secondary); font-style: italic;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .recent-time {
+        flex: none; margin-left: auto; font-size: 11.5px; color: var(--text-muted);
+      }
+
+      .home-browse-all { margin-top: 12px; }
+      .home-browse-all-link {
+        font-size: 12.5px; color: var(--text-muted); text-decoration: none;
+      }
+      .home-browse-all-link:hover { color: var(--accent); }
+
+      /* Trail chip on ordinary doc cards */
+      .card-trail-chip {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: 11px; font-weight: 500; color: var(--accent);
+        border: 1px solid var(--accent-dim);
+        background: var(--accent-dim);
+        border-radius: 999px; padding: 1px 8px;
+        margin-left: 8px; vertical-align: 2px;
+        white-space: nowrap;
+      }
+      .card-trail-chip svg { width: 11px; height: 11px; }
+
       /* ===== Version switcher (dropdown next to v{n} chip) ===== */
       .version-switcher { position: relative; display: inline-flex; }
       .version-switcher > summary {
