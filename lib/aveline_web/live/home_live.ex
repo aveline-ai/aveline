@@ -221,11 +221,6 @@ defmodule AvelineWeb.HomeLive do
             <span class="recent-time">{relative_time(d.updated_at)}</span>
           </.link>
         </div>
-        <div class="home-browse-all">
-          <.link navigate={~p"/w/#{@workspace.slug}/docs"} class="home-browse-all-link">
-            Browse all docs →
-          </.link>
-        </div>
       </section>
 
       <section :if={@tag_stats != []} class="shelf">
