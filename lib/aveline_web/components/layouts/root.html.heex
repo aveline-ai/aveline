@@ -690,9 +690,11 @@
         display: flex; align-items: flex-start; gap: 2px;
         margin-bottom: 4px;
       }
+      /* Same scale as h1.page-title so doc pages sit in the same type
+         system as every list page. */
       .article-title {
         flex: 1; min-width: 0;
-        font-size: 32px; font-weight: 600; letter-spacing: -0.02em;
+        font-size: 28px; font-weight: 600; letter-spacing: -0.02em;
         line-height: 1.2;
         margin: 0 10px 0 0;
       }
@@ -995,11 +997,9 @@
         pointer-events: none;
       }
       .home-content > * { position: relative; }
-      .home-hero { margin-bottom: 22px; }
-      .home-title {
-        font-family: 'Fraunces', serif;
-        font-size: 32px; letter-spacing: -0.01em;
-      }
+      /* Same type as every other page-title; only the bottom margin is
+         set here, standing in for the page-subtitle other pages have. */
+      .home-title { margin-bottom: 32px; }
 
       /* Identity tiles + avatars — hue is hashed from the slug/username,
          so every doc and person keeps a stable personal color. */

@@ -86,9 +86,7 @@ defmodule AvelineWeb.HomeLive do
   def render(assigns) do
     ~H"""
     <div class="content home-content">
-      <div class="home-hero">
-        <h1 class="page-title home-title">Welcome back, {display_name(@current_user)}</h1>
-      </div>
+      <h1 class="page-title home-title">Welcome back, {display_name(@current_user)}</h1>
 
       <.link
         :if={@orientation}
