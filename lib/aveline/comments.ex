@@ -77,16 +77,19 @@ defmodule Aveline.Comments do
   end
 
   @doc """
-  Open top-level threads across every live doc in a workspace, newest
-  first. This is the "needs a human" queue: unresolved questions agents
-  and teammates have left anywhere. Returns `{comment, doc}` pairs so
-  callers can link back to the doc (and block) the thread anchors to.
+  Open top-level threads on the live docs a user OWNS in a workspace,
+  newest first. This is the maintenance queue: you own the doc, so you
+  own answering (or dispositioning) what's open on it. Returns
+  `{comment, doc}` pairs so callers can link back to the doc (and
+  block) the thread anchors to.
   """
-  def list_open_threads_for_workspace(workspace_id, limit \\ 5) do
+  def list_open_threads_for_owner(workspace_id, owner_id, limit \\ 5) do
     from(c in base_query(),
       join: d in Doc,
       on: d.id == c.doc_id,
-      where: d.workspace_id == ^workspace_id and is_nil(d.deleted_at),
+      where:
+        d.workspace_id == ^workspace_id and d.owner_id == ^owner_id and
+          is_nil(d.deleted_at),
       where: is_nil(c.parent_comment_id) and is_nil(c.resolved_at),
       order_by: [desc: c.inserted_at],
       limit: ^limit,

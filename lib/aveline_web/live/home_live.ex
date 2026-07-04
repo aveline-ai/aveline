@@ -30,7 +30,7 @@ defmodule AvelineWeb.HomeLive do
            orientation: Docs.get_orientation(ws.id),
            jump_back_in: (user && DocViews.recent_for_user(ws.id, user.id, 3)) || [],
            pinned_docs: load_pinned(ws),
-           needs_you: Comments.list_open_threads_for_workspace(ws.id, 5),
+           needs_you: (user && Comments.list_open_threads_for_owner(ws.id, user.id, 5)) || [],
            recent_changes: Docs.list_current(ws.id, pin_mode: :interleave, sort: :recent, limit: 5)
          )}
 
@@ -194,7 +194,7 @@ defmodule AvelineWeb.HomeLive do
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
           </span>
-          <span class="shelf-label">Needs you</span>
+          <span class="shelf-label">Open comments on your docs</span>
           <span class="shelf-count shelf-count-attn">{length(@needs_you)} open</span>
         </div>
         <div class="attn-list">
