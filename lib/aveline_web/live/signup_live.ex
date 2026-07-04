@@ -324,7 +324,7 @@ defmodule AvelineWeb.SignupLive do
           <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
           <input type="hidden" name="token" value={@plaintext} />
           <button id="continue-btn" type="submit" class="auth-submit">
-            Continue into {@workspace.name}
+            Continue to {@workspace.name}
           </button>
         </form>
       </div>
