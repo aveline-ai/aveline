@@ -227,20 +227,26 @@ defmodule AvelineWeb.HomeLive do
           </span>
           <span class="shelf-label">Browse by tag</span>
         </div>
-        <div class="chip-row">
+        <div class="tag-glossary">
           <.link
             :for={row <- @tag_stats}
             navigate={~p"/w/#{@workspace.slug}/docs?#{[{"tag", [row.tag.slug]}]}"}
-            class="chip chip-tag"
-            style={
-              if c = row.tag.color do
-                "--tag: #{c}; --tag-dim: #{c}14; --tag-border: #{c}40"
-              end
-            }
-            title={row.tag.description}
+            class="tag-glossary-row"
           >
-            <span class="chip-text">{row.tag.slug}</span>
-            <span class="chip-meta">{row.count}</span>
+            <span
+              class="chip chip-tag"
+              style={
+                if c = row.tag.color do
+                  "--tag: #{c}; --tag-dim: #{c}14; --tag-border: #{c}40"
+                end
+              }
+            >
+              <span class="chip-text">{row.tag.slug}</span>
+              <span class="chip-meta">{row.count}</span>
+            </span>
+            <span class="tag-glossary-desc" title={row.tag.description}>
+              {row.tag.description}
+            </span>
           </.link>
         </div>
       </section>

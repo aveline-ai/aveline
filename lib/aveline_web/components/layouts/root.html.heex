@@ -1170,6 +1170,27 @@
       }
       .card-trail-chip svg { width: 11px; height: 11px; }
 
+      /* Home tag glossary — the workspace's layout at a glance: one
+         compact line per tag, chip + description. */
+      .tag-glossary {
+        display: grid; gap: 4px 24px;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      }
+      .tag-glossary-row {
+        display: flex; align-items: center; gap: 10px;
+        min-width: 0; padding: 3px 4px;
+        border-radius: 6px;
+        text-decoration: none;
+        transition: background 0.08s ease;
+      }
+      .tag-glossary-row:hover { background: rgba(255,255,255,0.03); }
+      .tag-glossary-row .chip { flex: none; }
+      .tag-glossary-desc {
+        font-size: 12px; color: var(--text-muted);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .tag-glossary-row:hover .tag-glossary-desc { color: var(--text-secondary); }
+
       /* ===== Docs filter bar (dropdowns + pills) ===== */
       /* The Docs controls (search + dropdowns + pills) read as ONE zone:
          tight 10px internal rhythm, one clear 22px break before the list.
