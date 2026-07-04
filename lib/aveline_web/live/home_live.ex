@@ -34,7 +34,9 @@ defmodule AvelineWeb.HomeLive do
            needs_you: (user && Comments.list_open_threads_for_owner(ws.id, user.id, 5)) || [],
            recent_changes: Docs.list_current(ws.id, sort: :recent, limit: 5),
            # Used tags only, by usage — the workspace's topic map.
-           tag_stats: ws.id |> Tags.list_with_stats() |> Enum.reject(&(&1.count == 0))
+           # All tags, alphabetical: the glossary is the workspace's
+           # vocabulary, not a popularity chart.
+           tag_stats: ws.id |> Tags.list_with_stats() |> Enum.sort_by(& &1.tag.slug)
          )}
 
       :not_found ->
