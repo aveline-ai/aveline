@@ -201,24 +201,33 @@ defmodule Aveline.Docs do
   @orientation_slug "agents"
 
   # GitHub-style pin budget. Pinned docs are the workspace's curated
-  # front page (the Home "Start here" shelf); the orientation doc
-  # permanently holds one slot, humans and agents pick the rest.
+  # front page (the Home "Start here" shelf); humans and agents pick
+  # them. The orientation doc is always pinned but has its own permanent
+  # slot above the shelf — it doesn't count against the budget.
   @pin_limit 6
 
   @doc "The well-known slug of the workspace orientation doc."
   def orientation_slug, do: @orientation_slug
 
-  @doc "Max pinned docs per workspace (orientation doc included)."
+  @doc "Max manually pinned docs per workspace (orientation doc not counted)."
   def pin_limit, do: @pin_limit
 
   defp count_pinned(workspace_id) do
-    from(d in base_query(), where: d.workspace_id == ^workspace_id and d.pinned == true)
+    from(d in base_query(),
+      where:
+        d.workspace_id == ^workspace_id and d.pinned == true and
+          d.slug != @orientation_slug
+    )
     |> Repo.aggregate(:count, :id)
   end
 
   # Validate a pin-state transition against the workspace pin budget and
-  # the orientation doc's permanent slot. `old == new` is always fine.
+  # the orientation doc's permanent slot. `old == new` is always fine;
+  # the orientation doc pins freely (its slot is its own) and never
+  # unpins.
   defp validate_pin_change(_ws_id, _slug, same, same), do: :ok
+
+  defp validate_pin_change(_ws_id, @orientation_slug, false, true), do: :ok
 
   defp validate_pin_change(ws_id, _slug, false, true) do
     if count_pinned(ws_id) >= @pin_limit, do: {:error, :pin_limit_reached}, else: :ok

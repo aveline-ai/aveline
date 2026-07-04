@@ -9,6 +9,7 @@ defmodule AvelineWeb.HomeLive do
 
   alias Aveline.Comments
   alias Aveline.Docs
+  alias Aveline.DocViews
   alias Aveline.Workspaces
   alias AvelineWeb.LiveSession
 
@@ -27,6 +28,7 @@ defmodule AvelineWeb.HomeLive do
            nav_active: :home,
            topbar_title: "Home",
            orientation: Docs.get_orientation(ws.id),
+           jump_back_in: (user && DocViews.recent_for_user(ws.id, user.id, 3)) || [],
            pinned_docs: load_pinned(ws),
            needs_you: Comments.list_open_threads_for_workspace(ws.id, 5),
            recent_changes: Docs.list_current(ws.id, pin_mode: :interleave, sort: :recent, limit: 5)
@@ -101,11 +103,29 @@ defmodule AvelineWeb.HomeLive do
         <span class="orientation-cta">Get oriented →</span>
       </.link>
 
+      <section :if={@jump_back_in != []} class="shelf">
+        <div class="shelf-head">
+          <span class="shelf-label">Jump back in</span>
+        </div>
+        <div class="jump-grid">
+          <.link
+            :for={{d, viewed_at} <- @jump_back_in}
+            navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}"}
+            class="jump-card"
+          >
+            <span class="jump-card-title">{d.title}</span>
+            <span class="jump-card-time" title={absolute_time(viewed_at)}>
+              opened {relative_time(viewed_at)}
+            </span>
+          </.link>
+        </div>
+      </section>
+
       <section :if={@pinned_docs != []} class="shelf">
         <div class="shelf-head">
           <span class="shelf-label">Start here</span>
           <span class="shelf-count">
-            {length(@pinned_docs) + 1}/{Docs.pin_limit()} pins
+            {length(@pinned_docs)}/{Docs.pin_limit()} pins
           </span>
         </div>
         <div class="story-grid">

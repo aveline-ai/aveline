@@ -34,8 +34,8 @@ defmodule AvelineWeb.Api.ErrorCodes do
   | stale_version              | 422  | tried to edit/delete a comment row that's already superseded or deleted              |
   | doc_link_target_not_found  | 422  | doc_link block references a doc that doesn't exist in this workspace                 |
   | orientation_undeletable    | 422  | tried to delete the workspace orientation doc                                        |
-  | orientation_pin_required   | 422  | tried to unpin the workspace orientation doc (it permanently holds one pin slot)     |
-  | pin_limit_reached          | 422  | workspace already has 6 pinned docs — unpin one first                                |
+  | orientation_pin_required   | 422  | tried to unpin the workspace orientation doc (always pinned, own permanent slot)     |
+  | pin_limit_reached          | 422  | workspace already has 6 manually pinned docs (orientation excluded) — unpin one      |
   | internal_error             | 500  | something unexpected blew up                                                          |
   """
 

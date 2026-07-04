@@ -29,12 +29,13 @@ defmodule Aveline.OrientationDocTest do
     assert {:error, :orientation_pin_required} = Docs.set_pinned(doc, false, user.id)
   end
 
-  test "pin budget: the workspace caps at #{Aveline.Docs.pin_limit()} pinned docs", %{
+  test "pin budget: #{Aveline.Docs.pin_limit()} manual pins; orientation doesn't count", %{
     user: user,
     ws: ws
   } do
-    # Orientation holds slot 1; fill the remaining slots.
-    free = Docs.pin_limit() - 1
+    # Orientation is already pinned but has its own slot — the full
+    # manual budget is available on top of it.
+    free = Docs.pin_limit()
 
     docs =
       for i <- 1..free do
