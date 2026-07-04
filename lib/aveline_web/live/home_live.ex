@@ -244,9 +244,7 @@ defmodule AvelineWeb.HomeLive do
               <span class="chip-text">{row.tag.slug}</span>
               <span class="chip-meta">{row.count}</span>
             </span>
-            <span class="tag-glossary-desc" title={row.tag.description}>
-              {row.tag.description}
-            </span>
+            <span class="tag-glossary-desc">{row.tag.description}</span>
           </.link>
         </div>
       </section>
