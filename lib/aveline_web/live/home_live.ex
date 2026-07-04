@@ -51,7 +51,7 @@ defmodule AvelineWeb.HomeLive do
     end
   end
 
-  # Start here = the workspace's pinned docs in slot order (6 numbered
+  # Pinned docs = the workspace's pinned docs in slot order (6 numbered
   # slots; the orientation doc has its own card above and never takes
   # one). Docs with doc_link chains get the trail treatment; plain docs
   # render as plain cards.
@@ -139,7 +139,7 @@ defmodule AvelineWeb.HomeLive do
               <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
             </svg>
           </span>
-          <span class="shelf-label">Start here</span>
+          <span class="shelf-label">Pinned docs</span>
           <span class="shelf-count">
             {length(@pinned_docs)}/{Docs.pin_limit()} pins
           </span>
