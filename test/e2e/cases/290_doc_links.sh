@@ -1,12 +1,18 @@
 # shellcheck shell=bash
-# doc_link blocks — links as plain blocks in plain docs. Covers slug→id
-# resolution, workspace scoping, the read-time target echo, and
-# deleted-target behavior.
+# Doc links — the doc_link block (a card) and inline span links (a
+# mention in prose). Covers slug→id resolution, workspace scoping, the
+# read-time target echo, and deleted-target behavior for both forms.
 
 # Local helper: doc_link block by slug, with a note.
 block_doc_link() {
   jq -nc --arg doc "$1" --arg note "$2" \
     '{type: "doc_link", doc: $doc, note: [{text: $note}]}'
+}
+
+# Local helper: paragraph whose second span mentions a doc inline by slug.
+block_inline_mention() {
+  jq -nc --arg doc "$1" --arg text "$2" \
+    '{type: "paragraph", content: [{text: "see "}, {text: $text, link: {doc: $doc}}]}'
 }
 
 test_doc_link_slug_resolves_to_base_doc_id() {
@@ -130,6 +136,60 @@ test_doc_link_modify_block_reanchors_to_new_slug() {
   run_cli -w "$ws" get-doc "$story"
   expect_eq '.doc.blocks[0].doc_id' "$base_two" "link reanchored to new target"
   expect_eq '.doc.blocks[0].target.slug' "$two" "echo follows the new target"
+}
+
+test_inline_link_resolves_and_echoes() {
+  local ws; ws="$(mk_workspace il-echo)"
+  local target; target="$(mk_doc "$ws" "Inline Target")"
+
+  run_cli -w "$ws" get-doc "$target"
+  local base; base="$(jq -r '.doc.base_doc_id' <<<"$LAST_OUT_TEXT")"
+
+  run_cli -w "$ws" create-doc --title "Prose $(us s)" \
+    --blocks "[$(block_inline_mention "$target" "the target doc")]"
+  expect_ok "create doc with inline mention (slug form)"
+  local prose; prose="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
+
+  run_cli -w "$ws" get-doc "$prose"
+  expect_eq '.doc.blocks[0].content[1].link.doc_id' "$base" "slug resolved to base_doc_id"
+  expect_absent '.doc.blocks[0].content[1].link.doc' "slug form not persisted"
+  expect_eq '.doc.blocks[0].content[1].link.target.slug' "$target" "target slug echoed on the span"
+  expect_eq '.doc.blocks[0].content[1].link.target.deleted' "false" "target live"
+  expect_eq '.doc.blocks[0].content[1].text' "the target doc" "author's words untouched"
+}
+
+test_inline_link_unknown_slug_rejected() {
+  local ws; ws="$(mk_workspace il-unknown)"
+  run_cli -w "$ws" create-doc --title "Bad prose" \
+    --blocks "[$(block_inline_mention "ghost-$(us g)" "nope")]"
+  expect_err "doc_link_target_not_found" 2 "unknown inline slug → doc_link_target_not_found / exit 2"
+}
+
+test_inline_link_deleted_target_flagged() {
+  local ws; ws="$(mk_workspace il-deleted)"
+  local target; target="$(mk_doc "$ws" "Doomed Inline")"
+
+  run_cli -w "$ws" create-doc --title "Prose $(us s)" \
+    --blocks "[$(block_inline_mention "$target" "soon gone")]"
+  local prose; prose="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
+
+  run_cli -w "$ws" delete-doc "$target"
+  run_cli -w "$ws" get-doc "$prose"
+  expect_eq '.doc.blocks[0].content[1].link.target.deleted' "true" "echo flags deleted inline target"
+
+  run_cli -w "$ws" restore-doc "$target"
+  run_cli -w "$ws" get-doc "$prose"
+  expect_eq '.doc.blocks[0].content[1].link.target.deleted' "false" "restore brings the mention back"
+}
+
+test_inline_link_both_href_and_doc_rejected() {
+  local ws; ws="$(mk_workspace il-both)"
+  local target; target="$(mk_doc "$ws" "Both Target")"
+
+  run_cli -w "$ws" create-doc --title "Bad span" \
+    --blocks "$(jq -nc --arg doc "$target" \
+      '[{type: "paragraph", content: [{text: "x", link: {doc: $doc, href: "https://example.com"}}]}]')"
+  expect_err "validation_failed" 2 "href + doc on one span → validation_failed"
 }
 
 test_doc_link_stale_echo_stripped_on_write() {

@@ -161,6 +161,182 @@ defmodule Aveline.DocLinksTest do
     end
   end
 
+  describe "inline span links" do
+    test "span link doc_id normalizes and strips a pasted target echo" do
+      uuid = Ecto.UUID.generate()
+
+      assert {:ok, out} =
+               Block.validate(
+                 %{
+                   "type" => "paragraph",
+                   "content" => [
+                     %{
+                       "text" => "see this",
+                       "link" => %{"doc_id" => String.upcase(uuid), "target" => %{"title" => "stale"}}
+                     }
+                   ]
+                 },
+                 mint_id?: true
+               )
+
+      assert [%{"link" => link}] = out["content"]
+      assert link == %{"doc_id" => uuid}
+    end
+
+    test "span link with both href and doc_id is rejected" do
+      assert {:error, msg} =
+               Block.validate(
+                 %{
+                   "type" => "paragraph",
+                   "content" => [
+                     %{"text" => "x", "link" => %{"href" => "https://x.com", "doc_id" => Ecto.UUID.generate()}}
+                   ]
+                 },
+                 mint_id?: true
+               )
+
+      assert msg =~ "not both"
+    end
+
+    test "span link with non-UUID doc_id is rejected" do
+      assert {:error, msg} =
+               Block.validate(
+                 %{"type" => "paragraph", "content" => [%{"text" => "x", "link" => %{"doc_id" => "some-slug"}}]},
+                 mint_id?: true
+               )
+
+      assert msg =~ "must be a UUID"
+    end
+
+    test "link: {doc: slug} in a paragraph resolves to the target's base_doc_id" do
+      %{user: user, ws: ws, target: target} = setup_ws()
+
+      assert {:ok, doc} =
+               create_with_blocks(ws, user, [
+                 %{
+                   "type" => "paragraph",
+                   "content" => [
+                     %{"text" => "see "},
+                     %{"text" => "the target", "link" => %{"doc" => "target-doc"}}
+                   ]
+                 }
+               ])
+
+      assert [%{"content" => [_, %{"link" => link}]}] = doc.blocks
+      assert link == %{"doc_id" => target.base_doc_id}
+
+      # stored ops carry the resolved form too
+      assert [%{"block" => %{"content" => [_, %{"link" => stored_link}]}}] = doc.operations
+      assert stored_link == %{"doc_id" => target.base_doc_id}
+    end
+
+    test "unknown slug in a span is rejected with doc_link_target_not_found" do
+      %{user: user, ws: ws} = setup_ws()
+
+      assert {:error, :doc_link_target_not_found, msg} =
+               create_with_blocks(ws, user, [
+                 %{"type" => "paragraph", "content" => [%{"text" => "x", "link" => %{"doc" => "ghost"}}]}
+               ])
+
+      assert msg =~ "ghost"
+    end
+
+    test "span doc_id from another workspace is rejected" do
+      %{target: target} = setup_ws()
+      other_user = Fixtures.user_fixture()
+      other_ws = Fixtures.workspace_fixture(other_user)
+
+      assert {:error, :doc_link_target_not_found, _} =
+               create_with_blocks(other_ws, other_user, [
+                 %{
+                   "type" => "paragraph",
+                   "content" => [%{"text" => "x", "link" => %{"doc_id" => target.base_doc_id}}]
+                 }
+               ])
+    end
+
+    test "spans in list items, table cells, and doc_link notes resolve too" do
+      %{user: user, ws: ws, target: target} = setup_ws()
+      mention = %{"text" => "see target", "link" => %{"doc" => "target-doc"}}
+
+      assert {:ok, doc} =
+               create_with_blocks(ws, user, [
+                 %{"type" => "list", "ordered" => false, "items" => [%{"content" => [mention]}]},
+                 %{"type" => "table", "headers" => ["col"], "rows" => [[[mention]]]},
+                 %{"type" => "doc_link", "doc" => "target-doc", "note" => [mention]}
+               ])
+
+      [list, table, dl] = doc.blocks
+      assert [%{"content" => [%{"link" => %{"doc_id" => id}}]}] = list["items"]
+      assert id == target.base_doc_id
+      assert [[[%{"link" => %{"doc_id" => ^id}}]]] = table["rows"]
+      assert [%{"link" => %{"doc_id" => ^id}}] = dl["note"]
+    end
+
+    test "modify_block patch with span content resolves slugs" do
+      %{user: user, ws: ws, target: target} = setup_ws()
+
+      {:ok, doc} =
+        create_with_blocks(ws, user, [
+          %{"type" => "paragraph", "content" => [%{"text" => "plain"}]}
+        ])
+
+      [%{"id" => block_id}] = doc.blocks
+
+      ops = [
+        %{
+          "op" => "modify_block",
+          "id" => block_id,
+          "patch" => %{"content" => [%{"text" => "now linked", "link" => %{"doc" => "target-doc"}}]}
+        }
+      ]
+
+      assert {:ok, v2} =
+               Docs.apply_ops(doc, ops, %{actor_user_id: user.id, actor_type: "agent"}, dispositions: [])
+
+      assert [%{"content" => [%{"link" => %{"doc_id" => id}}]}] = v2.blocks
+      assert id == target.base_doc_id
+    end
+
+    test "enrichment echoes the target under link.target, deleted included" do
+      %{user: user, ws: ws, target: target} = setup_ws()
+
+      {:ok, doc} =
+        create_with_blocks(ws, user, [
+          %{
+            "type" => "paragraph",
+            "content" => [%{"text" => "see target", "link" => %{"doc" => "target-doc"}}]
+          }
+        ])
+
+      assert [%{"content" => [%{"link" => %{"target" => t}}]}] = Docs.enrich_blocks(doc.blocks, ws.id)
+      assert t["slug"] == "target-doc"
+      assert t["title"] == "Target doc"
+      assert t["deleted"] == false
+
+      {:ok, _} = Docs.soft_delete(target, user.id)
+
+      assert [%{"content" => [%{"link" => %{"target" => t2}}]}] = Docs.enrich_blocks(doc.blocks, ws.id)
+      assert t2["deleted"] == true
+      assert t2["title"] == "Target doc"
+    end
+
+    test "external href links pass through resolution and gain no echo" do
+      %{user: user, ws: ws} = setup_ws()
+
+      {:ok, doc} =
+        create_with_blocks(ws, user, [
+          %{
+            "type" => "paragraph",
+            "content" => [%{"text" => "docs", "link" => %{"href" => "https://example.com"}}]
+          }
+        ])
+
+      assert [%{"content" => [%{"link" => link}]}] = Docs.enrich_blocks(doc.blocks, ws.id)
+      assert link == %{"href" => "https://example.com"}
+    end
+  end
+
   describe "search text" do
     test "doc_link note is searchable" do
       %{user: user, ws: ws, target: target} = setup_ws()

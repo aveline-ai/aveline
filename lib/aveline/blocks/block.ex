@@ -22,6 +22,11 @@ defmodule Aveline.Blocks.Block do
       chains doc_links is a story/trail. The API also accepts `doc` (a
       slug); the Docs context resolves it to `doc_id` before validation
       reaches here, and verifies the target exists in the workspace.
+  Docs can also be linked inline: any span (paragraph, list item, table
+  cell, doc_link note) may carry `link: %{doc_id}` — same write-time
+  resolution and read-time target echo as the doc_link block, but as a
+  mention in prose instead of a card. See `Aveline.Blocks.Inline`.
+
   Every block has an `id` (`b_<22>` for blocks, `li_<22>` for list items)
   and an optional `metadata` map (free-form jsonb).
   """

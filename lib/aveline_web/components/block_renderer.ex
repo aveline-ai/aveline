@@ -49,7 +49,7 @@ defmodule AvelineWeb.BlockRenderer do
     ~H"""
     <p id={@block["id"]} class="blk-p blk-anchored">
       <.block_anchor id={@block["id"]} />
-      <.spans content={@block["content"] || []} />
+      <.spans content={@block["content"] || []} ws_slug={@ws_slug} />
     </p>
     """
   end
@@ -78,7 +78,7 @@ defmodule AvelineWeb.BlockRenderer do
     <ol id={@block["id"]} class="blk-list blk-anchored">
       <.block_anchor id={@block["id"]} />
       <li :for={item <- @block["items"] || []} id={item["id"]}>
-        <.spans content={item["content"] || []} />
+        <.spans content={item["content"] || []} ws_slug={@ws_slug} />
       </li>
     </ol>
     """
@@ -89,7 +89,7 @@ defmodule AvelineWeb.BlockRenderer do
     <ul id={@block["id"]} class="blk-list blk-anchored">
       <.block_anchor id={@block["id"]} />
       <li :for={item <- @block["items"] || []} id={item["id"]}>
-        <.spans content={item["content"] || []} />
+        <.spans content={item["content"] || []} ws_slug={@ws_slug} />
       </li>
     </ul>
     """
@@ -108,7 +108,7 @@ defmodule AvelineWeb.BlockRenderer do
         <tbody>
           <tr :for={row <- @block["rows"] || []}>
             <td :for={cell <- row}>
-              <.spans content={cell || []} />
+              <.spans content={cell || []} ws_slug={@ws_slug} />
             </td>
           </tr>
         </tbody>
@@ -142,7 +142,7 @@ defmodule AvelineWeb.BlockRenderer do
         </div>
       <% end %>
       <p :if={@block["note"]} class="doc-link-note">
-        <.spans content={@block["note"] || []} />
+        <.spans content={@block["note"] || []} ws_slug={@ws_slug} />
       </p>
     </div>
     """
@@ -274,27 +274,51 @@ defmodule AvelineWeb.BlockRenderer do
   end
 
   attr :content, :list, required: true
+  attr :ws_slug, :string, default: nil
 
   def spans(assigns) do
     ~H"""
-    <span :for={s <- @content}>{render_span(s)}</span>
+    <span :for={s <- @content}>{render_span(s, @ws_slug)}</span>
     """
   end
 
-  defp render_span(%{"text" => text} = s) do
+  defp render_span(%{"text" => text} = s, ws_slug) do
     marks = s["marks"] || []
     link = s["link"]
     inner_html = safe_text_with_marks(text, marks)
 
-    if is_map(link) and is_binary(link["href"]) do
-      href = Phoenix.HTML.html_escape(link["href"]) |> Phoenix.HTML.safe_to_string()
-      Phoenix.HTML.raw("<a class=\"blk-link\" href=\"" <> href <> "\">" <> inner_html <> "</a>")
-    else
-      Phoenix.HTML.raw(inner_html)
+    cond do
+      is_map(link) and is_binary(link["doc_id"]) ->
+        render_doc_mention(inner_html, link["target"], ws_slug)
+
+      is_map(link) and is_binary(link["href"]) ->
+        href = Phoenix.HTML.html_escape(link["href"]) |> Phoenix.HTML.safe_to_string()
+        Phoenix.HTML.raw("<a class=\"blk-link\" href=\"" <> href <> "\">" <> inner_html <> "</a>")
+
+      true ->
+        Phoenix.HTML.raw(inner_html)
     end
   end
 
-  defp render_span(_), do: ""
+  defp render_span(_, _), do: ""
+
+  # An inline mention of another doc. The text is the author's words;
+  # the echoed target supplies the destination and the hover title. A
+  # deleted target degrades to plain text — no broken-link click.
+  defp render_doc_mention(inner_html, %{"deleted" => false, "slug" => slug} = target, ws_slug)
+       when is_binary(slug) and is_binary(ws_slug) do
+    href = esc("/w/#{ws_slug}/d/#{slug}")
+    title = esc(target["title"] || "")
+
+    Phoenix.HTML.raw(
+      "<a class=\"blk-link blk-doc-mention\" data-phx-link=\"redirect\" data-phx-link-state=\"push\" " <>
+        "href=\"" <> href <> "\" title=\"" <> title <> "\">" <> inner_html <> "</a>"
+    )
+  end
+
+  defp render_doc_mention(inner_html, _target, _ws_slug), do: Phoenix.HTML.raw(inner_html)
+
+  defp esc(s), do: Phoenix.HTML.html_escape(s) |> Phoenix.HTML.safe_to_string()
 
   defp safe_text_with_marks(text, marks) do
     escaped = Phoenix.HTML.html_escape(text) |> Phoenix.HTML.safe_to_string()

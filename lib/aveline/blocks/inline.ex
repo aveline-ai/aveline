@@ -6,11 +6,24 @@ defmodule Aveline.Blocks.Inline do
   A span is a map with:
     * `"text"` (required, string)
     * `"marks"` (optional, list of "bold" | "italic" | "code" | "strike")
-    * `"link"` (optional, `%{"href" => string}`)
+    * `"link"` (optional) — external `%{"href" => url}` OR internal
+      `%{"doc_id" => uuid}` (another doc in the workspace, by
+      base_doc_id). One field, so a span can't carry both. The API also
+      accepts `%{"doc" => slug}`; the Docs context resolves it to
+      `doc_id` before validation reaches here. Reads enrich internal
+      links with a `"target"` echo (slug/title/deleted) — never
+      persisted; normalization here rebuilds the link from known fields
+      so a pasted echo is stripped automatically.
+
+  The span text is the author's words — never the target's live title.
+  Content is authored and versioned; the echo carries the current title
+  for renderers that want it.
 
   No nesting. No HTML escaping issues. Renderer maps each span to a
   `<span>` with classes per mark.
   """
+
+  @uuid_re ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
   @marks ~w(bold italic code strike)
   @max_marks length(@marks)
@@ -61,13 +74,45 @@ defmodule Aveline.Blocks.Inline do
 
   defp validate_marks(%{}), do: {:ok, []}
 
-  defp validate_link(%{"link" => %{"href" => href}}) when is_binary(href) do
-    if href == "", do: {:error, "span.link.href cannot be empty"}, else: {:ok, %{"href" => href}}
+  defp validate_link(%{"link" => nil}), do: {:ok, nil}
+
+  defp validate_link(%{"link" => %{} = link}) do
+    external? = Map.has_key?(link, "href")
+    internal? = Map.has_key?(link, "doc") or Map.has_key?(link, "doc_id")
+
+    cond do
+      external? and internal? ->
+        {:error, "span.link is external {href} or internal {doc_id}, not both"}
+
+      internal? ->
+        validate_internal_link(link)
+
+      is_binary(link["href"]) and link["href"] != "" ->
+        {:ok, %{"href" => link["href"]}}
+
+      external? ->
+        {:error, "span.link.href must be a non-empty string"}
+
+      true ->
+        {:error, "span.link must be {href: url} or {doc_id: uuid}"}
+    end
   end
 
-  defp validate_link(%{"link" => nil}), do: {:ok, nil}
-  defp validate_link(%{"link" => _}), do: {:error, "span.link must be %{href: ...}"}
+  defp validate_link(%{"link" => _}), do: {:error, "span.link must be {href: url} or {doc_id: uuid}"}
   defp validate_link(%{}), do: {:ok, nil}
+
+  defp validate_internal_link(%{"doc_id" => doc_id}) when is_binary(doc_id) do
+    if Regex.match?(@uuid_re, doc_id),
+      do: {:ok, %{"doc_id" => String.downcase(doc_id)}},
+      else:
+        {:error,
+         "span.link.doc_id must be a UUID (the target's base_doc_id); or pass link: {doc: <slug>} and the server resolves it"}
+  end
+
+  defp validate_internal_link(_) do
+    {:error,
+     "span.link.doc_id must be a UUID (the target's base_doc_id); or pass link: {doc: <slug>} and the server resolves it"}
+  end
 
   @doc "Best-effort plain-text representation of inline spans (for summaries, search)."
   def to_text(spans) when is_list(spans) do

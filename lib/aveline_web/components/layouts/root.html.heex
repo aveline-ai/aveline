@@ -901,6 +901,15 @@
         text-decoration-thickness: 1px; text-underline-offset: 2px;
       }
       .blocks .blk-link:hover { text-decoration-thickness: 2px; }
+      /* Inline mention of another doc: quieter than an external link —
+         body-colored with a muted underline until hovered. */
+      .blocks .blk-doc-mention {
+        color: var(--text); font-weight: 500;
+        text-decoration-color: var(--border);
+      }
+      .blocks .blk-doc-mention:hover {
+        color: var(--accent); text-decoration-color: currentColor;
+      }
       .blocks .blk-inline-code {
         font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
         background: var(--bg-card);

@@ -166,6 +166,9 @@ end
 doc_link = fn slug, note ->
   %{"type" => "doc_link", "doc" => slug, "note" => [%{"text" => note}]}
 end
+# Inline mention: a span linking another doc from inside prose. Same
+# slug resolution as doc_link blocks; the text stays the author's words.
+mention = fn text, slug -> %{"text" => text, "link" => %{"doc" => slug}} end
 
 # ===== Tags =====
 # Every tag carries a description (required, 1..280 chars). Pre-created
@@ -507,7 +510,9 @@ if is_nil(Docs.get_current_by_slug(workspace.id, "onboarding-story")) do
         para.([
           t.("Read these in order. Each stop is a doc_link block — fetch each with "),
           b.("aveline get-doc", ["code"]),
-          t.(".")
+          t.(". Docs can also be mentioned inline: skim "),
+          mention.("the stack overview", "stack-overview"),
+          t.(" first if you're brand new.")
         ]),
         doc_link.("local-dev-setup", "Start here — get the app running on your machine."),
         doc_link.("stack-overview", "Then the shape of the system: what runs where."),

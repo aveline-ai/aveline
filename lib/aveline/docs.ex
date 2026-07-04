@@ -364,6 +364,8 @@ defmodule Aveline.Docs do
     * doc_link blocks gain a `"target"` map echoing the linked doc's
       current slug/title/summary/state (soft-deleted targets echo their
       latest metadata plus `"deleted" => true`)
+    * inline spans whose `"link"` carries a `"doc_id"` gain the same
+      echo under `"link" => %{"target" => ...}`
     * board blocks gain a `"view"` map — columns (the `by` scope's
       members in creation order) and cards (docs matching the filter
       tags, each with its column)
@@ -409,11 +411,17 @@ defmodule Aveline.Docs do
   defp board_view(_block, _ws), do: %{"columns" => [], "cards" => []}
 
   defp enrich_doc_links(blocks, workspace_id) when is_list(blocks) do
-    ids =
-      for %{"type" => "doc_link", "doc_id" => id} <- blocks,
+    block_ids =
+      for %{"type" => "doc_link", "doc_id" => id} <- blocks, is_binary(id), do: id
+
+    span_ids =
+      for block <- blocks,
+          is_map(block),
+          %{"link" => %{"doc_id" => id}} <- all_spans(block),
           is_binary(id),
-          uniq: true,
           do: id
+
+    ids = Enum.uniq(block_ids ++ span_ids)
 
     if ids == [] do
       blocks
@@ -441,8 +449,17 @@ defmodule Aveline.Docs do
         end
 
       Enum.map(blocks, fn
-        %{"type" => "doc_link", "doc_id" => id} = b ->
-          Map.put(b, "target", doc_link_target(live[id], dead[id]))
+        %{} = b ->
+          b =
+            case b do
+              %{"type" => "doc_link", "doc_id" => id} ->
+                Map.put(b, "target", doc_link_target(live[id], dead[id]))
+
+              _ ->
+                b
+            end
+
+          enrich_span_links(b, live, dead)
 
         b ->
           b
@@ -451,6 +468,19 @@ defmodule Aveline.Docs do
   end
 
   defp enrich_doc_links(blocks, _workspace_id), do: blocks
+
+  defp enrich_span_links(block, live, dead) do
+    {:ok, enriched} =
+      walk_spans(block, fn
+        %{"link" => %{"doc_id" => id} = link} = span when is_binary(id) ->
+          {:ok, Map.put(span, "link", Map.put(link, "target", doc_link_target(live[id], dead[id])))}
+
+        span ->
+          {:ok, span}
+      end)
+
+    enriched
+  end
 
   defp doc_link_target(%Doc{} = live, _dead), do: doc_link_target_map(live, false)
   defp doc_link_target(nil, %Doc{} = dead), do: doc_link_target_map(dead, true)
@@ -532,12 +562,14 @@ defmodule Aveline.Docs do
   end
 
   # ===== doc_link resolution =====
-  # doc_link blocks may arrive with `doc` (a slug) instead of `doc_id`.
-  # Resolve slugs against the workspace's current docs and verify every
-  # doc_id targets a doc that exists here — before Document.apply_ops, so
-  # Block validation only ever sees a canonical doc_id. The stored ops are
-  # the resolved ones: version replay stays deterministic even if a slug
-  # is later reused.
+  # Links to other docs may arrive with `doc` (a slug) instead of
+  # `doc_id` — at the block level (doc_link blocks) and at the span
+  # level (link: {doc: slug} inside paragraphs, list items, table cells,
+  # doc_link notes). Resolve slugs against the workspace's current docs
+  # and verify every doc_id targets a doc that exists here — before
+  # Document.apply_ops, so Block validation only ever sees a canonical
+  # doc_id. The stored ops are the resolved ones: version replay stays
+  # deterministic even if a slug is later reused.
 
   defp resolve_doc_links(ops, workspace_id) when is_list(ops) do
     Enum.reduce_while(ops, {:ok, []}, fn op, {:ok, acc} ->
@@ -558,21 +590,26 @@ defmodule Aveline.Docs do
   end
 
   defp resolve_op_doc_link(%{"op" => "modify_block", "patch" => %{} = patch} = op, ws_id) do
-    if Map.has_key?(patch, "doc") or Map.has_key?(patch, "doc_id") do
-      with {:ok, patch} <- resolve_block_doc_link(patch, ws_id) do
-        {:ok, Map.put(op, "patch", patch)}
-      end
-    else
-      {:ok, op}
+    with {:ok, patch} <- resolve_block_doc_link(patch, ws_id) do
+      {:ok, Map.put(op, "patch", patch)}
     end
   end
 
   defp resolve_op_doc_link(op, _ws_id), do: {:ok, op}
 
+  # Works on full blocks and modify_block patches alike: resolve the
+  # block-level target (doc_link doc/doc_id, board tags), then every
+  # span-level link in whatever span-carrying fields are present.
+  defp resolve_block_doc_link(%{} = block, ws_id) do
+    with {:ok, block} <- resolve_block_target(block, ws_id) do
+      resolve_span_links(block, ws_id)
+    end
+  end
+
   # Board blocks validate their filter tags at write time (same spirit
   # as doc_link target checks): a board over unknown tags is a typo, not
   # an empty board.
-  defp resolve_block_doc_link(%{"type" => "board", "tags" => tags} = block, ws_id)
+  defp resolve_block_target(%{"type" => "board", "tags" => tags} = block, ws_id)
        when is_list(tags) do
     case Tags.ensure_all_exist(ws_id, Enum.filter(tags, &is_binary/1)) do
       :ok -> {:ok, block}
@@ -580,11 +617,11 @@ defmodule Aveline.Docs do
     end
   end
 
-  defp resolve_block_doc_link(%{"type" => t} = block, _ws_id)
+  defp resolve_block_target(%{"type" => t} = block, _ws_id)
        when is_binary(t) and t != "doc_link",
        do: {:ok, block}
 
-  defp resolve_block_doc_link(%{"doc" => slug} = block, ws_id) when is_binary(slug) do
+  defp resolve_block_target(%{"doc" => slug} = block, ws_id) when is_binary(slug) do
     case get_current_by_slug(ws_id, slug) do
       nil ->
         {:error, :doc_link_target_not_found, "doc_link target not found in this workspace: #{slug}"}
@@ -594,7 +631,7 @@ defmodule Aveline.Docs do
     end
   end
 
-  defp resolve_block_doc_link(%{"doc_id" => doc_id} = block, ws_id) when is_binary(doc_id) do
+  defp resolve_block_target(%{"doc_id" => doc_id} = block, ws_id) when is_binary(doc_id) do
     case Ecto.UUID.cast(doc_id) do
       # Not UUID-shaped: pass through so Block.validate rejects it with the
       # schema error instead of this query raising a CastError.
@@ -602,21 +639,138 @@ defmodule Aveline.Docs do
         {:ok, block}
 
       {:ok, _} ->
-        exists? =
-          from(d in base_query(),
-            where: d.workspace_id == ^ws_id and d.base_doc_id == ^doc_id,
-            select: true,
-            limit: 1
-          )
-          |> Repo.one()
-
-        if exists?,
+        if doc_exists?(ws_id, doc_id),
           do: {:ok, block},
           else: {:error, :doc_link_target_not_found, "doc_link target not found in this workspace: #{doc_id}"}
     end
   end
 
-  defp resolve_block_doc_link(block, _ws_id), do: {:ok, block}
+  defp resolve_block_target(block, _ws_id), do: {:ok, block}
+
+  defp resolve_span_links(%{} = block, ws_id) do
+    walk_spans(block, fn
+      # href alongside doc/doc_id: leave untouched so Inline validation
+      # rejects it with the shape error instead of silently dropping one.
+      %{"link" => %{"href" => _}} = span ->
+        {:ok, span}
+
+      %{"link" => %{"doc" => slug} = _link} = span when is_binary(slug) ->
+        case get_current_by_slug(ws_id, slug) do
+          nil ->
+            {:error, :doc_link_target_not_found, "link target not found in this workspace: #{slug}"}
+
+          %Doc{base_doc_id: base} ->
+            {:ok, Map.put(span, "link", %{"doc_id" => base})}
+        end
+
+      %{"link" => %{"doc_id" => doc_id}} = span when is_binary(doc_id) ->
+        case Ecto.UUID.cast(doc_id) do
+          # Not UUID-shaped: pass through for Inline's schema error.
+          :error ->
+            {:ok, span}
+
+          {:ok, _} ->
+            if doc_exists?(ws_id, doc_id),
+              do: {:ok, span},
+              else: {:error, :doc_link_target_not_found, "link target not found in this workspace: #{doc_id}"}
+        end
+
+      span ->
+        {:ok, span}
+    end)
+  end
+
+  defp doc_exists?(ws_id, base_doc_id) do
+    from(d in base_query(),
+      where: d.workspace_id == ^ws_id and d.base_doc_id == ^base_doc_id,
+      select: true,
+      limit: 1
+    )
+    |> Repo.one()
+    |> Kernel.==(true)
+  end
+
+  # ===== span walking =====
+  # Applies fun to every inline span in the map's span-carrying fields —
+  # "content" (paragraph), "note" (doc_link), "items" (list), "rows"
+  # (table) — threading {:ok, _} | error. Only keys present are walked,
+  # so it works on modify_block patches too. Malformed shapes pass
+  # through untouched; Block.validate rejects them with the schema error.
+
+  defp walk_spans(%{} = map, fun) do
+    Enum.reduce_while(~w(content note items rows), {:ok, map}, fn key, {:ok, acc} ->
+      case Map.get(acc, key) do
+        nil ->
+          {:cont, {:ok, acc}}
+
+        val ->
+          case walk_spans_in(key, val, fun) do
+            {:ok, new} -> {:cont, {:ok, Map.put(acc, key, new)}}
+            err -> {:halt, err}
+          end
+      end
+    end)
+  end
+
+  defp walk_spans_in(key, spans, fun) when key in ~w(content note) and is_list(spans),
+    do: map_while_ok(spans, fun)
+
+  defp walk_spans_in("items", items, fun) when is_list(items) do
+    map_while_ok(items, fn
+      %{"content" => spans} = item when is_list(spans) ->
+        with {:ok, new} <- map_while_ok(spans, fun), do: {:ok, Map.put(item, "content", new)}
+
+      other ->
+        {:ok, other}
+    end)
+  end
+
+  defp walk_spans_in("rows", rows, fun) when is_list(rows) do
+    map_while_ok(rows, fn
+      row when is_list(row) ->
+        map_while_ok(row, fn
+          cell when is_list(cell) -> map_while_ok(cell, fun)
+          other -> {:ok, other}
+        end)
+
+      other ->
+        {:ok, other}
+    end)
+  end
+
+  defp walk_spans_in(_key, val, _fun), do: {:ok, val}
+
+  defp map_while_ok(list, fun) do
+    Enum.reduce_while(list, {:ok, []}, fn el, {:ok, acc} ->
+      case fun.(el) do
+        {:ok, new} -> {:cont, {:ok, [new | acc]}}
+        err -> {:halt, err}
+      end
+    end)
+    |> case do
+      {:ok, acc} -> {:ok, Enum.reverse(acc)}
+      err -> err
+    end
+  end
+
+  # Every inline span in the block, flattened — for collecting link ids.
+  defp all_spans(%{} = block) do
+    content = if is_list(block["content"]), do: block["content"], else: []
+    note = if is_list(block["note"]), do: block["note"], else: []
+
+    items =
+      for %{"content" => c} <- List.wrap(block["items"]), is_list(c), span <- c, do: span
+
+    cells =
+      for row <- List.wrap(block["rows"]),
+          is_list(row),
+          cell <- row,
+          is_list(cell),
+          span <- cell,
+          do: span
+
+    content ++ note ++ items ++ cells
+  end
 
   defp run_document_apply(blocks, ops) do
     case Document.apply_ops(blocks, ops) do
