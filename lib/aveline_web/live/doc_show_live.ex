@@ -712,7 +712,7 @@ defmodule AvelineWeb.DocShowLive do
         <article class="prose">
           <div class="blocks">
             <%= for b <- @item.blocks || [] do %>
-              <AvelineWeb.BlockRenderer.block block={b} ws_slug={@workspace.slug} />
+              <AvelineWeb.BlockRenderer.block block={b} ws_slug={@workspace.slug} tag_colors={@tag_colors} />
               <.block_comment_zone
                 block_id={b["id"]}
                 threads={Map.get(@threads_by_block, b["id"], [])}

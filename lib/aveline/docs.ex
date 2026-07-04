@@ -362,8 +362,8 @@ defmodule Aveline.Docs do
   nothing to keep in sync:
 
     * doc_link blocks gain a `"target"` map echoing the linked doc's
-      current slug/title/summary/state (soft-deleted targets echo their
-      latest metadata plus `"deleted" => true`)
+      current slug/title/summary/tags/state (soft-deleted targets echo
+      their latest metadata plus `"deleted" => true`)
     * inline spans whose `"link"` carries a `"doc_id"` gain the same
       echo under `"link" => %{"target" => ...}`
     * board blocks gain a `"view"` map — columns (the `by` scope's
@@ -448,18 +448,20 @@ defmodule Aveline.Docs do
             |> Map.new(&{&1.base_doc_id, &1})
         end
 
+      live_tags = Tags.live_slug_set(workspace_id)
+
       Enum.map(blocks, fn
         %{} = b ->
           b =
             case b do
               %{"type" => "doc_link", "doc_id" => id} ->
-                Map.put(b, "target", doc_link_target(live[id], dead[id]))
+                Map.put(b, "target", doc_link_target(live[id], dead[id], live_tags))
 
               _ ->
                 b
             end
 
-          enrich_span_links(b, live, dead)
+          enrich_span_links(b, live, dead, live_tags)
 
         b ->
           b
@@ -469,11 +471,11 @@ defmodule Aveline.Docs do
 
   defp enrich_doc_links(blocks, _workspace_id), do: blocks
 
-  defp enrich_span_links(block, live, dead) do
+  defp enrich_span_links(block, live, dead, live_tags) do
     {:ok, enriched} =
       walk_spans(block, fn
         %{"link" => %{"doc_id" => id} = link} = span when is_binary(id) ->
-          {:ok, Map.put(span, "link", Map.put(link, "target", doc_link_target(live[id], dead[id])))}
+          {:ok, Map.put(span, "link", Map.put(link, "target", doc_link_target(live[id], dead[id], live_tags)))}
 
         span ->
           {:ok, span}
@@ -482,16 +484,17 @@ defmodule Aveline.Docs do
     enriched
   end
 
-  defp doc_link_target(%Doc{} = live, _dead), do: doc_link_target_map(live, false)
-  defp doc_link_target(nil, %Doc{} = dead), do: doc_link_target_map(dead, true)
+  defp doc_link_target(%Doc{} = live, _dead, live_tags), do: doc_link_target_map(live, false, live_tags)
+  defp doc_link_target(nil, %Doc{} = dead, live_tags), do: doc_link_target_map(dead, true, live_tags)
   # Target vanished entirely (e.g. hard-cleaned in a test DB); render as deleted.
-  defp doc_link_target(nil, nil), do: %{"deleted" => true}
+  defp doc_link_target(nil, nil, _live_tags), do: %{"deleted" => true}
 
-  defp doc_link_target_map(%Doc{} = d, deleted?) do
+  defp doc_link_target_map(%Doc{} = d, deleted?, live_tags) do
     %{
       "slug" => d.slug,
       "title" => d.title,
       "summary" => d.summary,
+      "tags" => Enum.filter(d.tags || [], &MapSet.member?(live_tags, &1)),
       "updated_at" => d.updated_at && DateTime.to_iso8601(d.updated_at),
       "deleted" => deleted?
     }

@@ -154,6 +154,25 @@ defmodule Aveline.DocLinksTest do
       assert t["title"] == "Target doc"
     end
 
+    test "target echoes tags, scrubbed of soft-deleted ones" do
+      user = Fixtures.user_fixture()
+      ws = Fixtures.workspace_fixture(user)
+      {:ok, _} = Aveline.Tags.create(ws.id, "keepme", "Stays live.", user.id)
+      {:ok, doomed} = Aveline.Tags.create(ws.id, "doomed", "Gets deleted.", user.id)
+      target = Fixtures.doc_fixture(ws, user, slug: "tagged-target", tags: ["keepme", "doomed"])
+
+      {:ok, doc} =
+        create_with_blocks(ws, user, [%{"type" => "doc_link", "doc_id" => target.base_doc_id}])
+
+      assert [%{"target" => t}] = Docs.enrich_blocks(doc.blocks, ws.id)
+      assert Enum.sort(t["tags"]) == ["doomed", "keepme"]
+
+      {:ok, _} = Aveline.Tags.delete(doomed, user.id)
+
+      assert [%{"target" => t2}] = Docs.enrich_blocks(doc.blocks, ws.id)
+      assert t2["tags"] == ["keepme"]
+    end
+
     test "non-doc_link blocks pass through untouched" do
       %{ws: ws} = setup_ws()
       blocks = [%{"id" => "b_x", "type" => "paragraph", "content" => [%{"text" => "hi"}]}]

@@ -22,6 +22,7 @@ defmodule AvelineWeb.BlockRenderer do
 
   attr :block, :map, required: true
   attr :ws_slug, :string, default: nil
+  attr :tag_colors, :map, default: %{}
 
   def block(%{block: %{"type" => "heading"}} = assigns) do
     ~H"""
@@ -132,6 +133,19 @@ defmodule AvelineWeb.BlockRenderer do
         <.link navigate={"/w/#{@ws_slug}/d/#{@target["slug"]}"} class="doc-link-card">
           <div class="doc-link-card-title">{@target["title"]}</div>
           <div :if={@target["summary"]} class="doc-link-card-summary">{@target["summary"]}</div>
+          <div :if={(@target["tags"] || []) != []} class="doc-link-card-tags chip-row" style="gap:6px">
+            <span
+              :for={tag <- @target["tags"]}
+              class="chip chip-tag"
+              style={
+                if c = Map.get(@tag_colors, tag) do
+                  "--tag: #{c}; --tag-dim: #{c}14; --tag-border: #{c}40"
+                end
+              }
+            >
+              {tag}
+            </span>
+          </div>
         </.link>
       <% else %>
         <div class="doc-link-card doc-link-card-dead">
@@ -302,6 +316,11 @@ defmodule AvelineWeb.BlockRenderer do
 
   defp render_span(_, _), do: ""
 
+  @mention_icon "<svg class=\"mention-icon\" viewBox=\"0 0 24 24\" fill=\"none\" " <>
+                  "stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">" <>
+                  "<path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/>" <>
+                  "<polyline points=\"14 2 14 8 20 8\"/></svg>"
+
   # An inline mention of another doc. The text is the author's words;
   # the echoed target supplies the destination and the hover title. A
   # deleted target degrades to plain text — no broken-link click.
@@ -311,8 +330,8 @@ defmodule AvelineWeb.BlockRenderer do
     title = esc(target["title"] || "")
 
     Phoenix.HTML.raw(
-      "<a class=\"blk-link blk-doc-mention\" data-phx-link=\"redirect\" data-phx-link-state=\"push\" " <>
-        "href=\"" <> href <> "\" title=\"" <> title <> "\">" <> inner_html <> "</a>"
+      "<a class=\"blk-doc-mention\" data-phx-link=\"redirect\" data-phx-link-state=\"push\" " <>
+        "href=\"" <> href <> "\" title=\"" <> title <> "\">" <> @mention_icon <> inner_html <> "</a>"
     )
   end
 

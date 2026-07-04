@@ -901,14 +901,27 @@
         text-decoration-thickness: 1px; text-underline-offset: 2px;
       }
       .blocks .blk-link:hover { text-decoration-thickness: 2px; }
-      /* Inline mention of another doc: quieter than an external link —
-         body-colored with a muted underline until hovered. */
+      /* External links leave the wiki: mark them with a small arrow. */
+      .blocks .blk-link::after {
+        content: "\2197"; font-size: 0.7em;
+        margin-left: 1px; vertical-align: 3px;
+        opacity: 0.7;
+      }
+      /* Inline mention of another doc: an accent chip with a page icon,
+         clearly an object reference rather than a URL. */
       .blocks .blk-doc-mention {
-        color: var(--text); font-weight: 500;
-        text-decoration-color: var(--border);
+        color: var(--accent); font-weight: 500;
+        text-decoration: none;
+        background: color-mix(in srgb, var(--accent) 9%, transparent);
+        border-radius: 4px; padding: 1px 4px 2px;
+        white-space: nowrap;
       }
       .blocks .blk-doc-mention:hover {
-        color: var(--accent); text-decoration-color: currentColor;
+        background: color-mix(in srgb, var(--accent) 18%, transparent);
+      }
+      .blocks .blk-doc-mention .mention-icon {
+        width: 12px; height: 12px; display: inline-block;
+        vertical-align: -1px; margin-right: 3px; opacity: 0.85;
       }
       .blocks .blk-inline-code {
         font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
@@ -920,6 +933,7 @@
         padding: 10px 14px; border: 1px dashed var(--danger);
         border-radius: var(--radius); font-size: 13px; color: var(--danger);
       }
+      .blocks .doc-link-card-tags { margin-top: 8px; }
       .blocks .doc-link-card {
         display: block;
         padding: 12px 16px;
