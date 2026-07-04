@@ -182,7 +182,13 @@ tag_specs = [
   {"oncall", "What to do when paged — triage flows and escalation."},
   {"onboarding", "Read-these-first content for new teammates."},
   {"runbook", "Operational playbooks for live incidents."},
-  {"stack", "The components Aveline runs on and how they fit together."}
+  {"stack", "The components Aveline runs on and how they fit together."},
+  # Kanban status tags — the Board view groups docs by these.
+  {"backlog", "Board status: captured, not started."},
+  {"todo", "Board status: next up."},
+  {"in-progress", "Board status: being worked on now."},
+  {"done", "Board status: shipped."},
+  {"kanban-feature", "Board scope: work on the kanban board feature itself."}
 ]
 
 Enum.each(tag_specs, fn {slug, description} ->
@@ -411,6 +417,28 @@ doc_specs = [
     ]
   }
 ]
+
+# Issue-style docs demoing the tag-driven Board view
+# (scope tag kanban-feature + one status tag each).
+issue = fn title, body, owner, status ->
+  %{
+    slug: title |> String.downcase() |> String.replace(~r/[^a-z0-9]+/, "-") |> String.trim("-"),
+    title: title,
+    summary: body,
+    owner: owner,
+    tags: ["kanban-feature", status],
+    blocks: [para.([t.(body)])]
+  }
+end
+
+doc_specs =
+  doc_specs ++
+    [
+      issue.("Kanban: column drag & drop", "Arrows work; dragging would feel better. Needs a JS hook.", carol, "backlog"),
+      issue.("Kanban: saved board presets", "Remember scope+columns per workspace instead of URL-only.", bob, "todo"),
+      issue.("Kanban: ship the board view", "Tag-driven columns, URL-defined boards, moves via retag.", alice, "in-progress"),
+      issue.("Kanban: settle the tag conventions", "Scope tag + backlog/todo/in-progress/done. Decided — see board.", alice, "done")
+    ]
 
 # Create docs if they don't already exist (idempotent).
 created_docs =
