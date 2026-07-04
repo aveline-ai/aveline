@@ -172,40 +172,34 @@ defmodule Aveline.Tags do
 
   @doc """
   Delete a tag. Strips it from every doc that carries it and removes the
-  Tag row. Refuses (`{:error, {:would_orphan_docs, count}}`) if any doc's
-  only tag is this one — we keep the "every doc has ≥1 tag" invariant
-  intact instead of orphaning docs as a side effect of a tag cleanup.
-  Audit event records the affected count.
+  Tag row. Docs are allowed to end up tagless — tags are an optional
+  lens, not a requirement (the orientation doc has none, and forcing a
+  tag on everything just breeds junk tags). Audit event records the
+  affected count.
   """
   def delete(%Tag{workspace_id: ws_id, slug: slug} = tag, actor_user_id) do
-    case docs_with_only_this_tag_count(ws_id, slug) do
-      0 ->
-        Repo.transaction(fn ->
-          affected = strip_from_docs(ws_id, slug)
-          Repo.delete!(tag)
+    Repo.transaction(fn ->
+      affected = strip_from_docs(ws_id, slug)
+      Repo.delete!(tag)
 
-          Events.record(%{
-            workspace_id: ws_id,
-            actor: actor_user_id,
-            actor_type: "human",
-            action: "tag_deleted",
-            target_kind: "tag",
-            target_label: slug,
-            data: %{"affected" => affected}
-          })
+      Events.record(%{
+        workspace_id: ws_id,
+        actor: actor_user_id,
+        actor_type: "human",
+        action: "tag_deleted",
+        target_kind: "tag",
+        target_label: slug,
+        data: %{"affected" => affected}
+      })
 
-          :ok
-        end)
-
-      n when n > 0 ->
-        {:error, {:would_orphan_docs, n}}
-    end
+      :ok
+    end)
   end
 
   @doc """
   Count of (non-deleted) docs in this workspace whose only tag is `slug`.
-  Used by the delete flow to surface a blocking message in the UI before
-  the user even tries to confirm.
+  Surfaced in the delete-confirm UI as a heads-up (those docs go
+  tagless), not a blocker.
   """
   def docs_with_only_this_tag_count(workspace_id, slug) do
     Repo.one(

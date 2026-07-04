@@ -30,7 +30,6 @@ defmodule AvelineWeb.Api.ErrorCodes do
   | already_member             | 422  | user is already a member                                                             |
   | not_member                 | 422  | user is not a member of the workspace                                                |
   | not_user_deleted           | 422  | tried to restore a doc that wasn't user-deleted (e.g. it was superseded)            |
-  | would_orphan_docs          | 422  | deleting this tag would leave one or more docs with no tags                          |
   | stale_version              | 422  | tried to edit/delete a comment row that's already superseded or deleted              |
   | doc_link_target_not_found  | 422  | doc_link block references a doc that doesn't exist in this workspace                 |
   | orientation_undeletable    | 422  | tried to delete the workspace orientation doc                                        |
@@ -63,7 +62,6 @@ defmodule AvelineWeb.Api.ErrorCodes do
       already_member
       not_member
       not_user_deleted
-      would_orphan_docs
       stale_version
       doc_link_target_not_found
       orientation_undeletable

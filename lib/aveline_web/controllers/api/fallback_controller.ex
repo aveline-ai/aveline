@@ -50,13 +50,6 @@ defmodule AvelineWeb.Api.FallbackController do
         %{unknown_tags: slugs}
       )
 
-  def call(conn, {:error, {:would_orphan_docs, n}}),
-    do:
-      err(conn, 422, "would_orphan_docs",
-        "Cannot delete this tag: #{n} #{pluralize("doc", n)} would be left with no tags. Add another tag to those docs first.",
-        %{orphan_count: n}
-      )
-
   # ===== Comment dispositions =====
 
   def call(conn, {:error, {:disposition_missing, missing}}),
@@ -235,6 +228,4 @@ defmodule AvelineWeb.Api.FallbackController do
   defp maybe_add(map, _key, nil), do: map
   defp maybe_add(map, key, value), do: Map.put(map, key, value)
 
-  defp pluralize(noun, 1), do: noun
-  defp pluralize(noun, _), do: noun <> "s"
 end

@@ -8,7 +8,7 @@ defmodule AvelineWeb.Api.TagController do
   - Every tag carries a required description (6-280 chars) — the LLM
     needs it to understand what the tag covers when searching.
   - Renaming into a slug that's already taken returns `slug_taken`.
-  - Deleting a tag returns `would_orphan_docs` if any doc uses it
+  - Deleting a tag detaches it everywhere; docs may end up tagless
     as its only tag — we keep the "every doc has ≥1 tag" invariant.
   """
   use AvelineWeb, :controller

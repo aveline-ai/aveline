@@ -35,12 +35,14 @@ test_delete_unused_tag_succeeds() {
   fi
 }
 
-test_delete_tag_blocked_when_only_tag_on_a_doc() {
+test_delete_tag_when_only_tag_on_a_doc() {
   local ws; ws="$(mk_workspace ws-tc-only)"
   mk_tag "$ws" "lone" >/dev/null
-  mk_doc "$ws" "MonoTag" "lone" >/dev/null
+  local slug; slug="$(mk_doc "$ws" "MonoTag" "lone")"
   run_cli -w "$ws" delete-tag "lone"
-  expect_err "would_orphan_docs" 2 "blocked"
+  expect_ok "delete succeeds — docs may go tagless"
+  run_cli -w "$ws" get-doc "$slug"
+  expect_count ".doc.tags" "0" "doc left untagged"
 }
 
 test_delete_tag_succeeds_after_doc_retagged() {

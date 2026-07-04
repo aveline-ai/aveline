@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Tags — CRUD, validation, would_orphan_docs.
+# Tags — CRUD, validation, delete cascade.
 
 test_list_tags_empty() {
   local ws; ws="$(mk_workspace ws-t-empty)"
@@ -91,15 +91,17 @@ test_delete_tag_unattached_ok() {
   expect_ok "delete unattached tag ok"
 }
 
-test_delete_tag_would_orphan_docs() {
+test_delete_tag_leaves_docs_tagless() {
   local ws; ws="$(mk_workspace ws-t-orph)"
-  # Create tag, then a doc with ONLY that tag — deleting the tag would
-  # leave the doc with zero tags, which the API rejects.
+  # Tags are an optional lens: deleting a doc's only tag just leaves the
+  # doc untagged.
   run_cli -w "$ws" create-tag --name "lone" --description "lone tag with one doc"
   expect_ok "tag created"
   local blocks; blocks="[$(block_paragraph 'hi')]"
   run_cli -w "$ws" create-doc --title "OneTag" --tag lone --blocks "$blocks"
-  expect_ok "doc created with only one tag"
+  local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" delete-tag "lone"
-  expect_err "would_orphan_docs" 2 "deleting only tag → would_orphan_docs"
+  expect_ok "deleting a doc's only tag succeeds"
+  run_cli -w "$ws" get-doc "$slug"
+  expect_count ".doc.tags" "0" "doc is now tagless, not deleted"
 }
