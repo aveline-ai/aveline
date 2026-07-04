@@ -104,6 +104,34 @@ defmodule AvelineWeb.HomeLive do
         <span class="orientation-cta">Get oriented →</span>
       </.link>
 
+      <section :if={@needs_you != []} class="shelf">
+        <div class="shelf-head">
+          <span class="shelf-icon shelf-icon-attn" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </span>
+          <span class="shelf-label">Open comments on your docs</span>
+          <span class="shelf-count shelf-count-attn">{length(@needs_you)} open</span>
+        </div>
+        <div class="attn-list">
+          <.link
+            :for={{c, d} <- @needs_you}
+            navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}" <> if(c.block_id, do: "#" <> c.block_id, else: "")}
+            class="attn-row"
+          >
+            <span class="attn-body">“{snippet(c.body)}”</span>
+            <span class="attn-meta">
+              <%= if c.actor_user do %>{c.actor_user.username}<% end %><%= if c.actor_type == "agent" do %>
+                <span class="attn-via">via Claude</span>
+              <% end %>
+              on <span class="attn-doc">{d.title}</span>
+              · {relative_time(c.inserted_at)}
+            </span>
+          </.link>
+        </div>
+      </section>
+
       <section :if={@pinned_docs != []} class="shelf">
         <div class="shelf-head">
           <span class="shelf-icon" aria-hidden="true">
@@ -161,34 +189,6 @@ defmodule AvelineWeb.HomeLive do
             <span class="jump-card-title">{d.title}</span>
             <span class="jump-card-time" title={absolute_time(viewed_at)}>
               opened {relative_time(viewed_at)}
-            </span>
-          </.link>
-        </div>
-      </section>
-
-      <section :if={@needs_you != []} class="shelf">
-        <div class="shelf-head">
-          <span class="shelf-icon shelf-icon-attn" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-          </span>
-          <span class="shelf-label">Open comments on your docs</span>
-          <span class="shelf-count shelf-count-attn">{length(@needs_you)} open</span>
-        </div>
-        <div class="attn-list">
-          <.link
-            :for={{c, d} <- @needs_you}
-            navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}" <> if(c.block_id, do: "#" <> c.block_id, else: "")}
-            class="attn-row"
-          >
-            <span class="attn-body">“{snippet(c.body)}”</span>
-            <span class="attn-meta">
-              <%= if c.actor_user do %>{c.actor_user.username}<% end %><%= if c.actor_type == "agent" do %>
-                <span class="attn-via">via Claude</span>
-              <% end %>
-              on <span class="attn-doc">{d.title}</span>
-              · {relative_time(c.inserted_at)}
             </span>
           </.link>
         </div>
