@@ -505,8 +505,8 @@ if is_nil(Docs.get_current_by_slug(workspace.id, "onboarding-story")) do
       tags: ["onboarding"],
       blocks: [
         para.([
-          t.("Read these in order. Each stop is a doc_link block — agents can pull the whole chain with "),
-          b.("aveline get-doc onboarding-story --follow", ["code"]),
+          t.("Read these in order. Each stop is a doc_link block — fetch each with "),
+          b.("aveline get-doc", ["code"]),
           t.(".")
         ]),
         doc_link.("local-dev-setup", "Start here — get the app running on your machine."),

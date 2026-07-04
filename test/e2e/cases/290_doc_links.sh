@@ -1,7 +1,7 @@
 # shellcheck shell=bash
-# doc_link blocks — stories/trails as plain docs. Covers slug→id
-# resolution, workspace scoping, the read-time target echo, --follow,
-# and deleted-stop behavior.
+# doc_link blocks — links as plain blocks in plain docs. Covers slug→id
+# resolution, workspace scoping, the read-time target echo, and
+# deleted-target behavior.
 
 # Local helper: doc_link block by slug, with a note.
 block_doc_link() {
@@ -69,30 +69,20 @@ test_doc_link_non_uuid_doc_id_rejected() {
   expect_err "validation_failed" 2 "non-UUID doc_id → validation_failed"
 }
 
-test_doc_link_follow_returns_chain_in_order() {
-  local ws; ws="$(mk_workspace dl-follow)"
+test_doc_link_multiple_links_echo_in_order() {
+  local ws; ws="$(mk_workspace dl-order)"
   local one; one="$(mk_doc "$ws" "Stop One")"
   local two; two="$(mk_doc "$ws" "Stop Two")"
 
-  run_cli -w "$ws" create-doc --title "Follow story $(us s)" \
+  run_cli -w "$ws" create-doc --title "Ordered story $(us s)" \
     --blocks "[$(block_doc_link "$one" "first"), $(block_doc_link "$two" "second")]"
   local story; story="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
 
-  run_cli -w "$ws" get-doc "$story" --follow
-  expect_ok "get-doc --follow ok"
-  expect_eq '.linked_docs | length' "2" "two linked docs"
-  expect_eq '.linked_docs[0].slug' "$one" "chain order preserved (first)"
-  expect_eq '.linked_docs[1].slug' "$two" "chain order preserved (second)"
-  expect_present '.linked_docs[0].blocks' "linked doc carries full body"
-}
-
-test_doc_link_follow_without_links_is_empty() {
-  local ws; ws="$(mk_workspace dl-nolinks)"
-  local plain; plain="$(mk_doc "$ws" "No links here")"
-
-  run_cli -w "$ws" get-doc "$plain" --follow
-  expect_ok "follow on a linkless doc ok"
-  expect_eq '.linked_docs | length' "0" "linked_docs empty"
+  run_cli -w "$ws" get-doc "$story"
+  expect_ok "get-doc ok"
+  expect_eq '.doc.blocks | map(select(.type == "doc_link")) | length' "2" "two doc_link blocks"
+  expect_eq '.doc.blocks[0].target.slug' "$one" "block order preserved (first)"
+  expect_eq '.doc.blocks[1].target.slug' "$two" "block order preserved (second)"
 }
 
 test_doc_link_deleted_target_becomes_stub() {
@@ -109,11 +99,6 @@ test_doc_link_deleted_target_becomes_stub() {
   run_cli -w "$ws" get-doc "$story"
   expect_eq '.doc.blocks[0].target.deleted' "true" "echo flags deleted target"
   expect_eq '.doc.blocks[0].target.title' "Doomed doc" "deleted target keeps metadata"
-
-  run_cli -w "$ws" get-doc "$story" --follow
-  expect_ok "follow with a deleted stop still ok"
-  expect_eq '.linked_docs[0].deleted' "true" "deleted stop is a stub"
-  expect_absent '.linked_docs[0].blocks' "stub carries no body"
 
   run_cli -w "$ws" restore-doc "$target"
   expect_ok "restore target"

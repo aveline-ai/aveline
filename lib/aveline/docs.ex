@@ -351,7 +351,7 @@ defmodule Aveline.Docs do
       orientation: true,
       title: "How we use Aveline here",
       summary:
-        "What lives in this workspace and how the team works. Agents fetch this first (aveline get-orientation --follow); humans keep it honest.",
+        "What lives in this workspace and how the team works. Agents fetch this first (aveline get-orientation); humans keep it honest.",
       intent: "seed the workspace orientation doc",
       blocks: Aveline.Workspaces.Template.orientation_blocks()
     })

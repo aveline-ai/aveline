@@ -70,7 +70,7 @@ defmodule Aveline.Workspaces.Template do
       h2("Read these first"),
       para(
         t(
-          "(Link the docs every newcomer should read, in order. Agents fetching this doc with --follow get the whole chain in one call.)"
+          "(Link the docs every newcomer should read, in order. Agents: fetch each with get-doc.)"
         )
       ),
       h2("How we organize knowledge"),

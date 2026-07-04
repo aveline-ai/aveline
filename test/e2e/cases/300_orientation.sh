@@ -46,8 +46,8 @@ test_orientation_is_editable() {
   expect_eq '.version_number' "2" "new version minted"
 }
 
-test_orientation_follow_expands_doc_links() {
-  local ws; ws="$(mk_workspace orient-follow)"
+test_orientation_can_carry_doc_links() {
+  local ws; ws="$(mk_workspace orient-links)"
   local target; target="$(mk_doc "$ws" "First stop")"
 
   local oslug; oslug="$(orientation_slug "$ws")"
@@ -56,8 +56,7 @@ test_orientation_follow_expands_doc_links() {
       '[{op: "append_block", block: {type: "doc_link", doc: $doc}}]')"
   expect_ok "doc_link added to orientation"
 
-  run_cli -w "$ws" get-orientation --follow
-  expect_ok "get-orientation --follow ok"
-  expect_eq '.linked_docs | length' "1" "one linked doc"
-  expect_eq '.linked_docs[0].slug' "$target" "follow pulls the stop"
+  run_cli -w "$ws" get-orientation
+  expect_ok "get-orientation ok"
+  expect_eq '.doc.blocks[-1].target.slug' "$target" "doc_link target echoed on orientation"
 }
