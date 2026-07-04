@@ -10,6 +10,7 @@ defmodule AvelineWeb.HomeLive do
   alias Aveline.Comments
   alias Aveline.Docs
   alias Aveline.DocViews
+  alias Aveline.Tags
   alias Aveline.Workspaces
   alias AvelineWeb.LiveSession
 
@@ -31,7 +32,9 @@ defmodule AvelineWeb.HomeLive do
            jump_back_in: (user && DocViews.recent_for_user(ws.id, user.id, 3)) || [],
            pinned_docs: load_pinned(ws),
            needs_you: (user && Comments.list_open_threads_for_owner(ws.id, user.id, 5)) || [],
-           recent_changes: Docs.list_current(ws.id, sort: :recent, limit: 5)
+           recent_changes: Docs.list_current(ws.id, sort: :recent, limit: 5),
+           # Used tags only, by usage — the workspace's topic map.
+           tag_stats: ws.id |> Tags.list_with_stats() |> Enum.reject(&(&1.count == 0))
          )}
 
       :not_found ->
@@ -221,6 +224,34 @@ defmodule AvelineWeb.HomeLive do
         <div class="home-browse-all">
           <.link navigate={~p"/w/#{@workspace.slug}/docs"} class="home-browse-all-link">
             Browse all docs →
+          </.link>
+        </div>
+      </section>
+
+      <section :if={@tag_stats != []} class="shelf">
+        <div class="shelf-head">
+          <span class="shelf-icon" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M2 7l5-5h6v6l-5 5z" stroke-linejoin="round" />
+              <circle cx="9.5" cy="6.5" r="0.9" fill="currentColor" />
+            </svg>
+          </span>
+          <span class="shelf-label">Browse by tag</span>
+        </div>
+        <div class="chip-row">
+          <.link
+            :for={row <- @tag_stats}
+            navigate={~p"/w/#{@workspace.slug}/docs?#{[{"tag", [row.tag.slug]}]}"}
+            class="chip chip-tag"
+            style={
+              if c = row.tag.color do
+                "--tag: #{c}; --tag-dim: #{c}14; --tag-border: #{c}40"
+              end
+            }
+            title={row.tag.description}
+          >
+            <span class="chip-text">{row.tag.slug}</span>
+            <span class="chip-meta">{row.count}</span>
           </.link>
         </div>
       </section>
