@@ -9,13 +9,13 @@ defmodule Aveline.ScopedTagsBoardTest do
     user = Fixtures.user_fixture()
     ws = Fixtures.workspace_fixture(user)
 
-    for {slug, desc} <- [
-          {"feature-x", "The feature-x work."},
-          {"lane:todo", "Lane: next up."},
-          {"lane:doing", "Lane: in flight."},
-          {"lane:done", "Lane: shipped."}
+    for {slug, desc, sort_key} <- [
+          {"feature-x", "The feature-x work.", nil},
+          {"lane:todo", "Lane: next up.", "lane:1"},
+          {"lane:doing", "Lane: in flight.", "lane:2"},
+          {"lane:done", "Lane: shipped.", "lane:3"}
         ] do
-      {:ok, _} = Tags.create(ws.id, slug, desc, user.id)
+      {:ok, _} = Tags.create(ws.id, slug, desc, user.id, sort_key: sort_key)
     end
 
     %{user: user, ws: ws}
@@ -36,7 +36,7 @@ defmodule Aveline.ScopedTagsBoardTest do
       assert {:error, _} = Tags.create(ws.id, "status:", "Empty value.", user.id)
     end
 
-    test "scope members come back in creation order", %{ws: ws} do
+    test "scope members come back in sort-key order", %{ws: ws} do
       assert Tags.list_scope_members(ws.id, "lane") ==
                ["lane:todo", "lane:doing", "lane:done"]
     end

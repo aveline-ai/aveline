@@ -13,7 +13,7 @@ defmodule Aveline.OrientationDocTest do
   test "every new workspace gets the recommended template tags", %{ws: ws} do
     slugs = Aveline.Tags.list_slugs(ws.id)
 
-    for {slug, _desc, _color} <- Aveline.Workspaces.Template.tags() do
+    for {slug, _desc, _color, _sort_key} <- Aveline.Workspaces.Template.tags() do
       assert slug in slugs
     end
 

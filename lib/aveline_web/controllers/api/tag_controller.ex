@@ -49,7 +49,8 @@ defmodule AvelineWeb.Api.TagController do
              raw_slug |> to_string() |> String.trim() |> String.downcase(),
              params["description"] |> to_string() |> String.trim(),
              user.id,
-             color: params["color"]
+             color: params["color"],
+             sort_key: params["sort_key"]
            ) do
       Envelope.ok(conn, %{tag: Views.tag(tag)})
     end
@@ -82,6 +83,14 @@ defmodule AvelineWeb.Api.TagController do
           nil -> c
           "" -> Map.put(c, :color, nil)
           color -> Map.put(c, :color, color)
+        end
+      end)
+      |> then(fn c ->
+        # Same clearing semantics for the sort override.
+        case params["sort_key"] do
+          nil -> c
+          "" -> Map.put(c, :sort_key, nil)
+          key -> Map.put(c, :sort_key, key)
         end
       end)
 
@@ -117,6 +126,4 @@ defmodule AvelineWeb.Api.TagController do
       Envelope.ok(conn, %{})
     end
   end
-
-
 end

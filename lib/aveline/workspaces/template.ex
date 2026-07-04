@@ -17,41 +17,42 @@ defmodule Aveline.Workspaces.Template do
   any doc; no stage tag means live.
   """
 
-  @doc "Baseline tags: `{slug, description, color | nil}`."
+  @doc "Baseline tags: `{slug, description, color | nil, sort_key | nil}`."
   def tags do
     [
-      # Kinds: what is this doc?
-      {"product", "What we're building and why: the product, its users, the strategy.", nil},
-      {"architecture", "How the system is built: stack, structure, and the technical why.", nil},
+      # Kinds: what is this doc? NULL sort_key = alphabetical.
+      {"product", "What we're building and why: the product, its users, the strategy.", nil, nil},
+      {"architecture", "How the system is built: stack, structure, and the technical why.", nil, nil},
       {"brief",
        "A product one-pager: the problem, the opportunity, the proposed direction. Pitch it, review it, get a verdict via stage.",
-       nil},
+       nil, nil},
       {"tip",
        "A technical implementation plan (TIP). Pitch it, review it in comments, get a verdict via stage before building.",
-       nil},
-      {"ticket", "A unit of work, scoped small enough to map to roughly one PR.", nil},
-      {"runbook", "Operational how-to: deploys, recovery, setup.", nil},
+       nil, nil},
+      {"ticket", "A unit of work, scoped small enough to map to roughly one PR.", nil, nil},
+      {"runbook", "Operational how-to: deploys, recovery, setup.", nil, nil},
       {"oncall",
        "Everything needed when paged: escalation paths, incident guides, known issues. Agents: load all of these when responding to an incident.",
-       nil},
-      {"feedback", "Raw customer and user input, verbatim where possible.", nil},
-      {"template", "A reusable structure. Copy its sections when writing that kind of doc.", nil},
+       nil, nil},
+      {"feedback", "Raw customer and user input, verbatim where possible.", nil, nil},
+      {"template", "A reusable structure. Copy its sections when writing that kind of doc.", nil, nil},
 
-      # status: where the work is. Puts any doc on a board.
-      {"status:backlog", "Captured, not started.", "#6b7280"},
-      {"status:todo", "Next up.", "#3b82f6"},
-      {"status:in-progress", "Being worked on now.", "#e09150"},
-      {"status:done", "Shipped.", "#22c55e"},
+      # status: where the work is. Sort keys give lifecycle order while
+      # keeping the cluster where "status" sorts alphabetically.
+      {"status:backlog", "Captured, not started.", nil, "status:1"},
+      {"status:todo", "Next up.", "#3b82f6", "status:2"},
+      {"status:in-progress", "Being worked on now.", "#e09150", "status:3"},
+      {"status:done", "Shipped.", "#22c55e", "status:4"},
 
       # stage: whether the doc is trustworthy. No stage tag means live.
-      {"stage:draft", "Work in progress. Don't rely on this yet.", "#6b7280"},
-      {"stage:in-review", "Review requested. Comments welcome.", "#e09150"},
-      {"stage:approved", "Reviewed and approved.", "#22c55e"},
-      {"stage:cancelled", "Considered and declined. Kept as the record.", "#ef4444"},
+      {"stage:draft", "Work in progress. Don't rely on this yet.", nil, "stage:1"},
+      {"stage:in-review", "Review requested. Comments welcome.", "#e09150", "stage:2"},
+      {"stage:approved", "Reviewed and approved.", "#22c55e", "stage:3"},
+      {"stage:cancelled", "Considered and declined. Kept as the record.", "#ef4444", "stage:4"},
 
       # ticket: what kind of ticket.
-      {"ticket:bug", "Something is broken.", "#ef4444"},
-      {"ticket:feature", "Something new.", "#8b5cf6"}
+      {"ticket:bug", "Something is broken.", "#ef4444", "ticket:1"},
+      {"ticket:feature", "Something new.", "#8b5cf6", "ticket:2"}
     ]
   end
 

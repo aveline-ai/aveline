@@ -55,8 +55,9 @@ test_list_tags_includes_usage_counts() {
   mk_doc "$ws" "D2" "popular" >/dev/null
   run_cli -w "$ws" list-tags
   expect_ok "list-tags ok"
+  # Tags list in workspace order (not by count) — find the tag by slug.
   local count
-  count="$(jq -r '.tags[0].doc_count // 0' <<<"$LAST_OUT_TEXT")"
+  count="$(jq -r '.tags[] | select(.slug == "popular") | .doc_count // 0' <<<"$LAST_OUT_TEXT")"
   if [[ "$count" -ge "2" ]]; then
     pass "tag doc_count surfaces ($count)"
   else

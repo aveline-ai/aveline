@@ -158,3 +158,33 @@ test_tag_restore_brings_attachments_back() {
   run_cli -w "$ws" restore-tag "lone"
   expect_err "not_found" 4 "restoring a live tag → not_found (no deleted row)"
 }
+
+test_tag_sort_key_orders_lists() {
+  local ws; ws="$(mk_workspace ws-t-sort)"
+  # Template seeds sort keys on scope values: lifecycle order, not
+  # alphabetical (approved would otherwise sort first).
+  run_cli -w "$ws" list-tags
+  local stages; stages="$(jq -r '[.tags[].slug | select(startswith("stage:"))] | join(",")' <<<"$LAST_OUT_TEXT")"
+  if [ "$stages" = "stage:draft,stage:in-review,stage:approved,stage:cancelled" ]; then
+    pass "stage values in lifecycle order"
+  else
+    fail "stage order wrong: $stages"
+  fi
+
+  # Reorder via edit-tag --sort-key: a new version, one tag touched.
+  run_cli -w "$ws" edit-tag "stage:draft" --sort-key "stage:9"
+  expect_ok "sort-key edit ok"
+  expect_eq ".tag.version_number" "2" "reorder is a versioned edit"
+  run_cli -w "$ws" list-tags
+  local last; last="$(jq -r '[.tags[].slug | select(startswith("stage:"))] | last' <<<"$LAST_OUT_TEXT")"
+  if [ "$last" = "stage:draft" ]; then
+    pass "reorder took effect"
+  else
+    fail "reorder didn't take: last stage is $last"
+  fi
+
+  # "" clears back to alphabetical-by-slug.
+  run_cli -w "$ws" edit-tag "stage:draft" --sort-key ""
+  expect_ok "clear sort key"
+  expect_eq ".tag.sort_key" "null" "sort key cleared"
+}

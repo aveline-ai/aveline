@@ -64,8 +64,12 @@ defmodule Aveline.Workspaces do
         creator = Map.get(attrs, "created_by_id") || Map.get(attrs, :created_by_id)
 
         if creator do
-          Enum.each(Aveline.Workspaces.Template.tags(), fn {slug, description, color} ->
-            {:ok, _} = Aveline.Tags.create(ws.id, slug, description, creator, color: color)
+          Enum.each(Aveline.Workspaces.Template.tags(), fn {slug, description, color, sort_key} ->
+            {:ok, _} =
+              Aveline.Tags.create(ws.id, slug, description, creator,
+                color: color,
+                sort_key: sort_key
+              )
           end)
 
           {:ok, _} = Aveline.Docs.seed_orientation_doc(ws.id, creator)

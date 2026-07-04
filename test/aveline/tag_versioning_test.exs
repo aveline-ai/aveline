@@ -115,15 +115,19 @@ defmodule Aveline.TagVersioningTest do
                Tags.restore(Tags.get_deleted(ws.id, "deploys"), user.id)
     end
 
-    test "scope member order survives edits (base creation order)", %{user: user, ws: ws} do
-      {:ok, a} = Tags.create(ws.id, "phase:todo", "Next up.", user.id)
-      {:ok, _b} = Tags.create(ws.id, "phase:done", "Shipped.", user.id)
+    test "scope member order (sort_key) survives edits", %{user: user, ws: ws} do
+      {:ok, a} = Tags.create(ws.id, "phase:todo", "Next up.", user.id, sort_key: "phase:1")
+      {:ok, _b} = Tags.create(ws.id, "phase:done", "Shipped.", user.id, sort_key: "phase:2")
 
-      # Recolor the FIRST member — its new version row is younger than
-      # phase:done's row, but column order must not change.
+      # Recolor the FIRST member. The new version row must carry the
+      # sort_key, so column order must not change.
       {:ok, _} = Tags.edit(a, %{color: "#3b82f6"}, user.id)
 
       assert Tags.list_scope_members(ws.id, "phase") == ["phase:todo", "phase:done"]
+
+      # And a sort_key edit reorders: push todo after done.
+      {:ok, _} = Tags.edit(Tags.get(ws.id, "phase:todo"), %{sort_key: "phase:3"}, user.id)
+      assert Tags.list_scope_members(ws.id, "phase") == ["phase:done", "phase:todo"]
     end
   end
 

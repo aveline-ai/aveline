@@ -120,6 +120,7 @@ defmodule AvelineWeb.Api.Views do
       "slug" => slug,
       "description" => desc,
       "color" => Map.get(t, :color),
+      "sort_key" => Map.get(t, :sort_key),
       "version_number" => Map.get(t, :version_number, 1),
       "created_at" => iso(Map.get(t, :inserted_at))
     }

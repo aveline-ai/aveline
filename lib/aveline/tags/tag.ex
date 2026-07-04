@@ -21,6 +21,8 @@ defmodule Aveline.Tags.Tag do
     field :description, :string
     # Optional #rrggbb; UI falls back to the default tag color when nil.
     field :color, :string
+    # Optional sort override; reads order by COALESCE(sort_key, slug).
+    field :sort_key, :string
     # Mechanism vs intent (house model): superseded = a newer version
     # row replaced this one; deleted_at (+deleted_by) = a human deleted
     # the tag.
@@ -46,6 +48,7 @@ defmodule Aveline.Tags.Tag do
       :slug,
       :description,
       :color,
+      :sort_key,
       :created_by_id
     ])
     |> validate_required([:workspace_id, :base_tag_id, :slug, :description])

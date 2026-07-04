@@ -23,10 +23,12 @@ defmodule Aveline.Tags do
     from t in Tag, where: not t.superseded and is_nil(t.deleted_at)
   end
 
+  # The one tag ordering, used by every surface: alphabetical by slug
+  # unless a tag carries a sort_key override.
   def list_for_workspace(workspace_id) when is_binary(workspace_id) do
     from(t in base_query(),
       where: t.workspace_id == ^workspace_id,
-      order_by: [asc: t.slug]
+      order_by: [asc: fragment("COALESCE(?, ?)", t.sort_key, t.slug), asc: t.slug]
     )
     |> Repo.all()
   end
@@ -53,7 +55,7 @@ defmodule Aveline.Tags do
     from(t in base_query(),
       where: t.workspace_id == ^workspace_id,
       select: t.slug,
-      order_by: [asc: t.slug]
+      order_by: [asc: fragment("COALESCE(?, ?)", t.sort_key, t.slug), asc: t.slug]
     )
     |> Repo.all()
   end
@@ -89,11 +91,12 @@ defmodule Aveline.Tags do
         end)
       end)
 
+    # Keep the workspace tag order (sort_key override, alphabetical
+    # otherwise) — one ordering on every surface.
     Enum.map(tags, fn t ->
       s = Map.get(stats, t.slug, %{count: 0, last_used_at: nil})
       Map.merge(%{tag: t}, s)
     end)
-    |> Enum.sort_by(fn r -> {-r.count, r.tag.slug} end)
   end
 
   defp max_dt(nil, b), do: b
@@ -113,6 +116,7 @@ defmodule Aveline.Tags do
            slug: slug,
            description: description,
            color: Keyword.get(opts, :color),
+           sort_key: Keyword.get(opts, :sort_key),
            created_by_id: actor_user_id
          })
          |> Repo.insert() do
@@ -141,9 +145,10 @@ defmodule Aveline.Tags do
   cascade the slug across every doc carrying it, atomically — docs keep
   the tag through the rename.
 
-  `changes` keys: `:slug`, `:description`, `:color` (`:color` accepts
-  nil to clear back to the default). Returns `{:error, :destination_exists}`
-  if a rename targets a slug another live tag owns.
+  `changes` keys: `:slug`, `:description`, `:color`, `:sort_key`
+  (`:color` and `:sort_key` accept nil to clear). Returns
+  `{:error, :destination_exists}` if a rename targets a slug another
+  live tag owns.
   """
   def edit(%Tag{} = tag, changes, actor_user_id) when is_map(changes) do
     new_slug =
@@ -151,20 +156,22 @@ defmodule Aveline.Tags do
 
     new_description = Map.get(changes, :description, tag.description)
     new_color = if Map.has_key?(changes, :color), do: changes.color, else: tag.color
+    new_sort_key = if Map.has_key?(changes, :sort_key), do: changes.sort_key, else: tag.sort_key
 
     cond do
-      {new_slug, new_description, new_color} == {tag.slug, tag.description, tag.color} ->
+      {new_slug, new_description, new_color, new_sort_key} ==
+          {tag.slug, tag.description, tag.color, tag.sort_key} ->
         {:ok, tag}
 
       new_slug != tag.slug and get(tag.workspace_id, new_slug) != nil ->
         {:error, :destination_exists}
 
       true ->
-        insert_tag_version(tag, new_slug, new_description, new_color, actor_user_id)
+        insert_tag_version(tag, new_slug, new_description, new_color, new_sort_key, actor_user_id)
     end
   end
 
-  defp insert_tag_version(%Tag{} = current, slug, description, color, actor_user_id) do
+  defp insert_tag_version(%Tag{} = current, slug, description, color, sort_key, actor_user_id) do
     renamed? = slug != current.slug
 
     Repo.transaction(fn ->
@@ -181,6 +188,7 @@ defmodule Aveline.Tags do
           slug: slug,
           description: description,
           color: color,
+          sort_key: sort_key,
           created_by_id: actor_user_id
         })
 
@@ -363,23 +371,14 @@ defmodule Aveline.Tags do
   end
 
   @doc """
-  Members of a scope in creation order — deterministic board columns
-  (`status:backlog` before `status:done` because it was created first).
-  Ordered by the BASE's first version, so renames/recolors (which insert
-  new version rows) never reshuffle a board's columns.
+  Members of a scope in the workspace tag order (sort_key override,
+  alphabetical otherwise) — the same ordering every tag surface uses,
+  so board columns match the glossary.
   """
   def list_scope_members(workspace_id, scope) when is_binary(scope) do
-    first_at =
-      from(t in Tag,
-        group_by: t.base_tag_id,
-        select: %{base_tag_id: t.base_tag_id, first_at: min(t.inserted_at)}
-      )
-
     from(t in base_query(),
-      join: f in subquery(first_at),
-      on: f.base_tag_id == t.base_tag_id,
       where: t.workspace_id == ^workspace_id and like(t.slug, ^"#{scope}:%"),
-      order_by: [asc: f.first_at],
+      order_by: [asc: fragment("COALESCE(?, ?)", t.sort_key, t.slug), asc: t.slug],
       select: t.slug
     )
     |> Repo.all()
