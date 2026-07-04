@@ -183,13 +183,8 @@ tag_specs = [
   {"onboarding", "Read-these-first content for new teammates."},
   {"runbook", "Operational playbooks for live incidents."},
   {"stack", "The components Aveline runs on and how they fit together."},
-  # Scoped status tags — enum members (a doc carries at most one
-  # status:*). Creation order here IS board column order. Colors are
-  # optional; these demo the custom-color path.
-  {"status:backlog", "Status: captured, not started.", "#6b7280"},
-  {"status:todo", "Status: next up.", "#3b82f6"},
-  {"status:in-progress", "Status: being worked on now.", "#e09150"},
-  {"status:done", "Status: shipped.", "#22c55e"},
+  # status:* and the other baseline tags come from the workspace
+  # template (seeded by create_workspace).
   {"kanban-feature", "Work on the kanban board feature itself."}
 ]
 

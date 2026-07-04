@@ -1,11 +1,16 @@
 # shellcheck shell=bash
 # Tags — CRUD, validation, delete cascade.
 
-test_list_tags_empty() {
-  local ws; ws="$(mk_workspace ws-t-empty)"
+test_list_tags_seeded_with_template() {
+  local ws; ws="$(mk_workspace ws-t-fresh)"
   run_cli -w "$ws" list-tags
   expect_ok "list-tags ok"
-  expect_count ".tags" "0" "fresh workspace has no tags"
+  expect_count ".tags" "19" "fresh workspace has the recommended template tags"
+  if jq -e '.tags | map(.slug) | index("status:done")' <<<"$LAST_OUT_TEXT" >/dev/null 2>&1; then
+    pass "status scope seeded"
+  else
+    fail "status scope missing"
+  fi
 }
 
 test_create_tag_appears_in_list() {
@@ -22,13 +27,13 @@ test_create_tag_appears_in_list() {
 
 test_get_tag_returns_metadata() {
   local ws; ws="$(mk_workspace ws-t-get)"
-  run_cli -w "$ws" create-tag --name "runbook" --description "operations runbooks for oncall use"
+  run_cli -w "$ws" create-tag --name "playbook" --description "operations playbooks for oncall use"
   expect_ok "tag created"
-  run_cli -w "$ws" get-tag "runbook"
+  run_cli -w "$ws" get-tag "playbook"
   expect_ok "get-tag ok"
   expect_present ".tag" "tag object present"
-  expect_eq ".tag.slug" "runbook" "slug round-trips"
-  expect_eq ".tag.description" "operations runbooks for oncall use" "description round-trips"
+  expect_eq ".tag.slug" "playbook" "slug round-trips"
+  expect_eq ".tag.description" "operations playbooks for oncall use" "description round-trips"
 }
 
 test_get_tag_not_found() {
@@ -108,22 +113,22 @@ test_delete_tag_leaves_docs_tagless() {
 
 test_tag_color_and_versioned_edits() {
   local ws; ws="$(mk_workspace ws-t-color)"
-  run_cli -w "$ws" create-tag --name "status:done" --description "Status: shipped." --color "#22c55e"
+  run_cli -w "$ws" create-tag --name "stage:done" --description "Stage: shipped." --color "#22c55e"
   expect_ok "create with color"
   expect_eq ".tag.color" "#22c55e" "color echoed"
   expect_eq ".tag.version_number" "1" "v1"
 
-  run_cli -w "$ws" edit-tag "status:done" --color "#16a34a"
+  run_cli -w "$ws" edit-tag "stage:done" --color "#16a34a"
   expect_ok "recolor"
   expect_eq ".tag.version_number" "2" "recolor made a new version"
   expect_eq ".tag.color" "#16a34a" "new color"
 
-  run_cli -w "$ws" edit-tag "status:done" --color ""
+  run_cli -w "$ws" edit-tag "stage:done" --color ""
   expect_ok "clear color"
   expect_eq ".tag.color" "null" "color cleared to default"
   expect_eq ".tag.version_number" "3" "clearing versions too"
 
-  run_cli -w "$ws" edit-tag "status:done" --color "green"
+  run_cli -w "$ws" edit-tag "stage:done" --color "green"
   expect_err "validation_failed" 2 "non-hex color rejected"
 }
 

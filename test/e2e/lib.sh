@@ -161,9 +161,9 @@ expect_absent() {
   fi
 }
 
-# Docs the test itself created — excludes the seeded orientation doc
-# (orientation: true) that every workspace ships with.
-MY_DOCS='.docs | map(select(.orientation | not))'
+# Docs the test itself created — excludes the seeded docs every
+# workspace ships with (the orientation doc and template docs).
+MY_DOCS='.docs | map(select((.orientation | not) and (((.tags // []) | index("template")) | not)))'
 
 # expect_count <jq-array-path> <expected-int> <message>
 expect_count() {

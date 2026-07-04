@@ -395,7 +395,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
     <div class="content">
       <h1 class="page-title">Docs</h1>
       <p class="page-subtitle docs-subtitle">
-        Everything written in <span class="mono">{@workspace.slug}</span> — filter, search, sort.
+        Everything written in <span class="mono">{@workspace.slug}</span>. Filter, search, sort.
       </p>
 
       <div class="docs-controls">
@@ -546,7 +546,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
               <div class="card-title">
                 {i.title}
                 <%= if (n = story_stop_count(i)) > 0 do %>
-                  <span class="card-trail-chip" title="Story — a chain of linked docs">
+                  <span class="card-trail-chip" title="Story: a chain of linked docs">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
                       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>

@@ -251,7 +251,7 @@ defmodule AvelineWeb.HomeLive do
 
       <%= if @pinned_docs == [] and @needs_you == [] and @recent_changes == [] do %>
         <div class="empty">
-          Nothing here yet — create a doc (or have your agent do it) and this
+          Nothing here yet. Create a doc (or have your agent do it) and this
           page fills itself in.
         </div>
       <% end %>

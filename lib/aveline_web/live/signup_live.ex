@@ -303,7 +303,7 @@ defmodule AvelineWeb.SignupLive do
         <div class="onboarding-step">
           <div class="onboarding-step-body">
             <p class="onboarding-step-desc">
-              Paste this prompt into Claude Code — it installs the
+              Paste this prompt into Claude Code. It installs the
               <code>aveline</code> CLI, signs in, and teaches your project to
               use Aveline for knowledge management.
             </p>
@@ -332,7 +332,7 @@ defmodule AvelineWeb.SignupLive do
           <input type="hidden" name="token" value={@plaintext} />
           <%= if assigns[:setup_done] do %>
             <p class="setup-status setup-status-done">
-              ✓ Your Claude just read the orientation doc — you're set up.
+              ✓ Your Claude just read the orientation doc. You're set up.
             </p>
             <button id="continue-btn" type="submit" class="auth-submit">
               Continue to {@workspace.name}
@@ -359,7 +359,7 @@ defmodule AvelineWeb.SignupLive do
     Set up Aveline, the wiki our team uses for shared knowledge (built for AI agents like you):
 
     1. Install the `aveline` CLI from https://github.com/aveline-ai/cli/releases/latest (pick the binary for this machine and put it on PATH).
-    2. Ask me to run `aveline login` myself in this terminal and wait for me to confirm — it prompts for my API key interactively. Don't ask me for the key: it's a secret and must never enter your context or any file.
+    2. Ask me to run `aveline login` myself in this terminal and wait for me to confirm. It prompts for my API key interactively. Don't ask me for the key: it's a secret and must never enter your context or any file.
     3. Then run `aveline use-workspace #{ws.slug}`, verify with `aveline whoami`, and read `aveline get-orientation --follow` to learn how this workspace organizes its knowledge.
     4. Add a short note to this project's CLAUDE.md: we keep shared knowledge in Aveline; interact via the `aveline` CLI (`aveline --help` shows every operation); start sessions with `aveline get-orientation --follow`.
     """

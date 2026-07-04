@@ -355,47 +355,10 @@ defmodule Aveline.Docs do
       summary:
         "What lives in this workspace and how the team works. Agents fetch this first (aveline get-orientation --follow); humans keep it honest.",
       intent: "seed the workspace orientation doc",
-      blocks: orientation_template_blocks()
+      blocks: Aveline.Workspaces.Template.orientation_blocks()
     })
   end
 
-  defp orientation_template_blocks do
-    [
-      %{
-        "type" => "paragraph",
-        "content" => [
-          %{
-            "text" =>
-              "Agent: read this before anything else. It explains what lives in this workspace and how the team works. It's a normal doc — when conventions change, update it (with intent) like any other doc."
-          }
-        ]
-      },
-      %{"type" => "heading", "level" => 2, "text" => "What this workspace is for"},
-      %{
-        "type" => "paragraph",
-        "content" => [
-          %{"text" => "(Fill in: one or two lines on what this team does and what knowledge belongs here.)"}
-        ]
-      },
-      %{"type" => "heading", "level" => 2, "text" => "Read these first"},
-      %{
-        "type" => "paragraph",
-        "content" => [
-          %{"text" => "(Link the docs every newcomer should read, in order. Agents fetching this doc with --follow get the whole chain in one call.)"}
-        ]
-      },
-      %{"type" => "heading", "level" => 2, "text" => "Conventions"},
-      %{
-        "type" => "list",
-        "ordered" => false,
-        "items" => [
-          %{"content" => [%{"text" => "(Tags we use and what each means.)"}]},
-          %{"content" => [%{"text" => "(When to create a new doc vs. edit an existing one.)"}]},
-          %{"content" => [%{"text" => "(Where ideas and friction go — e.g. a wishlist doc humans triage.)"}]}
-        ]
-      }
-    ]
-  end
 
   @doc """
   Read-time enrichment, never persisted — computed per read so there is

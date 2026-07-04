@@ -58,10 +58,35 @@ defmodule Aveline.Workspaces do
     |> Repo.insert()
     |> case do
       {:ok, ws} ->
-        # Every workspace ships with its orientation doc (well-known slug,
-        # undeletable) — the one stable thing a fresh agent can fetch.
+        # Every workspace ships furnished: the recommended tag set and an
+        # orientation doc pre-written for it (Aveline.Workspaces.Template).
+        # All ordinary data — teams reshape it through their agents.
         creator = Map.get(attrs, "created_by_id") || Map.get(attrs, :created_by_id)
-        if creator, do: {:ok, _} = Aveline.Docs.seed_orientation_doc(ws.id, creator)
+
+        if creator do
+          Enum.each(Aveline.Workspaces.Template.tags(), fn {slug, description, color} ->
+            {:ok, _} = Aveline.Tags.create(ws.id, slug, description, creator, color: color)
+          end)
+
+          {:ok, _} = Aveline.Docs.seed_orientation_doc(ws.id, creator)
+
+          Enum.each(Aveline.Workspaces.Template.docs(), fn {slug, title, summary, tags, blocks} ->
+            {:ok, _} =
+              Aveline.Docs.create_doc(%{
+                workspace_id: ws.id,
+                owner_id: creator,
+                actor_user_id: creator,
+                actor_type: "human",
+                slug: slug,
+                title: title,
+                summary: summary,
+                tags: tags,
+                blocks: blocks,
+                intent: "seed the workspace template docs"
+              })
+          end)
+        end
+
         {:ok, ws}
 
       err ->
@@ -260,7 +285,9 @@ defmodule Aveline.Workspaces do
   def rotate_invite(workspace_id, user_id) do
     Repo.transaction(fn ->
       case get_active_invite_for_workspace(workspace_id) do
-        nil -> :ok
+        nil ->
+          :ok
+
         %Invite{} = i ->
           {:ok, _} =
             i

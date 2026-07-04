@@ -11,9 +11,9 @@ defmodule Aveline.ScopedTagsBoardTest do
 
     for {slug, desc} <- [
           {"feature-x", "The feature-x work."},
-          {"status:todo", "Status: next up."},
-          {"status:doing", "Status: in flight."},
-          {"status:done", "Status: shipped."}
+          {"lane:todo", "Lane: next up."},
+          {"lane:doing", "Lane: in flight."},
+          {"lane:done", "Lane: shipped."}
         ] do
       {:ok, _} = Tags.create(ws.id, slug, desc, user.id)
     end
@@ -23,9 +23,9 @@ defmodule Aveline.ScopedTagsBoardTest do
 
   describe "scoped tag model" do
     test "scope_of / value_of" do
-      assert Tags.scope_of("status:todo") == "status"
+      assert Tags.scope_of("lane:todo") == "lane"
       assert Tags.scope_of("runbook") == nil
-      assert Tags.value_of("status:todo") == "todo"
+      assert Tags.value_of("lane:todo") == "todo"
       assert Tags.value_of("runbook") == "runbook"
     end
 
@@ -37,23 +37,23 @@ defmodule Aveline.ScopedTagsBoardTest do
     end
 
     test "scope members come back in creation order", %{ws: ws} do
-      assert Tags.list_scope_members(ws.id, "status") ==
-               ["status:todo", "status:doing", "status:done"]
+      assert Tags.list_scope_members(ws.id, "lane") ==
+               ["lane:todo", "lane:doing", "lane:done"]
     end
 
     test "a doc can't carry two tags from one scope", %{user: user, ws: ws} do
-      assert {:error, {:tag_scope_conflict, "status", tags}} =
+      assert {:error, {:tag_scope_conflict, "lane", tags}} =
                Docs.create_doc(%{
                  workspace_id: ws.id,
                  owner_id: user.id,
                  actor_user_id: user.id,
                  actor_type: "agent",
                  title: "Contradiction",
-                 tags: ["feature-x", "status:todo", "status:done"],
+                 tags: ["feature-x", "lane:todo", "lane:done"],
                  blocks: []
                })
 
-      assert tags == ["status:done", "status:todo"]
+      assert tags == ["lane:done", "lane:todo"]
     end
 
     test "tags from different scopes coexist", %{user: user, ws: ws} do
@@ -66,14 +66,14 @@ defmodule Aveline.ScopedTagsBoardTest do
                  actor_user_id: user.id,
                  actor_type: "agent",
                  title: "Multi-dimensional",
-                 tags: ["feature-x", "status:todo", "priority:p1"],
+                 tags: ["feature-x", "lane:todo", "priority:p1"],
                  blocks: []
                })
     end
   end
 
   describe "board block" do
-    defp create_board(ws, user, tags \\ ["feature-x"], by \\ "status") do
+    defp create_board(ws, user, tags \\ ["feature-x"], by \\ "lane") do
       Docs.create_doc(%{
         workspace_id: ws.id,
         owner_id: user.id,
@@ -94,21 +94,21 @@ defmodule Aveline.ScopedTagsBoardTest do
     end
 
     test "enrichment computes columns and cards", %{user: user, ws: ws} do
-      create_card(ws, user, "Card todo", ["feature-x", "status:todo"])
-      create_card(ws, user, "Card done", ["feature-x", "status:done"])
+      create_card(ws, user, "Card todo", ["feature-x", "lane:todo"])
+      create_card(ws, user, "Card done", ["feature-x", "lane:done"])
       create_card(ws, user, "Card unstatused", ["feature-x"])
-      create_card(ws, user, "Unrelated", ["status:todo"])
+      create_card(ws, user, "Unrelated", ["lane:todo"])
 
       {:ok, board} = create_board(ws, user)
       [%{"view" => view}] = Docs.enrich_blocks(board.blocks, ws.id)
 
-      assert view["columns"] == ["status:todo", "status:doing", "status:done"]
+      assert view["columns"] == ["lane:todo", "lane:doing", "lane:done"]
 
       by_title = Map.new(view["cards"], &{&1["title"], &1["column"]})
 
       assert by_title == %{
-               "Card todo" => "status:todo",
-               "Card done" => "status:done",
+               "Card todo" => "lane:todo",
+               "Card done" => "lane:done",
                "Card unstatused" => nil
              }
     end
@@ -125,7 +125,7 @@ defmodule Aveline.ScopedTagsBoardTest do
                    %{
                      "type" => "board",
                      "tags" => ["feature-x"],
-                     "by" => "status",
+                     "by" => "lane",
                      "view" => %{"cards" => [%{"title" => "FORGED"}]}
                    }
                  ]

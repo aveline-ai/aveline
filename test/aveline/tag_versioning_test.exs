@@ -116,14 +116,14 @@ defmodule Aveline.TagVersioningTest do
     end
 
     test "scope member order survives edits (base creation order)", %{user: user, ws: ws} do
-      {:ok, a} = Tags.create(ws.id, "status:todo", "Next up.", user.id)
-      {:ok, _b} = Tags.create(ws.id, "status:done", "Shipped.", user.id)
+      {:ok, a} = Tags.create(ws.id, "phase:todo", "Next up.", user.id)
+      {:ok, _b} = Tags.create(ws.id, "phase:done", "Shipped.", user.id)
 
       # Recolor the FIRST member — its new version row is younger than
-      # status:done's row, but column order must not change.
+      # phase:done's row, but column order must not change.
       {:ok, _} = Tags.edit(a, %{color: "#3b82f6"}, user.id)
 
-      assert Tags.list_scope_members(ws.id, "status") == ["status:todo", "status:done"]
+      assert Tags.list_scope_members(ws.id, "phase") == ["phase:todo", "phase:done"]
     end
   end
 
