@@ -1173,9 +1173,8 @@
       /* Home tag glossary — the workspace's layout at a glance: one
          compact line per tag, chip + description. */
       .tag-glossary {
-        display: grid; gap: 10px 28px;
-        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-        align-items: start;
+        display: flex; flex-direction: column; gap: 2px;
+        max-width: 720px;
       }
       /* Legend-style entry: the chip leads and the full description
          flows inline after it, wrapping freely — never truncated. */
