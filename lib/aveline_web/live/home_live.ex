@@ -45,19 +45,6 @@ defmodule AvelineWeb.HomeLive do
     end
   end
 
-  @impl true
-  def handle_event("search", %{"value" => q}, socket) do
-    ws = socket.assigns.workspace
-
-    to =
-      case String.trim(q || "") do
-        "" -> ~p"/w/#{ws.slug}/docs"
-        q -> ~p"/w/#{ws.slug}/docs?q=#{q}"
-      end
-
-    {:noreply, push_navigate(socket, to: to)}
-  end
-
   # Stories with their stops' read-time targets, ready to render as
   # trail cards.
   defp load_stories(ws) do
@@ -87,29 +74,8 @@ defmodule AvelineWeb.HomeLive do
     <div class="content">
       <h1 class="page-title">{@workspace.name}</h1>
       <p class="page-subtitle">
-        Start here, catch up on what needs you, or search everything.
+        Start here, catch up on what needs you, and see what changed.
       </p>
-
-      <div class="filter-bar">
-        <div class="filter-row">
-          <span class="filter-row-icon" title="Search">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="7" cy="7" r="4.5" />
-              <path d="M10.5 10.5L14 14" />
-            </svg>
-          </span>
-          <form phx-submit="search" class="filter-row-form">
-            <input
-              type="text"
-              name="value"
-              value=""
-              placeholder="Search docs by title & content"
-              class="search-input"
-              autocomplete="off"
-            />
-          </form>
-        </div>
-      </div>
 
       <section :if={@stories != []} class="shelf">
         <div class="shelf-head">
