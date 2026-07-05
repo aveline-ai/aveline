@@ -1195,6 +1195,24 @@
       .tag-glossary-desc { color: var(--text-muted); }
       .tag-glossary-row:hover .tag-glossary-desc { color: var(--text-secondary); }
 
+      /* Home on phones: the card is fully tappable so the CTA label is
+         redundant; glossary columns collapse to chip-over-description. */
+      @media (max-width: 720px) {
+        .home-title { margin-bottom: 28px; }
+        .orientation-card { padding: 14px 16px; gap: 12px; }
+        .orientation-cta { display: none; }
+        .tag-glossary-row {
+          grid-template-columns: 1fr;
+          gap: 3px;
+          padding: 8px 6px;
+        }
+        .recent-title {
+          flex: 0 1 auto;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .recent-intent { display: none; }
+      }
+
       /* Onboarding setup detection */
       .setup-status {
         display: flex; align-items: center; gap: 8px;
