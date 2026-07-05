@@ -44,12 +44,21 @@ defmodule Aveline.DataSources.Runner do
 
     case Task.yield(task, @task_timeout_ms) || Task.shutdown(task, :brutal_kill) do
       {:ok, result} -> result
-      {:exit, _reason} -> {:error, "connection failed or was refused"}
+      {:exit, reason} -> {:error, "connection failed: " <> exit_message(reason)}
       nil -> {:error, "timed out connecting or querying"}
     end
   end
 
   def run(_, _), do: {:error, "data source has no live credential"}
+
+  # The task dies with whatever killed the linked connection process —
+  # usually a DBConnection/driver exception carrying the real story
+  # ("connection refused", "password authentication failed", "ssl
+  # required"). Surface it; debugging blind is worse than verbose.
+  defp exit_message(%{__exception__: true} = e), do: Exception.message(e)
+  defp exit_message({%{__exception__: true} = e, _stacktrace}), do: Exception.message(e)
+  defp exit_message({:shutdown, reason}), do: exit_message(reason)
+  defp exit_message(other), do: inspect(other) |> String.slice(0, 200)
 
   # ===== postgres =====
 
