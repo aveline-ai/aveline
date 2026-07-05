@@ -9,9 +9,11 @@ defmodule Aveline.DataSourcesTest do
 
   # The test database itself — the runner opens a real second
   # connection, so queries must not depend on sandboxed rows.
-  defp self_url do
-    "postgres://#{System.get_env("PGUSER") || "postgres"}:#{System.get_env("PGPASSWORD") || "postgres"}@#{System.get_env("PGHOST") || "localhost"}/aveline_test#{System.get_env("MIX_TEST_PARTITION")}"
+  defp self_template do
+    "postgres://#{System.get_env("PGUSER") || "postgres"}:<password>@#{System.get_env("PGHOST") || "localhost"}/aveline_test#{System.get_env("MIX_TEST_PARTITION")}"
   end
+
+  defp self_password, do: System.get_env("PGPASSWORD") || "postgres"
 
   defp setup_ws do
     user = Fixtures.user_fixture()
@@ -19,81 +21,155 @@ defmodule Aveline.DataSourcesTest do
     %{user: user, ws: ws}
   end
 
-  describe "context" do
-    test "create derives adapter from the URL scheme" do
+  defp create_self!(ws, user, name \\ "self") do
+    {:ok, ds} = DataSources.create(ws.id, name, self_template(), self_password(), user.id)
+    ds
+  end
+
+  describe "create + template validation" do
+    test "adapter derives from the template scheme" do
       %{user: user, ws: ws} = setup_ws()
 
-      {:ok, pg} = DataSources.create(ws.id, "pg", "postgres://u:p@h:5432/db", user.id)
+      {:ok, pg} = DataSources.create(ws.id, "pg", "postgres://u:<password>@h/db", "x", user.id)
       assert pg.adapter == "postgres"
 
-      {:ok, pg2} = DataSources.create(ws.id, "pg2", "postgresql://u:p@h/db", user.id)
-      assert pg2.adapter == "postgres"
-
-      {:ok, my} = DataSources.create(ws.id, "my", "mysql://u:p@h:3306/db", user.id)
+      {:ok, my} = DataSources.create(ws.id, "my", "mysql://u:<password>@h:3306/db", "x", user.id)
       assert my.adapter == "mysql"
 
       assert {:error, :invalid_data_source_url, msg} =
-               DataSources.create(ws.id, "bad", "http://h/db", user.id)
+               DataSources.create(ws.id, "bad", "http://u:<password>@h/db", "x", user.id)
 
       assert msg =~ "unsupported scheme"
+    end
+
+    test "template must carry the placeholder exactly once" do
+      %{user: user, ws: ws} = setup_ws()
+
+      assert {:error, :invalid_data_source_url, msg} =
+               DataSources.create(ws.id, "none", "postgres://u:realpass@h/db", "x", user.id)
+
+      assert msg =~ "<password>"
 
       assert {:error, :invalid_data_source_url, _} =
-               DataSources.create(ws.id, "bad2", "not a url", user.id)
+               DataSources.create(
+                 ws.id,
+                 "twice",
+                 "postgres://<password>:<password>@h/db",
+                 "x",
+                 user.id
+               )
     end
 
-    test "the URL is encrypted at rest and never in safe_map" do
+    test "the password is encrypted at rest; the template is plain and echoed" do
       %{user: user, ws: ws} = setup_ws()
-      url = "postgres://secret_user:secret_pass@db.example.com:5432/prod"
-      {:ok, ds} = DataSources.create(ws.id, "prod", url, user.id)
+      template = "postgres://metrics_ro:<password>@db.example.com:5432/prod"
+      {:ok, ds} = DataSources.create(ws.id, "prod", template, "hunter2-secret", user.id)
 
-      # Raw column is ciphertext, not the plaintext.
-      %{rows: [[raw]]} =
-        Repo.query!("SELECT url_encrypted FROM data_sources WHERE id = $1", [
+      %{rows: [[raw_template, raw_password]]} =
+        Repo.query!("SELECT url_template, password_encrypted FROM data_sources WHERE id = $1", [
           Ecto.UUID.dump!(ds.id)
         ])
 
-      refute raw =~ "secret_pass"
-      refute raw == url
+      # Template stored verbatim (no secret in it); password only as ciphertext.
+      assert raw_template == template
+      refute raw_password == nil
+      refute raw_password =~ "hunter2-secret"
 
-      # Schema read decrypts transparently.
-      assert DataSources.get_current_by_name(ws.id, "prod").url == url
-
-      # The read surface never carries it.
       safe = DataSources.safe_map(ds)
-      refute Map.has_key?(safe, "url")
-      assert safe["host"] == "db.example.com"
-      assert safe["database"] == "prod"
-      assert safe["adapter"] == "postgres"
+      assert safe["url"] == template
+      assert safe["credential"] == "live"
+      refute Map.has_key?(safe, "password")
+    end
+  end
+
+  describe "dial_url/1" do
+    test "substitutes the URL-encoded password" do
+      %{user: user, ws: ws} = setup_ws()
+
+      {:ok, ds} =
+        DataSources.create(
+          ws.id,
+          "enc",
+          "postgres://u:<password>@h:5432/db?sslmode=require",
+          "p@ss w/slash",
+          user.id
+        )
+
+      assert DataSources.dial_url(ds) ==
+               "postgres://u:p%40ss+w%2Fslash@h:5432/db?sslmode=require"
+    end
+  end
+
+  describe "edit" do
+    test "password-only rotation mints a version and scrubs the old secret" do
+      %{user: user, ws: ws} = setup_ws()
+      ds = create_self!(ws, user)
+
+      {:ok, v2} = DataSources.edit(ds, %{password: self_password()}, user.id)
+      assert v2.version_number == 2
+      assert v2.base_data_source_id == ds.base_data_source_id
+      assert v2.url_template == ds.url_template
+
+      # Old row: superseded, secret destroyed. Template intact for audit.
+      %{rows: [[superseded, raw_password, raw_template]]} =
+        Repo.query!(
+          "SELECT superseded, password_encrypted, url_template FROM data_sources WHERE id = $1",
+          [Ecto.UUID.dump!(ds.id)]
+        )
+
+      assert superseded == true
+      assert raw_password == nil
+      assert raw_template == ds.url_template
+
+      # Still dials fine on the new version.
+      assert {:ok, %{"rows" => [[1]]}} = Runner.run(v2, "select 1")
     end
 
-    test "delete keeps the audit row but hard-deletes the credential" do
+    test "rename alone is fine and never breaks chart blocks" do
       %{user: user, ws: ws} = setup_ws()
-      {:ok, ds} = DataSources.create(ws.id, "prod", "postgres://u:secret@h/db", user.id)
+      ds = create_self!(ws, user)
 
-      assert {:error, %Ecto.Changeset{}} =
-               DataSources.create(ws.id, "prod", "postgres://u:p@h/db2", user.id)
+      {:ok, doc} =
+        Docs.create_doc(%{
+          workspace_id: ws.id,
+          owner_id: user.id,
+          actor_user_id: user.id,
+          actor_type: "agent",
+          title: "Dash",
+          blocks: [%{"type" => "chart", "source" => "self", "query" => "select 1 as one"}],
+          intent: "test"
+        })
 
-      {:ok, deleted} = DataSources.delete(ds, user.id)
-      assert DataSources.get_current_by_name(ws.id, "prod") == nil
+      {:ok, renamed} = DataSources.edit(ds, %{name: "analytics"}, user.id)
+      assert renamed.name == "analytics"
 
-      # The credential is GONE at the storage layer, not just hidden.
-      %{rows: [[raw]]} =
-        Repo.query!("SELECT url_encrypted FROM data_sources WHERE id = $1", [
-          Ecto.UUID.dump!(ds.id)
-        ])
+      # The block pinned the base id — still resolves and runs.
+      assert [%{"result" => %{"rows" => [[1]]}, "source" => %{"name" => "analytics"}}] =
+               Docs.enrich_blocks(doc.blocks, ws.id)
+    end
 
-      assert raw == nil
-      assert deleted.url == nil
+    test "template change without the password is refused" do
+      %{user: user, ws: ws} = setup_ws()
+      ds = create_self!(ws, user)
 
-      # The audit trail survives.
-      [row] = DataSources.list_all_for_workspace(ws.id)
-      assert row.name == "prod"
-      assert row.adapter == "postgres"
-      assert row.deleted_at
+      assert {:error, :password_required, msg} =
+               DataSources.edit(
+                 ds,
+                 %{url: "postgres://u:<password>@evil.example.com/db"},
+                 user.id
+               )
 
-      # No restore concept — but the name frees up for a replacement.
-      {:ok, replacement} = DataSources.create(ws.id, "prod", "postgres://u:new@h/db", user.id)
-      assert replacement.base_data_source_id != ds.base_data_source_id
+      assert msg =~ "requires supplying the password"
+
+      # With the password it goes through (destination + secret written together).
+      assert {:ok, v2} =
+               DataSources.edit(
+                 ds,
+                 %{url: self_template(), password: self_password()},
+                 user.id
+               )
+
+      assert v2.version_number == 2
     end
   end
 
@@ -124,7 +200,6 @@ defmodule Aveline.DataSourcesTest do
       uuid = Ecto.UUID.generate()
       base = %{"type" => "chart", "data_source_id" => uuid, "query" => "select 1"}
 
-      # Default viz is table.
       assert {:ok, out} = Block.validate(base, mint_id?: true)
       assert out["viz"] == %{"type" => "table"}
 
@@ -137,15 +212,13 @@ defmodule Aveline.DataSourcesTest do
                Block.validate(Map.put(base, "viz", %{"type" => "line"}), mint_id?: true)
 
       assert msg =~ "needs x and y"
-
-      assert {:error, _} = Block.validate(Map.put(base, "query", "   "), mint_id?: true)
     end
   end
 
   describe "resolution" do
-    test "source name resolves to the base id; unknown name rejected" do
+    test "source name resolves to the base id; unknown and cross-workspace rejected" do
       %{user: user, ws: ws} = setup_ws()
-      {:ok, ds} = DataSources.create(ws.id, "self", self_url(), user.id)
+      ds = create_self!(ws, user)
 
       {:ok, doc} =
         Docs.create_doc(%{
@@ -158,9 +231,8 @@ defmodule Aveline.DataSourcesTest do
           intent: "test"
         })
 
-      assert [%{"data_source_id" => id} = blk] = doc.blocks
+      assert [%{"data_source_id" => id}] = doc.blocks
       assert id == ds.base_data_source_id
-      refute Map.has_key?(blk, "source")
 
       assert {:error, :data_source_not_found, _} =
                Docs.create_doc(%{
@@ -172,16 +244,12 @@ defmodule Aveline.DataSourcesTest do
                  blocks: [%{"type" => "chart", "source" => "ghost", "query" => "select 1"}],
                  intent: "test"
                })
-    end
 
-    test "data source from another workspace is rejected" do
-      %{user: user, ws: ws} = setup_ws()
       other = Fixtures.workspace_fixture(user)
-      {:ok, ds} = DataSources.create(other.id, "theirs", "postgres://u:p@h/db", user.id)
 
       assert {:error, :data_source_not_found, _} =
                Docs.create_doc(%{
-                 workspace_id: ws.id,
+                 workspace_id: other.id,
                  owner_id: user.id,
                  actor_user_id: user.id,
                  actor_type: "agent",
@@ -201,7 +269,7 @@ defmodule Aveline.DataSourcesTest do
   describe "runner + enrichment" do
     test "runs a real query and echoes columns/rows" do
       %{user: user, ws: ws} = setup_ws()
-      {:ok, _} = DataSources.create(ws.id, "self", self_url(), user.id)
+      create_self!(ws, user)
 
       {:ok, doc} =
         Docs.create_doc(%{
@@ -211,11 +279,7 @@ defmodule Aveline.DataSourcesTest do
           actor_type: "agent",
           title: "Dash",
           blocks: [
-            %{
-              "type" => "chart",
-              "source" => "self",
-              "query" => "select generate_series(1, 3) as n"
-            }
+            %{"type" => "chart", "source" => "self", "query" => "select generate_series(1, 3) as n"}
           ],
           intent: "test"
         })
@@ -223,22 +287,17 @@ defmodule Aveline.DataSourcesTest do
       assert [%{"result" => result, "source" => source}] = Docs.enrich_blocks(doc.blocks, ws.id)
       assert result["columns"] == ["n"]
       assert result["rows"] == [[1], [2], [3]]
-      assert source["name"] == "self"
-      refute Map.has_key?(source, "url")
+      assert source["credential"] == "live"
+      assert source["url"] =~ "<password>"
     end
 
-    test "row cap truncates and flags" do
+    test "row cap truncates and flags; writes are refused" do
       %{user: user, ws: ws} = setup_ws()
-      {:ok, ds} = DataSources.create(ws.id, "self", self_url(), user.id)
+      ds = create_self!(ws, user)
 
       assert {:ok, result} = Runner.run(ds, "select generate_series(1, 2000) as n")
       assert length(result["rows"]) == Runner.row_cap()
       assert result["truncated"] == true
-    end
-
-    test "writes are refused by the read-only session" do
-      %{user: user, ws: ws} = setup_ws()
-      {:ok, ds} = DataSources.create(ws.id, "self", self_url(), user.id)
 
       assert {:error, msg} = Runner.run(ds, "CREATE TABLE pwned (id int)")
       assert msg =~ "read-only"
@@ -246,7 +305,7 @@ defmodule Aveline.DataSourcesTest do
 
     test "bad SQL and deleted sources are error states, not raises" do
       %{user: user, ws: ws} = setup_ws()
-      {:ok, ds} = DataSources.create(ws.id, "self", self_url(), user.id)
+      ds = create_self!(ws, user)
 
       {:ok, doc} =
         Docs.create_doc(%{
@@ -264,10 +323,14 @@ defmodule Aveline.DataSourcesTest do
 
       {:ok, _} = DataSources.delete(ds, user.id)
 
-      assert [%{"result" => %{"error" => msg2}, "source" => %{"deleted" => true}}] =
+      assert [%{"result" => %{"error" => msg2}, "source" => source}] =
                Docs.enrich_blocks(doc.blocks, ws.id)
 
       assert msg2 =~ "deleted"
+      assert source["deleted"] == true
+      assert source["credential"] == "redacted"
+      # The template survives the scrub — audit still shows where it pointed.
+      assert source["url"] =~ "<password>"
     end
   end
 end

@@ -3,13 +3,23 @@ defmodule Aveline.Repo.Migrations.DataSources do
   External databases a workspace can chart from. House versioning model
   from day one (base id + version_number + superseded + deleted_at).
 
-  The connection URL is encrypted at rest (AES-256-GCM via Cloak, key
-  in a runtime secret) — what sits in this column is ciphertext. It is
-  write-only through the API: reads echo name/adapter/host/database.
+  The connection value is split along the exact secrecy boundary:
 
-  Deletion is soft for the row (audit: name, adapter, who, when) but
-  HARD for the credential: the same update nulls url_encrypted, and a
-  CHECK makes "deleted but still holding a credential" unrepresentable.
+    * `url_template` — the full connection string with a literal
+      `<password>` placeholder (validated: exactly once). Contains no
+      secret, stored plain, rendered verbatim on every read surface,
+      survives in history forever.
+    * `password_encrypted` — the secret, AES-256-GCM via Cloak (key in
+      a runtime secret), write-only through the API. Superseding or
+      deleting a row scrubs it in the same transaction; the CHECK makes
+      "non-live row holding a secret" unrepresentable.
+
+  At query time the server substitutes the URL-encoded password into
+  the template. Editing rules (enforced in the context): changing the
+  template requires re-supplying the password (closes the classic
+  point-my-stored-password-at-my-server exfiltration); password-only
+  rotation is allowed alone. Blocks pin the base id and resolve the
+  current version at read, so renames and rotations never break charts.
   No restore — connect a new source instead.
   """
   use Ecto.Migration
@@ -28,9 +38,8 @@ defmodule Aveline.Repo.Migrations.DataSources do
 
       add :name, :string, null: false
       add :adapter, :string, null: false
-      # Nullable: deletion scrubs the credential while the row stays
-      # for audit. The check below ties the two states together.
-      add :url_encrypted, :binary
+      add :url_template, :text, null: false
+      add :password_encrypted, :binary
       add :created_by_id, references(:users, type: :binary_id, on_delete: :nilify_all)
 
       timestamps(type: :utc_datetime_usec)
@@ -56,9 +65,9 @@ defmodule Aveline.Repo.Migrations.DataSources do
              check: "adapter IN ('postgres', 'mysql')"
            )
 
-    # Live rows hold a credential; deleted rows never do.
-    create constraint(:data_sources, :data_sources_deleted_iff_scrubbed,
-             check: "(deleted_at IS NULL) = (url_encrypted IS NOT NULL)"
+    # Exactly the live row holds the secret.
+    create constraint(:data_sources, :data_sources_live_iff_credentialed,
+             check: "((NOT superseded) AND deleted_at IS NULL) = (password_encrypted IS NOT NULL)"
            )
   end
 end

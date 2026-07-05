@@ -22,9 +22,17 @@ defmodule Aveline.DataSources.Runner do
 
   def row_cap, do: @row_cap
 
-  def run(%{adapter: "postgres", url: url}, sql), do: run_postgres(url, sql)
-  def run(%{adapter: "mysql", url: url}, sql), do: run_mysql(url, sql)
-  def run(_, _), do: {:error, "unsupported adapter"}
+  def run(%{adapter: adapter, password: password} = ds, sql) when is_binary(password) do
+    url = Aveline.DataSources.dial_url(ds)
+
+    case adapter do
+      "postgres" -> run_postgres(url, sql)
+      "mysql" -> run_mysql(url, sql)
+      _ -> {:error, "unsupported adapter"}
+    end
+  end
+
+  def run(_, _), do: {:error, "data source has no live credential"}
 
   # ===== postgres =====
 

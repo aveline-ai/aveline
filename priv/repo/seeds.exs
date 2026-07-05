@@ -862,12 +862,14 @@ IO.puts("")
 # aveline_dev, so the dashboard doc renders live numbers about the
 # seed data with zero external setup.
 
-self_url =
-  System.get_env("DATABASE_URL") ||
-    "postgres://#{System.get_env("PGUSER") || "postgres"}:#{System.get_env("PGPASSWORD") || "postgres"}@#{System.get_env("PGHOST") || "localhost"}/#{System.get_env("PGDATABASE") || "aveline_dev"}"
+self_template =
+  "postgres://#{System.get_env("PGUSER") || "postgres"}:<password>@#{System.get_env("PGHOST") || "localhost"}/#{System.get_env("PGDATABASE") || "aveline_dev"}"
+
+self_password = System.get_env("PGPASSWORD") || "postgres"
 
 if is_nil(Aveline.DataSources.get_current_by_name(workspace.id, "aveline-self")) do
-  {:ok, _ds} = Aveline.DataSources.create(workspace.id, "aveline-self", self_url, alice.id)
+  {:ok, _ds} =
+    Aveline.DataSources.create(workspace.id, "aveline-self", self_template, self_password, alice.id)
 end
 
 chart = fn query, viz ->

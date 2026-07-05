@@ -62,7 +62,7 @@ defmodule AvelineWeb.DataSourcesLive do
     end)
   end
 
-  @snippet ~s(aveline create-data-source --name prod \\\n  --url "postgres://metrics_ro:...@your-db-host:5432/your_db")
+  @snippet ~s(aveline create-data-source --name prod \\\n  --url "postgres://metrics_ro:<password>@your-db-host:5432/your_db" \\\n  --password "...")
 
   @impl true
   def render(assigns) do
@@ -91,8 +91,10 @@ defmodule AvelineWeb.DataSourcesLive do
           </p>
           <pre class="blk-code ds-empty-code"><code>{@snippet}</code></pre>
           <p class="ds-empty-copy ds-empty-fine">
-            Use a read-only database user. Queries are forced read-only and time-capped server-side
-            either way, and the connection URL is encrypted at rest and never echoed back.
+            Use a read-only database user, and put the literal placeholder in the template where the
+            password goes. The template stays visible so you always know where a source points; the
+            password is encrypted at rest and can never be read back. Queries are forced read-only
+            and time-capped server-side either way.
           </p>
         </div>
       <% else %>
@@ -101,10 +103,10 @@ defmodule AvelineWeb.DataSourcesLive do
             <div class="ds-row-main">
               <span class="ds-name">{ds.name}</span>
               <span class={["ds-adapter", "ds-adapter-" <> ds.adapter]}>{ds.adapter}</span>
-              <span :if={ds.deleted_at} class="ds-deleted-badge">deleted · credential destroyed</span>
+              <span :if={ds.deleted_at} class="ds-deleted-badge">deleted · password destroyed</span>
             </div>
             <div class="ds-row-meta">
-              <span class="ds-conn">{conn_label(ds)}</span>
+              <span class="ds-conn">{ds.url_template}</span>
               <span class="ds-dot">·</span>
               <span>connected by {(ds.created_by && ds.created_by.username) || "unknown"}</span>
               <span class="ds-dot">·</span>
@@ -132,14 +134,6 @@ defmodule AvelineWeb.DataSourcesLive do
       <% end %>
     </div>
     """
-  end
-
-  defp conn_label(%{url: nil}), do: "credential removed"
-
-  defp conn_label(ds) do
-    uri = URI.parse(ds.url)
-    db = uri.path && String.trim_leading(uri.path, "/")
-    [uri.host, db] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" / ")
   end
 
   defp total_charts(docs), do: docs |> Enum.map(& &1.charts) |> Enum.sum()

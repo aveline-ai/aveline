@@ -1,12 +1,15 @@
 defmodule Aveline.DataSources.DataSource do
   @moduledoc """
-  An external database this workspace can chart from. The connection
-  URL is encrypted at rest (see `Aveline.Vault`) and write-only through
-  the API: reads echo name/adapter/host/database, never the credential.
+  An external database this workspace can chart from. Ordinary house
+  versioning: edits mint new versions on the base id; chart blocks pin
+  the base id and resolve the current version at read, so renames and
+  credential rotations never break a doc.
 
-  House versioning model: base id + version_number + superseded
-  (mechanism) + deleted_at/by (intent). Live = NOT superseded AND
-  deleted_at IS NULL.
+  The connection value splits along the secrecy boundary:
+  `url_template` (the full string with a literal `<password>`
+  placeholder — no secret, plain, rendered verbatim everywhere) and
+  `password` (encrypted at rest, write-only, scrubbed the moment a row
+  stops being live — see the migration for the whole story).
   """
   use Aveline.Schema
   import Ecto.Changeset
@@ -16,13 +19,15 @@ defmodule Aveline.DataSources.DataSource do
   alias Aveline.Workspaces.Workspace
 
   @adapters ~w(postgres mysql)
+  @placeholder "<password>"
 
   schema "data_sources" do
     field :base_data_source_id, :binary_id
     field :version_number, :integer, default: 1
     field :name, :string
     field :adapter, :string
-    field :url, Aveline.Encrypted.Binary, source: :url_encrypted
+    field :url_template, :string
+    field :password, Aveline.Encrypted.Binary, source: :password_encrypted
     field :superseded, :boolean, default: false
     field :deleted_at, :utc_datetime_usec
 
@@ -34,8 +39,9 @@ defmodule Aveline.DataSources.DataSource do
   end
 
   def adapters, do: @adapters
+  def placeholder, do: @placeholder
 
-  def create_changeset(ds, attrs) do
+  def insert_changeset(ds, attrs) do
     ds
     |> cast(attrs, [
       :workspace_id,
@@ -43,10 +49,11 @@ defmodule Aveline.DataSources.DataSource do
       :version_number,
       :name,
       :adapter,
-      :url,
+      :url_template,
+      :password,
       :created_by_id
     ])
-    |> validate_required([:workspace_id, :base_data_source_id, :name, :adapter, :url])
+    |> validate_required([:workspace_id, :base_data_source_id, :name, :adapter, :url_template])
     |> update_change(:name, fn n -> if is_binary(n), do: n |> String.trim() |> String.downcase(), else: n end)
     |> validate_name()
     |> validate_inclusion(:adapter, @adapters,

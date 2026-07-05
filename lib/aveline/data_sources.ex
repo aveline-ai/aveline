@@ -2,16 +2,32 @@ defmodule Aveline.DataSources do
   @moduledoc """
   External databases a workspace charts from (see `DataSource`).
 
-  The adapter is derived from the URL scheme at create time
-  (postgres:// or mysql://) — one fewer thing to pass, impossible to
-  contradict. `safe_map/1` is the ONLY shape that leaves this module
-  for read surfaces: name, adapter, host, database. The URL never does.
+  Input is two values: a connection-string TEMPLATE carrying a literal
+  `<password>` placeholder (exactly once — validated), and the password
+  itself. The template is public within the workspace and rendered
+  verbatim on every read surface; the password is encrypted at rest,
+  write-only (no read path exists, by design), and scrubbed the moment
+  its row stops being live.
+
+  Editing rules:
+    * changing the template requires re-supplying the password — a
+      stored secret may never be combined with connection parameters it
+      wasn't written with (closes the classic edit-the-host-and-beacon
+      exfiltration)
+    * password-only rotation is allowed alone: new secret, unchanged
+      destination, nothing to exfiltrate
+    * rename alone is fine: it doesn't touch dialing
+
+  `dial_url/1` substitutes the URL-encoded password into the template
+  at query time, in memory only.
   """
 
   import Ecto.Query, warn: false
 
   alias Aveline.DataSources.DataSource
   alias Aveline.Repo
+
+  @placeholder DataSource.placeholder()
 
   defp base_query do
     from ds in DataSource, where: not ds.superseded and is_nil(ds.deleted_at)
@@ -23,9 +39,9 @@ defmodule Aveline.DataSources do
   end
 
   @doc """
-  Live AND soft-deleted current versions — the audit view. A deleted
-  source still holds its encrypted credential (that's what makes
-  restore work), so the page humans audit must show it.
+  Live AND soft-deleted current versions — the audit view. Deleted rows
+  keep their template (it holds no secret) so the page can still say
+  what they pointed at; their password was destroyed at delete time.
   """
   def list_all_for_workspace(workspace_id) do
     from(ds in DataSource,
@@ -56,16 +72,18 @@ defmodule Aveline.DataSources do
     |> Repo.one()
   end
 
-  def create(workspace_id, name, url, created_by_id) do
-    case adapter_from_url(url) do
+  def create(workspace_id, name, template, password, created_by_id)
+      when is_binary(password) do
+    case validate_template(template) do
       {:ok, adapter} ->
         %DataSource{}
-        |> DataSource.create_changeset(%{
+        |> DataSource.insert_changeset(%{
           workspace_id: workspace_id,
           base_data_source_id: Ecto.UUID.generate(),
           name: name,
           adapter: adapter,
-          url: url,
+          url_template: template,
+          password: password,
           created_by_id: created_by_id
         })
         |> Repo.insert()
@@ -75,51 +93,146 @@ defmodule Aveline.DataSources do
     end
   end
 
+  def create(_ws, _name, _template, _password, _user),
+    do: {:error, :invalid_data_source_url, "password is required (pass \"\" for passwordless databases)"}
+
   @doc """
-  Soft-deletes the row, HARD-deletes the credential: the same update
-  nulls the encrypted URL (constraint-enforced pairing). The audit
-  trail keeps name/adapter/who/when; the secret is gone for good.
-  There is no restore — connect a new source instead.
+  Versioned edit. `changes` may carry `:name`, `:url` (template), and
+  `:password`. Template changes REQUIRE `:password` (see moduledoc);
+  password or name changes are fine alone. Mints v+1 on the same base
+  id and scrubs the superseded row's secret in the same transaction.
+  """
+  def edit(%DataSource{} = current, changes, user_id) when is_map(changes) do
+    template = Map.get(changes, :url, current.url_template)
+    template_changed? = template != current.url_template
+
+    cond do
+      template_changed? and not is_binary(Map.get(changes, :password)) ->
+        {:error, :password_required,
+         "changing the connection template requires supplying the password with it — a stored secret is never combined with connection settings it wasn't written with"}
+
+      true ->
+        with {:ok, adapter} <- validate_template_or_invalid(template) do
+          insert_next_version(current, %{
+            name: Map.get(changes, :name, current.name),
+            adapter: adapter,
+            url_template: template,
+            password: Map.get(changes, :password, current.password)
+          }, user_id)
+        end
+    end
+  end
+
+  defp insert_next_version(current, attrs, user_id) do
+    Repo.transaction(fn ->
+      # Supersede AND scrub the old row's secret first — the partial
+      # unique on base id demands supersede-before-insert, the CHECK
+      # demands the scrub ride along.
+      {1, _} =
+        from(ds in DataSource, where: ds.id == ^current.id)
+        |> Repo.update_all(set: [superseded: true, password: nil])
+
+      insert =
+        %DataSource{}
+        |> DataSource.insert_changeset(%{
+          workspace_id: current.workspace_id,
+          base_data_source_id: current.base_data_source_id,
+          version_number: current.version_number + 1,
+          name: attrs.name,
+          adapter: attrs.adapter,
+          url_template: attrs.url_template,
+          password: attrs.password,
+          created_by_id: user_id
+        })
+        |> Repo.insert()
+
+      case insert do
+        {:ok, ds} -> ds
+        {:error, cs} -> Repo.rollback(cs)
+      end
+    end)
+  end
+
+  @doc """
+  Soft-deletes the row, HARD-deletes the secret in the same update
+  (constraint-enforced pairing). The template stays for audit; the
+  password is gone for good. No restore — connect a new source.
   """
   def delete(%DataSource{} = ds, user_id) do
     ds
     |> Ecto.Changeset.change(
       deleted_at: DateTime.utc_now(),
       deleted_by_id: user_id,
-      url: nil
+      password: nil
     )
     |> Repo.update()
   end
 
-  @doc "The one shape read surfaces may see. Never the URL."
+  @doc """
+  The one shape read surfaces may see. `url` is the TEMPLATE — the
+  `<password>` placeholder renders as its own mask; the secret never
+  appears anywhere.
+  """
   def safe_map(%DataSource{} = ds) do
-    uri = if ds.url, do: URI.parse(ds.url), else: %URI{}
-
     %{
       "name" => ds.name,
       "adapter" => ds.adapter,
-      "host" => uri.host,
-      "database" => uri.path && String.trim_leading(uri.path, "/"),
+      "url" => ds.url_template,
+      "version_number" => ds.version_number,
+      "credential" => if(ds.password, do: "live", else: "redacted"),
       "deleted" => not is_nil(ds.deleted_at),
       "created_at" => DateTime.to_iso8601(ds.inserted_at)
     }
   end
 
-  defp adapter_from_url(url) when is_binary(url) do
-    case URI.parse(url) do
-      %URI{scheme: s, host: h} when s in ["postgres", "postgresql"] and is_binary(h) ->
-        {:ok, "postgres"}
+  @doc """
+  The real connection URL — password URL-encoded and substituted into
+  the template. Exists in memory for the duration of a query run and
+  nowhere else. Only live rows have a password (constraint), so this is
+  only called on them.
+  """
+  def dial_url(%DataSource{url_template: template, password: password})
+      when is_binary(password) do
+    String.replace(template, @placeholder, URI.encode_www_form(password))
+  end
 
-      %URI{scheme: "mysql", host: h} when is_binary(h) ->
-        {:ok, "mysql"}
+  # ===== template validation =====
 
-      %URI{scheme: nil} ->
-        {:error, "url must include a scheme: postgres://... or mysql://..."}
-
-      %URI{scheme: s} ->
-        {:error, "unsupported scheme #{inspect(s)}; expected postgres:// or mysql://"}
+  defp validate_template_or_invalid(template) do
+    case validate_template(template) do
+      {:ok, adapter} -> {:ok, adapter}
+      {:error, msg} -> {:error, :invalid_data_source_url, msg}
     end
   end
 
-  defp adapter_from_url(_), do: {:error, "url must be a string"}
+  defp validate_template(template) when is_binary(template) do
+    placeholder_count =
+      template |> String.split(@placeholder) |> length() |> Kernel.-(1)
+
+    cond do
+      placeholder_count != 1 ->
+        {:error,
+         "template must contain the literal #{@placeholder} placeholder exactly once (the real password is passed separately and stored encrypted)"}
+
+      true ->
+        case URI.parse(template) do
+          %URI{scheme: s, host: h} when s in ["postgres", "postgresql"] and is_binary(h) and h != "" ->
+            {:ok, "postgres"}
+
+          %URI{scheme: "mysql", host: h} when is_binary(h) and h != "" ->
+            {:ok, "mysql"}
+
+          %URI{scheme: nil} ->
+            {:error, "template must include a scheme: postgres://... or mysql://..."}
+
+          %URI{scheme: s} when s in ["postgres", "postgresql", "mysql"] ->
+            {:error, "template must include a host"}
+
+          %URI{scheme: s} ->
+            {:error, "unsupported scheme #{inspect(s)}; expected postgres:// or mysql://"}
+        end
+    end
+  end
+
+  defp validate_template(_), do: {:error, "template must be a string"}
 end
