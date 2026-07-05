@@ -3,7 +3,13 @@
 
 import Config
 
+# Data source secrets must never reach logs or error reports: filter the
+# create/edit params (password is Phoenix's default; url carries the
+# template which is safe, but filter it anyway — defense in depth).
+config :phoenix, :filter_parameters, ["password", "url", "token", "secret"]
+
 config :aveline,
+  env: config_env(),
   ecto_repos: [Aveline.Repo],
   generators: [timestamp_type: :utc_datetime_usec, binary_id: true],
   landing_page_url: "https://aveline.ai"

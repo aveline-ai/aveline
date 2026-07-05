@@ -375,11 +375,39 @@ defmodule Aveline.Docs do
     |> enrich_doc_links(workspace_id)
     |> Enum.map(fn
       %{"type" => "board"} = b -> Map.put(b, "view", board_view(b, workspace_id))
+      %{"type" => "chart"} = b -> Map.merge(b, chart_echo(b, workspace_id))
       b -> b
     end)
   end
 
   def enrich_blocks(blocks, _workspace_id), do: blocks
+
+  # Runs the chart's query (through the 60s cache) and echoes the
+  # outcome. A doc read never fails because a data source is down,
+  # deleted, or the SQL is wrong — those are all states on the block.
+  defp chart_echo(%{"data_source_id" => base_id, "query" => query}, workspace_id) do
+    case Aveline.DataSources.get_latest_by_base(base_id) do
+      %{workspace_id: ^workspace_id, deleted_at: nil} = ds ->
+        source = Aveline.DataSources.safe_map(ds)
+
+        case Aveline.DataSources.Cache.run(ds, query) do
+          {:ok, result} -> %{"source" => source, "result" => result}
+          {:error, msg} -> %{"source" => source, "result" => %{"error" => msg}}
+        end
+
+      %{workspace_id: ^workspace_id} = ds ->
+        %{
+          "source" => Aveline.DataSources.safe_map(ds),
+          "result" =>
+            %{"error" => "data source was deleted (credential destroyed); connect a new one and update this block"}
+        }
+
+      _ ->
+        %{"result" => %{"error" => "data source not found"}}
+    end
+  end
+
+  defp chart_echo(_block, _ws), do: %{"result" => %{"error" => "invalid chart block"}}
 
   defp board_view(%{"tags" => filter, "by" => scope}, workspace_id) do
     columns = Tags.list_scope_members(workspace_id, scope)
@@ -620,6 +648,11 @@ defmodule Aveline.Docs do
     end
   end
 
+  # Chart blocks may arrive with `source` (a data source name) instead
+  # of `data_source_id`; resolve and verify like doc_link targets.
+  defp resolve_block_target(%{"type" => "chart"} = block, ws_id),
+    do: resolve_chart_source(block, ws_id)
+
   defp resolve_block_target(%{"type" => t} = block, _ws_id)
        when is_binary(t) and t != "doc_link",
        do: {:ok, block}
@@ -648,7 +681,50 @@ defmodule Aveline.Docs do
     end
   end
 
+  # Typeless modify_block patches: `source`/`data_source_id` are chart
+  # keys (doc_link patches use `doc`/`doc_id` and match above).
+  defp resolve_block_target(%{"source" => name} = patch, ws_id) when is_binary(name),
+    do: resolve_chart_source(patch, ws_id)
+
+  defp resolve_block_target(%{"data_source_id" => id} = patch, ws_id) when is_binary(id),
+    do: resolve_chart_source(patch, ws_id)
+
   defp resolve_block_target(block, _ws_id), do: {:ok, block}
+
+  defp resolve_chart_source(block, ws_id) do
+    cond do
+      is_binary(block["source"]) ->
+        case Aveline.DataSources.get_current_by_name(ws_id, block["source"]) do
+          nil ->
+            {:error, :data_source_not_found,
+             "data source not found in this workspace: #{block["source"]}"}
+
+          ds ->
+            {:ok,
+             block |> Map.delete("source") |> Map.put("data_source_id", ds.base_data_source_id)}
+        end
+
+      is_binary(block["data_source_id"]) ->
+        case Ecto.UUID.cast(block["data_source_id"]) do
+          # Not UUID-shaped: let Block.validate reject with the schema error.
+          :error ->
+            {:ok, block}
+
+          {:ok, _} ->
+            case Aveline.DataSources.get_current_by_base(block["data_source_id"]) do
+              %{workspace_id: ^ws_id} ->
+                {:ok, block}
+
+              _ ->
+                {:error, :data_source_not_found,
+                 "data source not found in this workspace: #{block["data_source_id"]}"}
+            end
+        end
+
+      true ->
+        {:ok, block}
+    end
+  end
 
   defp resolve_span_links(%{} = block, ws_id) do
     walk_spans(block, fn

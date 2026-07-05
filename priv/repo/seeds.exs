@@ -857,6 +857,67 @@ end
 # ===== Summary =====
 
 IO.puts("")
+# ===== Data source + charts dashboard =====
+# The dev DB charts itself: the seeded data source points back at
+# aveline_dev, so the dashboard doc renders live numbers about the
+# seed data with zero external setup.
+
+self_template =
+  "postgres://#{System.get_env("PGUSER") || "postgres"}:<password>@#{System.get_env("PGHOST") || "localhost"}/#{System.get_env("PGDATABASE") || "aveline_dev"}"
+
+self_password = System.get_env("PGPASSWORD") || "postgres"
+
+if is_nil(Aveline.DataSources.get_current_by_name(workspace.id, "aveline-self")) do
+  {:ok, _ds} =
+    Aveline.DataSources.create(workspace.id, "aveline-self", self_template, self_password, alice.id)
+end
+
+chart = fn query, viz ->
+  %{"type" => "chart", "source" => "aveline-self", "query" => query, "viz" => viz}
+end
+
+if is_nil(Docs.get_current_by_slug(workspace.id, "metrics-dashboard")) do
+  {:ok, _dash} =
+    Docs.create_doc(%{
+      workspace_id: workspace.id,
+      owner_id: alice.id,
+      actor_user_id: alice.id,
+      actor_type: "agent",
+      slug: "metrics-dashboard",
+      title: "Metrics dashboard",
+      summary: "Live charts over this very database: docs per day, versions by actor, comment volume.",
+      tags: ["product"],
+      intent: "seed a chart-block showcase against the dev DB itself",
+      blocks: [
+        para.([
+          t.("Every chart below runs a live read-only query against this workspace's own database through the "),
+          b.("aveline-self", ["code"]),
+          t.(" data source. Edit the SQL with ordinary apply-ops.")
+        ]),
+        heading.(2, "Doc versions per day"),
+        chart.(
+          "SELECT inserted_at::date AS day, count(*) AS versions FROM docs GROUP BY 1 ORDER BY 1",
+          %{"type" => "line", "x" => "day", "y" => "versions"}
+        ),
+        heading.(2, "Versions by actor type"),
+        chart.(
+          "SELECT actor_type, count(*) AS versions FROM docs GROUP BY 1 ORDER BY 2 DESC",
+          %{"type" => "bar", "x" => "actor_type", "y" => "versions"}
+        ),
+        heading.(2, "Most-versioned docs (table)"),
+        chart.(
+          "SELECT title, max(version_number) AS versions FROM docs WHERE NOT superseded GROUP BY title ORDER BY 2 DESC LIMIT 5",
+          %{"type" => "table"}
+        ),
+        heading.(2, "A broken query (error state showcase)"),
+        chart.(
+          "SELECT nope FROM does_not_exist",
+          %{"type" => "table"}
+        )
+      ]
+    })
+end
+
 IO.puts("=== Local seed complete ===")
 IO.puts("Workspace: #{workspace.slug} (Local Pod)")
 IO.puts("")

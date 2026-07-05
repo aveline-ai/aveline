@@ -85,6 +85,17 @@
           <span class="label">Usage</span>
         </.link>
         <.link
+          navigate={~p"/w/#{@workspace.slug}/data-sources"}
+          class={"sidebar-item " <> if assigns[:nav_active] == :data_sources, do: "active", else: ""}
+        >
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/>
+            <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
+            <path d="M3 12a9 3 0 0 0 18 0"/>
+          </svg>
+          <span class="label">Data sources</span>
+        </.link>
+        <.link
           navigate={~p"/w/#{@workspace.slug}/team"}
           class={"sidebar-item " <> if assigns[:nav_active] == :team, do: "active", else: ""}
         >

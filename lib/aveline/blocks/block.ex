@@ -22,6 +22,14 @@ defmodule Aveline.Blocks.Block do
       chains doc_links is a story/trail. The API also accepts `doc` (a
       slug); the Docs context resolves it to `doc_id` before validation
       reaches here, and verifies the target exists in the workspace.
+    * `chart`     — `%{type, data_source_id: uuid, query: sql, viz}` — a
+      live query against a workspace data source. `viz` is
+      `%{"type" => "table" | "line" | "bar", "x" => col?, "y" => col?}`
+      (x/y required for line/bar). The API also accepts `source` (a
+      data source name); the Docs context resolves it to the source's
+      base id and verifies it exists in the workspace. Reads gain a
+      computed `result` (columns/rows or error) — never persisted.
+
   Docs can also be linked inline: any span (paragraph, list item, table
   cell, doc_link note) may carry `link: %{doc_id}` — same write-time
   resolution and read-time target echo as the doc_link block, but as a
@@ -34,7 +42,7 @@ defmodule Aveline.Blocks.Block do
   alias Aveline.Blocks.Id
   alias Aveline.Blocks.Inline
 
-  @types ~w(heading paragraph code list table doc_link board)
+  @types ~w(heading paragraph code list table doc_link board chart)
 
   @uuid_re ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -234,6 +242,52 @@ defmodule Aveline.Blocks.Block do
 
   defp validate_type_fields("doc_link", _) do
     {:error, "doc_link requires doc_id (target base_doc_id) or doc (target slug, resolved server-side)"}
+  end
+
+  # chart — a live SQL query against a workspace data source. The
+  # computed `result` / `source` echoes are not fields here, so pasted
+  # echoes are stripped on rewrite.
+  defp validate_type_fields("chart", %{"data_source_id" => ds_id, "query" => query} = block)
+       when is_binary(ds_id) and is_binary(query) do
+    viz = Map.get(block, "viz", %{"type" => "table"})
+
+    cond do
+      not Regex.match?(@uuid_re, ds_id) ->
+        {:error,
+         "chart.data_source_id must be a UUID (the source's base id); or pass source: <name> and the server resolves it"}
+
+      String.trim(query) == "" ->
+        {:error, "chart.query cannot be blank"}
+
+      String.length(query) > 10_000 ->
+        {:error, "chart.query too long (10k max)"}
+
+      not is_map(viz) or viz["type"] not in ["table", "line", "bar"] ->
+        {:error, "chart.viz.type must be \"table\", \"line\", or \"bar\""}
+
+      viz["type"] in ["line", "bar"] and
+          not (is_binary(viz["x"]) and viz["x"] != "" and is_binary(viz["y"]) and viz["y"] != "") ->
+        {:error, "chart.viz needs x and y (column names) for line/bar"}
+
+      true ->
+        clean_viz =
+          case viz["type"] do
+            "table" -> %{"type" => "table"}
+            t -> %{"type" => t, "x" => viz["x"], "y" => viz["y"]}
+          end
+
+        {:ok,
+         %{
+           "data_source_id" => String.downcase(ds_id),
+           "query" => query,
+           "viz" => clean_viz
+         }}
+    end
+  end
+
+  defp validate_type_fields("chart", _) do
+    {:error,
+     "chart requires data_source_id (source base id, or source: <name> resolved server-side), query (SQL), and optional viz"}
   end
 
   # board — the computed `view` (read-time echo) is not a field here, so

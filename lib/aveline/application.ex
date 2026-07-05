@@ -14,7 +14,9 @@ defmodule Aveline.Application do
     children = [
       {Task.Supervisor, name: Aveline.TaskSupervisor},
       AvelineWeb.Telemetry,
+      Aveline.Vault,
       Aveline.Repo,
+      Aveline.DataSources.Cache,
       {Oban, Application.fetch_env!(:aveline, Oban)},
       {DNSCluster, query: Application.get_env(:aveline, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Aveline.PubSub},
