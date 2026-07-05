@@ -303,6 +303,43 @@ defmodule Aveline.DataSourcesTest do
       assert msg =~ "read-only"
     end
 
+    test "unreachable hosts are error states, not raises (the prod regression)" do
+      %{user: user, ws: ws} = setup_ws()
+
+      # Closed port: connection refused fast.
+      {:ok, refused} =
+        DataSources.create(ws.id, "refused", "postgres://u:<password>@localhost:1/db", "x", user.id)
+
+      assert {:error, msg} = Runner.run(refused, "select 1")
+      assert msg =~ "connection failed" or msg =~ "timed out"
+
+      # Nonexistent domain: nxdomain (what happened in prod).
+      {:ok, ghost} =
+        DataSources.create(
+          ws.id,
+          "ghost",
+          "postgres://u:<password>@does-not-exist.invalid:5432/db",
+          "x",
+          user.id
+        )
+
+      {:ok, doc} =
+        Docs.create_doc(%{
+          workspace_id: ws.id,
+          owner_id: user.id,
+          actor_user_id: user.id,
+          actor_type: "agent",
+          title: "Dead host dash",
+          blocks: [%{"type" => "chart", "source" => "ghost", "query" => "select 1"}],
+          intent: "test"
+        })
+
+      # The whole point: enrichment survives, doc renders, error on the block.
+      assert [%{"result" => %{"error" => msg2}}] = Docs.enrich_blocks(doc.blocks, ws.id)
+      assert msg2 =~ "connection failed" or msg2 =~ "timed out"
+      assert ghost.adapter == "postgres"
+    end
+
     test "bad SQL and deleted sources are error states, not raises" do
       %{user: user, ws: ws} = setup_ws()
       ds = create_self!(ws, user)

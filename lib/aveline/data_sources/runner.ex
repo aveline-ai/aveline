@@ -22,13 +22,30 @@ defmodule Aveline.DataSources.Runner do
 
   def row_cap, do: @row_cap
 
+  # Hard ceiling on one run: connect + query + margin.
+  @task_timeout_ms 12_000
+
   def run(%{adapter: adapter, password: password} = ds, sql) when is_binary(password) do
     url = Aveline.DataSources.dial_url(ds)
 
-    case adapter do
-      "postgres" -> run_postgres(url, sql)
-      "mysql" -> run_mysql(url, sql)
-      _ -> {:error, "unsupported adapter"}
+    # The drivers LINK the connection process to its starter, and a
+    # failed connect (backoff_type: :stop) kills it — so the dial runs
+    # in an unlinked supervised task, where a dying connection can only
+    # take down the task, never the doc-read process. The task result
+    # is already an {:ok, _} | {:error, _} tuple.
+    task =
+      Task.Supervisor.async_nolink(Aveline.TaskSupervisor, fn ->
+        case adapter do
+          "postgres" -> run_postgres(url, sql)
+          "mysql" -> run_mysql(url, sql)
+          _ -> {:error, "unsupported adapter"}
+        end
+      end)
+
+    case Task.yield(task, @task_timeout_ms) || Task.shutdown(task, :brutal_kill) do
+      {:ok, result} -> result
+      {:exit, _reason} -> {:error, "connection failed or was refused"}
+      nil -> {:error, "timed out connecting or querying"}
     end
   end
 
@@ -71,7 +88,7 @@ defmodule Aveline.DataSources.Runner do
         catch
           :exit, _ -> {:error, "connection failed or timed out"}
         after
-          GenServer.stop(pid, :normal, 1_000)
+          safe_stop(pid)
         end
 
       {:error, reason} ->
@@ -114,12 +131,21 @@ defmodule Aveline.DataSources.Runner do
         catch
           :exit, _ -> {:error, "connection failed or timed out"}
         after
-          GenServer.stop(pid, :normal, 1_000)
+          safe_stop(pid)
         end
 
       {:error, reason} ->
         {:error, "connection failed: #{inspect(reason)}"}
     end
+  end
+
+  # The connection process may already be dead (backoff_type: :stop
+  # kills it on connect failure) — stopping a dead pid exits, and an
+  # exit from an `after` block escapes the surrounding catch. Swallow it.
+  defp safe_stop(pid) do
+    GenServer.stop(pid, :normal, 1_000)
+  catch
+    :exit, _ -> :ok
   end
 
   # ===== shared =====
