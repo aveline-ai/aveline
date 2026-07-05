@@ -982,9 +982,11 @@
          set here, standing in for the page-subtitle other pages have. */
       .home-title { margin-bottom: 44px; }
 
+      /* Lives inside the pinned story-grid as a full-width lead row. */
       .orientation-card {
+        grid-column: 1 / -1;
         display: flex; align-items: center; gap: 14px;
-        margin-top: 4px; padding: 16px 18px;
+        padding: 16px 18px;
         background: linear-gradient(135deg, rgba(59,130,246,0.16), rgba(139,92,246,0.08) 60%, rgba(59,130,246,0.04));
         border: 1px solid rgba(59,130,246,0.28);
         border-radius: 12px;
@@ -996,14 +998,6 @@
         transform: translateY(-1px);
         box-shadow: 0 8px 24px rgba(59,130,246,0.10);
       }
-      .orientation-icon {
-        flex: none; width: 34px; height: 34px; border-radius: 9px;
-        display: inline-flex; align-items: center; justify-content: center;
-        color: var(--accent);
-        background: rgba(59,130,246,0.14);
-        border: 1px solid rgba(59,130,246,0.25);
-      }
-      .orientation-icon svg { width: 17px; height: 17px; }
       .orientation-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
       .orientation-title { font-size: 14.5px; font-weight: 600; color: var(--text); }
       .orientation-summary { font-size: 12.5px; color: var(--text-secondary); }
@@ -1014,6 +1008,8 @@
       }
 
       .shelf { margin-top: 34px; }
+      /* Whichever shelf renders first sits flush under the title. */
+      .home-content .shelf:first-of-type { margin-top: 0; }
       .shelf-head {
         display: flex; align-items: center; gap: 8px;
         margin-bottom: 12px;
@@ -1171,41 +1167,42 @@
       }
 
 
-      /* Home tag glossary — the workspace's layout at a glance: one
-         compact line per tag, chip + description. */
+      /* Home tag glossary — the whole vocabulary as one wrapping chip
+         cloud; the line below starts as a hint and becomes the clicked
+         tag's description. Explains tags — does not navigate. */
       .tag-glossary {
-        display: flex; flex-direction: column; gap: 2px;
-        max-width: 720px;
+        display: flex; flex-direction: column; gap: 10px;
       }
-      /* Two aligned columns: chips left, descriptions start at one x
-         position and wrap within their own column. */
-      .tag-glossary-row {
-        display: grid;
-        grid-template-columns: 170px 1fr;
-        gap: 2px 14px;
-        align-items: baseline;
-        min-width: 0; padding: 4px 6px;
-        border-radius: 6px;
-        text-decoration: none;
+      .tag-cloud {
+        display: flex; flex-wrap: wrap; gap: 6px;
+        align-items: center;
+      }
+      /* Chips are buttons (click = reveal description below), not
+         links — reset button chrome, keep the chip look. */
+      .tag-cloud button.chip {
+        font: inherit; cursor: pointer;
+        border-style: solid;
+      }
+      .tag-cloud button.chip:hover { filter: brightness(1.25); }
+      .tag-cloud .chip-open {
+        outline: 1px solid var(--tag, var(--text-muted));
+        outline-offset: 1px;
+      }
+      /* Reserve two lines so swapping hint ↔ description never shifts
+         the page. */
+      .tag-info {
         font-size: 12px; line-height: 1.6;
-        transition: background 0.08s ease;
+        min-height: calc(2 * 1.6em);
       }
-      .tag-glossary-row:hover { background: rgba(255,255,255,0.03); }
-      .tag-glossary-row .chip { justify-self: start; }
-      .tag-glossary-desc { color: var(--text-muted); }
-      .tag-glossary-row:hover .tag-glossary-desc { color: var(--text-secondary); }
+      .tag-info-desc { color: var(--text-secondary); }
+      .tag-info-hint { color: var(--text-muted); font-style: italic; }
 
       /* Home on phones: the card is fully tappable so the CTA label is
-         redundant; glossary columns collapse to chip-over-description. */
+         redundant. */
       @media (max-width: 720px) {
         .home-title { margin-bottom: 28px; }
         .orientation-card { padding: 14px 16px; gap: 12px; }
         .orientation-cta { display: none; }
-        .tag-glossary-row {
-          grid-template-columns: 1fr;
-          gap: 3px;
-          padding: 8px 6px;
-        }
         .recent-title {
           flex: 0 1 auto;
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
