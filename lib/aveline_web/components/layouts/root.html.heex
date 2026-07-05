@@ -993,6 +993,11 @@
         color: var(--text); background: rgba(255,255,255,0.06);
       }
       .blocks .chart-plot svg { max-width: 100%; height: auto; }
+      /* Contex ships with default_style OFF (its embedded <style> is
+         document-global and paints every icon black) — these scoped
+         rules are the replacement defaults. */
+      .blocks .chart-plot text { fill: var(--text-muted); }
+      .blocks .chart-plot line { stroke: var(--border); }
       .blocks .chart-plot .exc-tick text { fill: var(--text-muted); font-size: 10px; }
       .blocks .chart-plot .exc-tick line { stroke: var(--border); }
       .blocks .chart-plot .exc-grid { stroke: var(--border); stroke-dasharray: 2 2; }

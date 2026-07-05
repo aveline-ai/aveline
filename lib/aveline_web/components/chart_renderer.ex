@@ -73,6 +73,12 @@ defmodule AvelineWeb.ChartRenderer do
       data
       |> Dataset.new([x_name, y_name])
       |> Plot.new(module, @width, @height, mapping: Map.new(mapping))
+      # default_style: false — Contex otherwise embeds a <style> block
+      # (text{fill:black} line{stroke:black}) whose rules are DOCUMENT
+      # global, blacking out every inline SVG icon on the page. Plot.new
+      # ignores the option in attrs, so set the struct field directly.
+      # Our scoped .chart-plot CSS carries the styling instead.
+      |> struct!(default_style: false)
       |> Plot.to_svg()
 
     {:ok, svg}
