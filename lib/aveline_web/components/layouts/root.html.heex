@@ -1010,6 +1010,13 @@
       .shelf { margin-top: 34px; }
       /* Whichever shelf renders first sits flush under the title. */
       .home-content .shelf:first-of-type { margin-top: 0; }
+      /* Quiet footer link under a shelf's list ("View all … →"). */
+      .shelf-more {
+        display: inline-block; margin-top: 8px; padding: 2px 4px;
+        font-size: 12px; font-weight: 500;
+        color: var(--text-muted); text-decoration: none;
+      }
+      .shelf-more:hover { color: var(--accent); }
       .shelf-head {
         display: flex; align-items: center; gap: 8px;
         margin-bottom: 12px;

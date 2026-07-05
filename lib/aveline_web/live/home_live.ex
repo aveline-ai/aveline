@@ -190,6 +190,9 @@ defmodule AvelineWeb.HomeLive do
             <span class="recent-time">{relative_time(d.updated_at)}</span>
           </.link>
         </div>
+        <.link navigate={~p"/w/#{@workspace.slug}/activity"} class="shelf-more">
+          View all activity →
+        </.link>
       </section>
 
       <section :if={@tag_stats != []} class="shelf">
