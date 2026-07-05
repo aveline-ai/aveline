@@ -84,12 +84,16 @@ defmodule Aveline.Comments do
   block) the thread anchors to.
   """
   def list_open_threads_for_owner(workspace_id, owner_id, limit \\ 5) do
+    # A comment pins the doc-version it was made on, which may be
+    # superseded by later edits — so liveness is judged on the base's
+    # CURRENT version (joined via the pin), and that's also the row
+    # returned, so links land on the doc as it is now.
     from(c in base_query(),
+      join: pinned in Doc,
+      on: pinned.id == c.doc_id,
       join: d in Doc,
-      on: d.id == c.doc_id,
-      where:
-        d.workspace_id == ^workspace_id and d.owner_id == ^owner_id and
-          is_nil(d.deleted_at),
+      on: d.base_doc_id == pinned.base_doc_id and not d.superseded and is_nil(d.deleted_at),
+      where: d.workspace_id == ^workspace_id and d.owner_id == ^owner_id,
       where: is_nil(c.parent_comment_id) and is_nil(c.resolved_at),
       order_by: [desc: c.inserted_at],
       limit: ^limit,

@@ -44,7 +44,7 @@ defmodule Aveline.Kudos do
   defp log_kudos_event(workspace_id, base_doc_id, user_id, result) do
     doc =
       from(d in Doc,
-        where: d.base_doc_id == ^base_doc_id and is_nil(d.deleted_at),
+        where: d.base_doc_id == ^base_doc_id and not d.superseded and is_nil(d.deleted_at),
         limit: 1
       )
       |> Repo.one()

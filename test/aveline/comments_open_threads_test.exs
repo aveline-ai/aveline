@@ -62,4 +62,45 @@ defmodule Aveline.CommentsOpenThreadsTest do
 
     assert bodies == ["still open"]
   end
+
+  test "threads pinned to superseded versions still show, on the current version", %{
+    owner: owner,
+    other: other,
+    ws: ws
+  } do
+    mine = Fixtures.doc_fixture(ws, owner, title: "Mine")
+    comment!(mine, other, "open on v1")
+
+    ops = [
+      %{"op" => "append_block", "block" => %{"type" => "paragraph", "content" => [%{"text" => "v2"}]}}
+    ]
+
+    {:ok, v2} =
+      Aveline.Docs.apply_ops(mine, ops, %{actor_user_id: owner.id, actor_type: "agent"}, dispositions: [])
+
+    assert [{c, d}] = Comments.list_open_threads_for_owner(ws.id, owner.id)
+    assert c.body == "open on v1"
+    assert d.id == v2.id
+  end
+
+  test "threads on deleted docs hide even when pinned to an older version", %{
+    owner: owner,
+    other: other,
+    ws: ws
+  } do
+    mine = Fixtures.doc_fixture(ws, owner, title: "Mine")
+    comment!(mine, other, "open on v1")
+
+    ops = [
+      %{"op" => "append_block", "block" => %{"type" => "paragraph", "content" => [%{"text" => "v2"}]}}
+    ]
+
+    {:ok, v2} =
+      Aveline.Docs.apply_ops(mine, ops, %{actor_user_id: owner.id, actor_type: "agent"}, dispositions: [])
+
+    {:ok, _} = Aveline.Docs.soft_delete(v2, owner.id)
+
+    assert Comments.list_open_threads_for_owner(ws.id, owner.id) == []
+  end
+
 end

@@ -63,4 +63,20 @@ defmodule Aveline.DocViewsRecentTest do
 
     assert DocViews.recent_for_user(ws.id, user.id, 3) == []
   end
+
+  test "an edited doc appears once, on its current version", %{user: user, ws: ws} do
+    doc = Fixtures.doc_fixture(ws, user, title: "Edited a lot")
+    view!(ws, doc, user, 10)
+
+    ops = [
+      %{"op" => "append_block", "block" => %{"type" => "paragraph", "content" => [%{"text" => "more"}]}}
+    ]
+
+    {:ok, v2} = Docs.apply_ops(doc, ops, %{actor_user_id: user.id, actor_type: "agent"}, dispositions: [])
+    {:ok, _v3} = Docs.apply_ops(v2, ops, %{actor_user_id: user.id, actor_type: "agent"}, dispositions: [])
+
+    assert [{d, _}] = DocViews.recent_for_user(ws.id, user.id, 5)
+    assert d.version_number == 3
+  end
+
 end

@@ -166,4 +166,28 @@ defmodule Aveline.TagVersioningTest do
       assert {:error, :not_user_deleted} = Docs.restore(doc.base_doc_id, user.id)
     end
   end
+
+  describe "list_with_stats/1" do
+    test "counts live docs only — superseded versions don't inflate tag counts", %{
+      user: user,
+      ws: ws
+    } do
+      doc = Fixtures.doc_fixture(ws, user, title: "Doc", tags: ["deploys"])
+
+      ops = [
+        %{"op" => "append_block", "block" => %{"type" => "paragraph", "content" => [%{"text" => "v2"}]}}
+      ]
+
+      {:ok, v2} =
+        Docs.apply_ops(doc, ops, %{actor_user_id: user.id, actor_type: "agent"}, dispositions: [])
+
+      {:ok, _v3} =
+        Docs.apply_ops(v2, ops, %{actor_user_id: user.id, actor_type: "agent"}, dispositions: [])
+
+      %{count: count} =
+        ws.id |> Tags.list_with_stats() |> Enum.find(&(&1.tag.slug == "deploys"))
+
+      assert count == 1
+    end
+  end
 end

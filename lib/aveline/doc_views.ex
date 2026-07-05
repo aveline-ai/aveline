@@ -54,7 +54,7 @@ defmodule Aveline.DocViews do
   defp log_view_event(workspace_id, base_doc_id, user_id, actor_type) do
     doc =
       from(d in Doc,
-        where: d.base_doc_id == ^base_doc_id and is_nil(d.deleted_at),
+        where: d.base_doc_id == ^base_doc_id and not d.superseded and is_nil(d.deleted_at),
         limit: 1
       )
       |> Repo.one()
@@ -108,7 +108,7 @@ defmodule Aveline.DocViews do
 
     from(l in subquery(latest),
       join: d in Doc,
-      on: d.base_doc_id == l.base_doc_id and is_nil(d.deleted_at),
+      on: d.base_doc_id == l.base_doc_id and not d.superseded and is_nil(d.deleted_at),
       where: d.workspace_id == ^workspace_id,
       order_by: [desc: l.last_viewed_at],
       limit: ^limit,

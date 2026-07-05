@@ -42,7 +42,7 @@ defmodule Aveline.Stats do
 
   defp count_active_docs(ws_id) do
     Repo.aggregate(
-      from(d in Doc, where: d.workspace_id == ^ws_id and is_nil(d.deleted_at)),
+      from(d in Doc, where: d.workspace_id == ^ws_id and not d.superseded and is_nil(d.deleted_at)),
       :count,
       :id
     )
@@ -104,7 +104,9 @@ defmodule Aveline.Stats do
 
   defp owned_base_doc_ids(ws_id, user_id) do
     from(d in Doc,
-      where: d.workspace_id == ^ws_id and d.owner_id == ^user_id and is_nil(d.deleted_at),
+      where:
+        d.workspace_id == ^ws_id and d.owner_id == ^user_id and not d.superseded and
+          is_nil(d.deleted_at),
       select: d.base_doc_id
     )
     |> Repo.all()

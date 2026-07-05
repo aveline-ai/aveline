@@ -74,7 +74,7 @@ defmodule Aveline.Tags do
 
     docs =
       from(d in Doc,
-        where: d.workspace_id == ^workspace_id and is_nil(d.deleted_at),
+        where: d.workspace_id == ^workspace_id and not d.superseded and is_nil(d.deleted_at),
         select: %{tags: d.tags, updated_at: d.updated_at}
       )
       |> Repo.all()
@@ -291,22 +291,6 @@ defmodule Aveline.Tags do
           err
       end
     end
-  end
-
-  @doc """
-  Count of (non-deleted) docs in this workspace whose only tag is `slug`.
-  Surfaced in the delete-confirm UI as a heads-up (those docs go
-  tagless), not a blocker.
-  """
-  def docs_with_only_this_tag_count(workspace_id, slug) do
-    Repo.one(
-      from d in Doc,
-        where:
-          d.workspace_id == ^workspace_id and
-            is_nil(d.deleted_at) and
-            d.tags == ^[slug],
-        select: count(d.id)
-    ) || 0
   end
 
   # ===== Validation hook called from Docs.apply_ops =====
