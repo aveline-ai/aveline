@@ -4,6 +4,7 @@
 import Config
 
 config :aveline,
+  env: config_env(),
   ecto_repos: [Aveline.Repo],
   generators: [timestamp_type: :utc_datetime_usec, binary_id: true],
   landing_page_url: "https://aveline.ai"

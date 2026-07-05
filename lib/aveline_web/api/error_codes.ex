@@ -36,6 +36,8 @@ defmodule AvelineWeb.Api.ErrorCodes do
   | pin_limit_reached          | 422  | all 6 home-page pin slots are taken — unpin one first                                |
   | pin_slot_taken             | 422  | that home-page pin slot is occupied by another doc                                   |
   | tag_scope_conflict         | 422  | tag set carries two tags from the same scope (e.g. status:todo + status:done)        |
+  | data_source_not_found      | 422  | chart block references a data source that doesn't exist in this workspace            |
+  | invalid_data_source_url    | 422  | data source URL isn't a postgres:// or mysql:// URL                                   |
   | internal_error             | 500  | something unexpected blew up                                                          |
   """
 
@@ -68,6 +70,8 @@ defmodule AvelineWeb.Api.ErrorCodes do
       pin_limit_reached
       pin_slot_taken
       tag_scope_conflict
+      data_source_not_found
+      invalid_data_source_url
       internal_error
     )
   end

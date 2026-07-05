@@ -99,6 +99,11 @@ defmodule AvelineWeb.Router do
     post "/comments/:id/unresolve", CommentController, :unresolve
 
     # Tags
+    get "/data-sources", DataSourceController, :index
+    post "/data-sources", DataSourceController, :create
+    delete "/data-sources/:name", DataSourceController, :delete
+    post "/data-sources/:name/restore", DataSourceController, :restore
+
     get "/tags", TagController, :index
     post "/tags", TagController, :create
     get "/tags/:slug", TagController, :show
