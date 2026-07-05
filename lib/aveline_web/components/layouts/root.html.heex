@@ -992,16 +992,9 @@
       .blocks .chart-tab-active {
         color: var(--text); background: rgba(255,255,255,0.06);
       }
-      .blocks .chart-plot svg { max-width: 100%; height: auto; }
-      /* Contex ships with default_style OFF (its embedded <style> is
-         document-global and paints every icon black) — these scoped
-         rules are the replacement defaults. */
-      .blocks .chart-plot text { fill: var(--text-muted); }
-      .blocks .chart-plot line { stroke: var(--border); }
-      .blocks .chart-plot .exc-tick text { fill: var(--text-muted); font-size: 10px; }
-      .blocks .chart-plot .exc-tick line { stroke: var(--border); }
-      .blocks .chart-plot .exc-grid { stroke: var(--border); stroke-dasharray: 2 2; }
-      .blocks .chart-plot .exc-domain { stroke: var(--border-strong, var(--border)); }
+      /* ECharts owns the inside of this div (canvas); it just needs a
+         real size to draw into. */
+      .blocks .chart-plot { width: 100%; height: 280px; }
       .blocks .chart-error {
         padding: 10px 14px; border: 1px dashed var(--border-strong, var(--border));
         border-radius: var(--radius); font-size: 12.5px; color: var(--text-secondary);

@@ -36,7 +36,6 @@ defmodule Aveline.MixProject do
       {:postgrex, ">= 0.0.0"},
       {:myxql, "~> 0.7"},
       {:cloak_ecto, "~> 1.3"},
-      {:contex, "~> 0.5"},
       {:floki, ">= 0.36.0", only: :test},
       {:swoosh, "~> 1.18"},
       {:finch, "~> 0.19"},

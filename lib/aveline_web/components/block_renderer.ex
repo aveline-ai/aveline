@@ -173,7 +173,7 @@ defmodule AvelineWeb.BlockRenderer do
     rendered =
       if viz["type"] == "table",
         do: {:table, result},
-        else: AvelineWeb.ChartRenderer.render(result, viz)
+        else: AvelineWeb.ChartRenderer.spec(result, viz)
 
     assigns = assign(assigns, rendered: rendered, source: source, result: result)
 
@@ -200,8 +200,15 @@ defmodule AvelineWeb.BlockRenderer do
       </div>
       <div id={@block["id"] <> "-pane-viz"}>
         <%= case @rendered do %>
-          <% {:ok, svg} -> %>
-            <div class="chart-plot">{svg}</div>
+          <% {:ok, spec} -> %>
+            <div
+              id={@block["id"] <> "-echart"}
+              class="chart-plot"
+              phx-hook="Chart"
+              phx-update="ignore"
+              data-spec={Jason.encode!(spec)}
+            >
+            </div>
           <% {:table, %{"columns" => cols, "rows" => rows}} -> %>
             <div class="blk-table-wrap">
               <table class="blk-table">
