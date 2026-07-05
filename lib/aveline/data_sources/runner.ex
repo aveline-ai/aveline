@@ -42,10 +42,19 @@ defmodule Aveline.DataSources.Runner do
         end
       end)
 
-    case Task.yield(task, @task_timeout_ms) || Task.shutdown(task, :brutal_kill) do
-      {:ok, result} -> result
-      {:exit, reason} -> {:error, "connection failed: " <> exit_message(reason)}
-      nil -> {:error, "timed out connecting or querying"}
+    case Task.yield(task, @task_timeout_ms) do
+      {:ok, result} ->
+        result
+
+      {:exit, reason} ->
+        {:error, "connection failed: " <> exit_message(reason)}
+
+      nil ->
+        # Kill the hung dial; if a reply raced in during shutdown, take it.
+        case Task.shutdown(task, :brutal_kill) do
+          {:ok, result} -> result
+          _ -> {:error, "timed out connecting or querying"}
+        end
     end
   end
 
@@ -66,6 +75,7 @@ defmodule Aveline.DataSources.Runner do
     opts =
       url
       |> Ecto.Repo.Supervisor.parse_url()
+      |> with_socket_family()
       |> Keyword.merge(
         timeout: @query_timeout_ms,
         connect_timeout: @connect_timeout_ms,
@@ -111,6 +121,7 @@ defmodule Aveline.DataSources.Runner do
     opts =
       url
       |> Ecto.Repo.Supervisor.parse_url()
+      |> with_socket_family()
       |> Keyword.merge(
         timeout: @query_timeout_ms,
         connect_timeout: @connect_timeout_ms,
@@ -155,6 +166,25 @@ defmodule Aveline.DataSources.Runner do
     GenServer.stop(pid, :normal, 1_000)
   catch
     :exit, _ -> :ok
+  end
+
+  # The BEAM's resolver looks up IPv4 by default, so an IPv6-only host
+  # (e.g. Fly's private .flympg.net addresses) comes back :nxdomain even
+  # though the system resolver sees it. If the host has no A record but
+  # does have an AAAA, dial over IPv6.
+  defp with_socket_family(opts) do
+    host = opts |> Keyword.get(:hostname, "") |> to_charlist()
+
+    case :inet.getaddr(host, :inet) do
+      {:ok, _} ->
+        opts
+
+      {:error, _} ->
+        case :inet.getaddr(host, :inet6) do
+          {:ok, _} -> Keyword.put(opts, :socket_options, [:inet6])
+          {:error, _} -> opts
+        end
+    end
   end
 
   # ===== shared =====
