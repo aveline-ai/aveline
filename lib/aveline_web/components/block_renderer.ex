@@ -180,31 +180,60 @@ defmodule AvelineWeb.BlockRenderer do
     ~H"""
     <div id={@block["id"]} class="blk-chart blk-anchored">
       <.block_anchor id={@block["id"]} />
-      <%= case @rendered do %>
-        <% {:ok, svg} -> %>
-          <div class="chart-plot">{svg}</div>
-        <% {:table, %{"columns" => cols, "rows" => rows}} -> %>
-          <div class="blk-table-wrap">
-            <table class="blk-table">
-              <thead>
-                <tr>
-                  <th :for={c <- cols}>{c}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr :for={row <- rows}>
-                  <td :for={cell <- row}>{display_cell(cell)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        <% {:table, %{"error" => msg}} -> %>
-          <div class="chart-error">{msg}</div>
-        <% {:error, msg} -> %>
-          <div class="chart-error">{msg}</div>
-        <% _ -> %>
-          <div class="chart-error">nothing to render</div>
-      <% end %>
+      <div class="chart-tabs">
+        <button
+          type="button"
+          id={@block["id"] <> "-tab-viz"}
+          class="chart-tab chart-tab-active"
+          phx-click={chart_tab(@block["id"], "viz")}
+        >
+          chart
+        </button>
+        <button
+          type="button"
+          id={@block["id"] <> "-tab-sql"}
+          class="chart-tab"
+          phx-click={chart_tab(@block["id"], "sql")}
+        >
+          sql
+        </button>
+      </div>
+      <div id={@block["id"] <> "-pane-viz"}>
+        <%= case @rendered do %>
+          <% {:ok, svg} -> %>
+            <div class="chart-plot">{svg}</div>
+          <% {:table, %{"columns" => cols, "rows" => rows}} -> %>
+            <div class="blk-table-wrap">
+              <table class="blk-table">
+                <thead>
+                  <tr>
+                    <th :for={c <- cols}>{c}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr :for={row <- rows}>
+                    <td :for={cell <- row}>{display_cell(cell)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          <% {:table, %{"error" => msg}} -> %>
+            <div class="chart-error">{msg}</div>
+          <% {:error, msg} -> %>
+            <div class="chart-error">{msg}</div>
+          <% _ -> %>
+            <div class="chart-error">nothing to render</div>
+        <% end %>
+      </div>
+      <div id={@block["id"] <> "-pane-sql"} hidden>
+        <pre
+          id={@block["id"] <> "-sqlcode"}
+          class="blk-code"
+          data-lang="sql"
+          phx-hook="HighlightCode"
+          phx-update="ignore"
+        ><code class="language-sql">{@block["query"]}</code></pre>
+      </div>
       <div class="chart-caption">
         <span :if={@source} class="chart-source">{@source["name"]} · {@source["adapter"]}</span>
         <span :if={@result["truncated"]} class="chart-truncated">
@@ -214,6 +243,7 @@ defmodule AvelineWeb.BlockRenderer do
     </div>
     """
   end
+
 
   # board — a live kanban over the workspace's tags. Read-only in the
   # web (humans comment; agents move cards by retagging via apply-ops).
@@ -391,6 +421,18 @@ defmodule AvelineWeb.BlockRenderer do
   defp render_doc_mention(inner_html, _target, _ws_slug), do: Phoenix.HTML.raw(inner_html)
 
   defp esc(s), do: Phoenix.HTML.html_escape(s) |> Phoenix.HTML.safe_to_string()
+
+  # Client-only pane switch: show one pane, hide the other, move the
+  # active class. No server round trip for a peek at the SQL.
+  defp chart_tab(block_id, show) do
+    hide = if show == "viz", do: "sql", else: "viz"
+
+    %Phoenix.LiveView.JS{}
+    |> Phoenix.LiveView.JS.show(to: "##{block_id}-pane-#{show}")
+    |> Phoenix.LiveView.JS.hide(to: "##{block_id}-pane-#{hide}")
+    |> Phoenix.LiveView.JS.add_class("chart-tab-active", to: "##{block_id}-tab-#{show}")
+    |> Phoenix.LiveView.JS.remove_class("chart-tab-active", to: "##{block_id}-tab-#{hide}")
+  end
 
   defp display_cell(nil), do: ""
   defp display_cell(v) when is_float(v), do: :erlang.float_to_binary(v, [:short])

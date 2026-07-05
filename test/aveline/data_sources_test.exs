@@ -66,22 +66,34 @@ defmodule Aveline.DataSourcesTest do
       assert safe["adapter"] == "postgres"
     end
 
-    test "name is live-unique per workspace; delete/restore round-trips" do
+    test "delete keeps the audit row but hard-deletes the credential" do
       %{user: user, ws: ws} = setup_ws()
-      {:ok, ds} = DataSources.create(ws.id, "prod", "postgres://u:p@h/db", user.id)
+      {:ok, ds} = DataSources.create(ws.id, "prod", "postgres://u:secret@h/db", user.id)
 
       assert {:error, %Ecto.Changeset{}} =
                DataSources.create(ws.id, "prod", "postgres://u:p@h/db2", user.id)
 
-      {:ok, _} = DataSources.delete(ds, user.id)
+      {:ok, deleted} = DataSources.delete(ds, user.id)
       assert DataSources.get_current_by_name(ws.id, "prod") == nil
 
-      # Name is free while deleted... but restore brings the old one back.
-      {:ok, restored} = DataSources.restore(ws.id, "prod")
-      assert restored.deleted_at == nil
-      assert DataSources.get_current_by_name(ws.id, "prod")
+      # The credential is GONE at the storage layer, not just hidden.
+      %{rows: [[raw]]} =
+        Repo.query!("SELECT url_encrypted FROM data_sources WHERE id = $1", [
+          Ecto.UUID.dump!(ds.id)
+        ])
 
-      assert {:error, :not_user_deleted} = DataSources.restore(ws.id, "prod")
+      assert raw == nil
+      assert deleted.url == nil
+
+      # The audit trail survives.
+      [row] = DataSources.list_all_for_workspace(ws.id)
+      assert row.name == "prod"
+      assert row.adapter == "postgres"
+      assert row.deleted_at
+
+      # No restore concept — but the name frees up for a replacement.
+      {:ok, replacement} = DataSources.create(ws.id, "prod", "postgres://u:new@h/db", user.id)
+      assert replacement.base_data_source_id != ds.base_data_source_id
     end
   end
 

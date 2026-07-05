@@ -6,6 +6,11 @@ defmodule Aveline.Repo.Migrations.DataSources do
   The connection URL is encrypted at rest (AES-256-GCM via Cloak, key
   in a runtime secret) — what sits in this column is ciphertext. It is
   write-only through the API: reads echo name/adapter/host/database.
+
+  Deletion is soft for the row (audit: name, adapter, who, when) but
+  HARD for the credential: the same update nulls url_encrypted, and a
+  CHECK makes "deleted but still holding a credential" unrepresentable.
+  No restore — connect a new source instead.
   """
   use Ecto.Migration
 
@@ -23,7 +28,9 @@ defmodule Aveline.Repo.Migrations.DataSources do
 
       add :name, :string, null: false
       add :adapter, :string, null: false
-      add :url_encrypted, :binary, null: false
+      # Nullable: deletion scrubs the credential while the row stays
+      # for audit. The check below ties the two states together.
+      add :url_encrypted, :binary
       add :created_by_id, references(:users, type: :binary_id, on_delete: :nilify_all)
 
       timestamps(type: :utc_datetime_usec)
@@ -47,6 +54,11 @@ defmodule Aveline.Repo.Migrations.DataSources do
 
     create constraint(:data_sources, :data_sources_adapter_known,
              check: "adapter IN ('postgres', 'mysql')"
+           )
+
+    # Live rows hold a credential; deleted rows never do.
+    create constraint(:data_sources, :data_sources_deleted_iff_scrubbed,
+             check: "(deleted_at IS NULL) = (url_encrypted IS NOT NULL)"
            )
   end
 end

@@ -31,6 +31,10 @@ defmodule AvelineWeb.Api.DataSourceController do
     end
   end
 
+  @doc """
+  Soft-deletes the row for audit; hard-deletes the credential in the
+  same update. Irreversible by design — connect a new source instead.
+  """
   def delete(conn, %{"name" => name}) do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
@@ -38,14 +42,6 @@ defmodule AvelineWeb.Api.DataSourceController do
     with %{} = ds <- DataSources.get_current_by_name(ws.id, name) || {:error, :not_found},
          {:ok, _} <- DataSources.delete(ds, user.id) do
       Envelope.ok(conn, %{})
-    end
-  end
-
-  def restore(conn, %{"name" => name}) do
-    ws = conn.assigns.current_workspace
-
-    with {:ok, ds} <- DataSources.restore(ws.id, name) do
-      Envelope.ok(conn, %{data_source: DataSources.safe_map(ds)})
     end
   end
 end

@@ -22,6 +22,20 @@ defmodule Aveline.DataSources do
     |> Repo.all()
   end
 
+  @doc """
+  Live AND soft-deleted current versions — the audit view. A deleted
+  source still holds its encrypted credential (that's what makes
+  restore work), so the page humans audit must show it.
+  """
+  def list_all_for_workspace(workspace_id) do
+    from(ds in DataSource,
+      where: ds.workspace_id == ^workspace_id and not ds.superseded,
+      order_by: ds.name,
+      preload: [:created_by]
+    )
+    |> Repo.all()
+  end
+
   def get_current_by_name(workspace_id, name) when is_binary(name) do
     from(ds in base_query(), where: ds.workspace_id == ^workspace_id and ds.name == ^name)
     |> Repo.one()
@@ -61,30 +75,25 @@ defmodule Aveline.DataSources do
     end
   end
 
+  @doc """
+  Soft-deletes the row, HARD-deletes the credential: the same update
+  nulls the encrypted URL (constraint-enforced pairing). The audit
+  trail keeps name/adapter/who/when; the secret is gone for good.
+  There is no restore — connect a new source instead.
+  """
   def delete(%DataSource{} = ds, user_id) do
     ds
-    |> Ecto.Changeset.change(deleted_at: DateTime.utc_now(), deleted_by_id: user_id)
+    |> Ecto.Changeset.change(
+      deleted_at: DateTime.utc_now(),
+      deleted_by_id: user_id,
+      url: nil
+    )
     |> Repo.update()
-  end
-
-  def restore(workspace_id, name) do
-    deleted =
-      from(ds in DataSource,
-        where:
-          ds.workspace_id == ^workspace_id and ds.name == ^name and not ds.superseded and
-            not is_nil(ds.deleted_at)
-      )
-      |> Repo.one()
-
-    case deleted do
-      nil -> {:error, :not_user_deleted}
-      ds -> ds |> Ecto.Changeset.change(deleted_at: nil, deleted_by_id: nil) |> Repo.update()
-    end
   end
 
   @doc "The one shape read surfaces may see. Never the URL."
   def safe_map(%DataSource{} = ds) do
-    uri = URI.parse(ds.url)
+    uri = if ds.url, do: URI.parse(ds.url), else: %URI{}
 
     %{
       "name" => ds.name,

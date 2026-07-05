@@ -398,7 +398,8 @@ defmodule Aveline.Docs do
       %{workspace_id: ^workspace_id} = ds ->
         %{
           "source" => Aveline.DataSources.safe_map(ds),
-          "result" => %{"error" => "data source was deleted; restore it to bring this chart back"}
+          "result" =>
+            %{"error" => "data source was deleted (credential destroyed); connect a new one and update this block"}
         }
 
       _ ->
@@ -649,7 +650,48 @@ defmodule Aveline.Docs do
 
   # Chart blocks may arrive with `source` (a data source name) instead
   # of `data_source_id`; resolve and verify like doc_link targets.
-  defp resolve_block_target(%{"type" => "chart"} = block, ws_id) do
+  defp resolve_block_target(%{"type" => "chart"} = block, ws_id),
+    do: resolve_chart_source(block, ws_id)
+
+  defp resolve_block_target(%{"type" => t} = block, _ws_id)
+       when is_binary(t) and t != "doc_link",
+       do: {:ok, block}
+
+  defp resolve_block_target(%{"doc" => slug} = block, ws_id) when is_binary(slug) do
+    case get_current_by_slug(ws_id, slug) do
+      nil ->
+        {:error, :doc_link_target_not_found, "doc_link target not found in this workspace: #{slug}"}
+
+      %Doc{base_doc_id: base} ->
+        {:ok, block |> Map.delete("doc") |> Map.put("doc_id", base)}
+    end
+  end
+
+  defp resolve_block_target(%{"doc_id" => doc_id} = block, ws_id) when is_binary(doc_id) do
+    case Ecto.UUID.cast(doc_id) do
+      # Not UUID-shaped: pass through so Block.validate rejects it with the
+      # schema error instead of this query raising a CastError.
+      :error ->
+        {:ok, block}
+
+      {:ok, _} ->
+        if doc_exists?(ws_id, doc_id),
+          do: {:ok, block},
+          else: {:error, :doc_link_target_not_found, "doc_link target not found in this workspace: #{doc_id}"}
+    end
+  end
+
+  # Typeless modify_block patches: `source`/`data_source_id` are chart
+  # keys (doc_link patches use `doc`/`doc_id` and match above).
+  defp resolve_block_target(%{"source" => name} = patch, ws_id) when is_binary(name),
+    do: resolve_chart_source(patch, ws_id)
+
+  defp resolve_block_target(%{"data_source_id" => id} = patch, ws_id) when is_binary(id),
+    do: resolve_chart_source(patch, ws_id)
+
+  defp resolve_block_target(block, _ws_id), do: {:ok, block}
+
+  defp resolve_chart_source(block, ws_id) do
     cond do
       is_binary(block["source"]) ->
         case Aveline.DataSources.get_current_by_name(ws_id, block["source"]) do
@@ -683,36 +725,6 @@ defmodule Aveline.Docs do
         {:ok, block}
     end
   end
-
-  defp resolve_block_target(%{"type" => t} = block, _ws_id)
-       when is_binary(t) and t != "doc_link",
-       do: {:ok, block}
-
-  defp resolve_block_target(%{"doc" => slug} = block, ws_id) when is_binary(slug) do
-    case get_current_by_slug(ws_id, slug) do
-      nil ->
-        {:error, :doc_link_target_not_found, "doc_link target not found in this workspace: #{slug}"}
-
-      %Doc{base_doc_id: base} ->
-        {:ok, block |> Map.delete("doc") |> Map.put("doc_id", base)}
-    end
-  end
-
-  defp resolve_block_target(%{"doc_id" => doc_id} = block, ws_id) when is_binary(doc_id) do
-    case Ecto.UUID.cast(doc_id) do
-      # Not UUID-shaped: pass through so Block.validate rejects it with the
-      # schema error instead of this query raising a CastError.
-      :error ->
-        {:ok, block}
-
-      {:ok, _} ->
-        if doc_exists?(ws_id, doc_id),
-          do: {:ok, block},
-          else: {:error, :doc_link_target_not_found, "doc_link target not found in this workspace: #{doc_id}"}
-    end
-  end
-
-  defp resolve_block_target(block, _ws_id), do: {:ok, block}
 
   defp resolve_span_links(%{} = block, ws_id) do
     walk_spans(block, fn

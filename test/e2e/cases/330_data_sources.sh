@@ -80,7 +80,7 @@ test_chart_write_query_is_error_state() {
   fi
 }
 
-test_data_source_delete_restore_roundtrip() {
+test_data_source_delete_destroys_credential() {
   local ws; ws="$(mk_workspace ds-del)"
   run_cli -w "$ws" create-data-source --name selfdb --url "$(e2e_db_url)"
 
@@ -98,9 +98,18 @@ test_data_source_delete_restore_roundtrip() {
     fail "expected deleted-source error state"
   fi
 
-  run_cli -w "$ws" restore-data-source selfdb
-  expect_ok "restore ok"
+  # No restore verb — the name frees up for a replacement instead.
+  run_cli -w "$ws" create-data-source --name selfdb --url "$(e2e_db_url)"
+  expect_ok "name reusable after delete"
+
+  # The old block still points at the DESTROYED source's base id — that
+  # is correct (the credential is gone forever); the doc gets repointed.
+  run_cli -w "$ws" get-doc "$dash"
+  local block_id; block_id="$(jq -r '.doc.blocks[0].id' <<<"$LAST_OUT_TEXT")"
+  run_cli -w "$ws" apply-ops "$dash" --intent "repoint chart at replacement source" \
+    --ops "$(jq -nc --arg id "$block_id" '[{op: "modify_block", id: $id, patch: {source: "selfdb"}}]')"
+  expect_ok "repoint ok"
 
   run_cli -w "$ws" get-doc "$dash"
-  expect_eq '.doc.blocks[0].result.rows[0][0]' "1" "chart lives again after restore"
+  expect_eq '.doc.blocks[0].result.rows[0][0]' "1" "chart lives on the replacement source"
 }
