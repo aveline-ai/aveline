@@ -49,16 +49,23 @@ defmodule AvelineWeb.ChartRenderer do
     with {:ok, ys} <- numeric_column(y_name, Enum.map(points, &elem(&1, 1))) do
       case type do
         "bar" ->
-          # Categories are strings; any x works.
-          data = Enum.zip(Enum.map(points, &to_string(elem(&1, 0))), ys) |> Enum.map(&Tuple.to_list/1)
-          plot(BarChart, data, x_name, y_name, %{category_col: x_name, value_cols: [y_name]})
+          build_bar(x_name, y_name, points, ys)
+
+        # A one-point line draws no segment and collapses both axes —
+        # render the point as a single bar instead. The line comes back
+        # by itself once a second data point exists.
+        "line" when length(points) < 2 ->
+          build_bar(x_name, y_name, points, ys)
 
         "line" ->
           # LinePlot needs an ordered numeric/time x axis.
           case parse_xs(Enum.map(points, &elem(&1, 0))) do
             {:ok, xs} ->
               data = Enum.zip(xs, ys) |> Enum.map(&Tuple.to_list/1)
-              plot(LinePlot, data, x_name, y_name, %{x_col: x_name, y_cols: [y_name]})
+
+              plot(LinePlot, data, x_name, y_name, %{x_col: x_name, y_cols: [y_name]},
+                custom_y_formatter: &tick/1
+              )
 
             :error ->
               {:error,
@@ -68,11 +75,20 @@ defmodule AvelineWeb.ChartRenderer do
     end
   end
 
-  defp plot(module, data, x_name, y_name, mapping) do
+  defp build_bar(x_name, y_name, points, ys) do
+    # Categories are strings; any x works.
+    data = Enum.zip(Enum.map(points, &to_string(elem(&1, 0))), ys) |> Enum.map(&Tuple.to_list/1)
+
+    plot(BarChart, data, x_name, y_name, %{category_col: x_name, value_cols: [y_name]},
+      custom_value_formatter: &tick/1
+    )
+  end
+
+  defp plot(module, data, x_name, y_name, mapping, extra_opts) do
     svg =
       data
       |> Dataset.new([x_name, y_name])
-      |> Plot.new(module, @width, @height, mapping: Map.new(mapping))
+      |> Plot.new(module, @width, @height, [mapping: Map.new(mapping)] ++ extra_opts)
       # default_style: false — Contex otherwise embeds a <style> block
       # (text{fill:black} line{stroke:black}) whose rules are DOCUMENT
       # global, blacking out every inline SVG icon on the page. Plot.new
@@ -85,6 +101,14 @@ defmodule AvelineWeb.ChartRenderer do
   rescue
     e -> {:error, "chart rendering failed: #{Exception.message(e)}"}
   end
+
+  # Counts are the common case: print 3, not 3.000. Non-integers keep
+  # one decimal.
+  defp tick(v) when is_number(v) do
+    if v == trunc(v), do: Integer.to_string(trunc(v)), else: :erlang.float_to_binary(v / 1, decimals: 1)
+  end
+
+  defp tick(v), do: to_string(v)
 
   defp numeric_column(name, values) do
     nums = Enum.map(values, &to_number/1)

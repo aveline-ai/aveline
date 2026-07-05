@@ -173,6 +173,30 @@ defmodule Aveline.DataSourcesTest do
     end
   end
 
+  describe "chart rendering edge cases" do
+    test "a single-point line renders (as a bar) instead of an empty plot" do
+      result = %{"columns" => ["day", "signups"], "rows" => [["2026-07-04", 1]]}
+      viz = %{"type" => "line", "x" => "day", "y" => "signups"}
+
+      assert {:ok, {:safe, iodata}} = AvelineWeb.ChartRenderer.render(result, viz)
+      svg = IO.iodata_to_binary(iodata)
+      # BarChart output (rects), not an empty line plot.
+      assert svg =~ "<rect"
+      # Integer ticks, not 1.000.
+      refute svg =~ "1.000"
+    end
+
+    test "two points render as a real line with integer ticks" do
+      result = %{"columns" => ["day", "n"], "rows" => [["2026-07-04", 1], ["2026-07-05", 3]]}
+      viz = %{"type" => "line", "x" => "day", "y" => "n"}
+
+      assert {:ok, {:safe, iodata}} = AvelineWeb.ChartRenderer.render(result, viz)
+      svg = IO.iodata_to_binary(iodata)
+      assert svg =~ "<path"
+      refute svg =~ "3.000"
+    end
+  end
+
   describe "chart block validation" do
     test "valid chart normalizes; echoes stripped" do
       uuid = Ecto.UUID.generate()
