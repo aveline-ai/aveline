@@ -57,6 +57,30 @@ defmodule AvelineWeb.Api.DataSourceController do
   end
 
   @doc """
+  Ad-hoc read-only query — the chart-authoring REPL. Same runner and
+  safety posture as chart blocks (read-only session, single statement,
+  5s timeout, 1000-row cap) but no cache: an agent iterating on SQL
+  wants fresh results. Nothing is stored anywhere.
+  """
+  def query(conn, %{"name" => name} = params) do
+    ws = conn.assigns.current_workspace
+    query = params["query"]
+
+    cond do
+      not is_binary(query) or String.trim(query) == "" ->
+        {:error, "query is required"}
+
+      true ->
+        with %{} = ds <- DataSources.get_current_by_name(ws.id, name) || {:error, :not_found} do
+          case Aveline.DataSources.Runner.run(ds, query) do
+            {:ok, result} -> Envelope.ok(conn, result)
+            {:error, msg} -> {:error, :query_failed, msg}
+          end
+        end
+    end
+  end
+
+  @doc """
   Soft-deletes the row for audit; hard-deletes the password in the
   same update. Irreversible by design — connect a new source instead.
   """

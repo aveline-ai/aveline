@@ -39,6 +39,7 @@ defmodule AvelineWeb.Api.ErrorCodes do
   | data_source_not_found      | 422  | chart block references a data source that doesn't exist in this workspace            |
   | invalid_data_source_url    | 422  | connection template isn't a postgres:// or mysql:// URL with a <password> placeholder |
   | password_required          | 422  | template change submitted without the password (secrets never pair with new settings) |
+  | query_failed               | 422  | ad-hoc data source query failed (carries the driver's message)                        |
   | internal_error             | 500  | something unexpected blew up                                                          |
   """
 
@@ -74,6 +75,7 @@ defmodule AvelineWeb.Api.ErrorCodes do
       data_source_not_found
       invalid_data_source_url
       password_required
+      query_failed
       internal_error
     )
   end

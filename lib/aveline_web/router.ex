@@ -104,6 +104,7 @@ defmodule AvelineWeb.Router do
     post "/data-sources", DataSourceController, :create
     patch "/data-sources/:name", DataSourceController, :update
     put "/data-sources/:name", DataSourceController, :update
+    post "/data-sources/:name/query", DataSourceController, :query
     delete "/data-sources/:name", DataSourceController, :delete
 
     get "/tags", TagController, :index

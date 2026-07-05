@@ -124,6 +124,29 @@ test_edit_rules() {
   expect_err "password_required" 2 "template change without password refused"
 }
 
+test_query_data_source_adhoc() {
+  local ws; ws="$(mk_workspace ds-query)"
+  mk_source "$ws" selfdb
+
+  run_cli -w "$ws" query-data-source selfdb --query "select generate_series(1, 3) as n"
+  expect_ok "ad-hoc query ok"
+  expect_eq '.columns[0]' "n" "columns returned"
+  expect_eq '.rows | length' "3" "rows returned"
+
+  # Schema exploration — the chart-authoring workflow.
+  run_cli -w "$ws" query-data-source selfdb \
+    --query "select table_name from information_schema.tables where table_schema = 'public' limit 3"
+  expect_ok "information_schema readable"
+
+  # Writes refused, surfaced as query_failed (an error, not a state —
+  # ad-hoc callers want the exit code).
+  run_cli -w "$ws" query-data-source selfdb --query "DELETE FROM docs"
+  expect_err "query_failed" 2 "write refused via query verb"
+
+  run_cli -w "$ws" query-data-source ghost --query "select 1"
+  expect_err "not_found" 4 "unknown source → not_found"
+}
+
 test_data_source_delete_destroys_password() {
   local ws; ws="$(mk_workspace ds-del)"
   mk_source "$ws" selfdb
