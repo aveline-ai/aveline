@@ -173,27 +173,36 @@ defmodule Aveline.DataSourcesTest do
     end
   end
 
-  describe "chart rendering edge cases" do
-    test "a single-point line renders (as a bar) instead of an empty plot" do
-      result = %{"columns" => ["day", "signups"], "rows" => [["2026-07-04", 1]]}
-      viz = %{"type" => "line", "x" => "day", "y" => "signups"}
-
-      assert {:ok, {:safe, iodata}} = AvelineWeb.ChartRenderer.render(result, viz)
-      svg = IO.iodata_to_binary(iodata)
-      # BarChart output (rects), not an empty line plot.
-      assert svg =~ "<rect"
-      # Integer ticks, not 1.000.
-      refute svg =~ "1.000"
-    end
-
-    test "two points render as a real line with integer ticks" do
+  describe "chart spec validation (renderer contract)" do
+    test "valid result + viz produce the hook spec" do
       result = %{"columns" => ["day", "n"], "rows" => [["2026-07-04", 1], ["2026-07-05", 3]]}
       viz = %{"type" => "line", "x" => "day", "y" => "n"}
 
-      assert {:ok, {:safe, iodata}} = AvelineWeb.ChartRenderer.render(result, viz)
-      svg = IO.iodata_to_binary(iodata)
-      assert svg =~ "<path"
-      refute svg =~ "3.000"
+      assert {:ok, spec} = AvelineWeb.ChartRenderer.spec(result, viz)
+      assert spec["viz"] == viz
+      assert spec["rows"] == result["rows"]
+    end
+
+    test "unknown columns, non-numeric y, empty rows, and query errors are states" do
+      viz = %{"type" => "bar", "x" => "day", "y" => "n"}
+
+      assert {:error, msg} =
+               AvelineWeb.ChartRenderer.spec(%{"columns" => ["other"], "rows" => [[1]]}, viz)
+
+      assert msg =~ "not in result"
+
+      assert {:error, msg2} =
+               AvelineWeb.ChartRenderer.spec(
+                 %{"columns" => ["day", "n"], "rows" => [["mon", "not-a-number"]]},
+                 viz
+               )
+
+      assert msg2 =~ "numeric"
+
+      assert {:error, "query returned no rows"} =
+               AvelineWeb.ChartRenderer.spec(%{"columns" => ["day", "n"], "rows" => []}, viz)
+
+      assert {:error, "boom"} = AvelineWeb.ChartRenderer.spec(%{"error" => "boom"}, viz)
     end
   end
 

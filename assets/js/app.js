@@ -6,6 +6,24 @@ const csrfToken = document
   .querySelector("meta[name='csrf-token']")
   .getAttribute("content")
 
+// Fetch the (large) ECharts chunk once, only when a page actually
+// contains a chart block. Self-hosted: same laziness as a CDN without
+// the third-party dependency.
+let echartsLoading = null
+function loadECharts() {
+  if (window.echarts) return Promise.resolve()
+  if (!echartsLoading) {
+    echartsLoading = new Promise((resolve, reject) => {
+      const s = document.createElement("script")
+      s.src = "/assets/js/echarts-loader.js"
+      s.onload = resolve
+      s.onerror = reject
+      document.head.appendChild(s)
+    })
+  }
+  return echartsLoading
+}
+
 const Hooks = {
   // Toggle the workspace sidebar between expanded and collapsed. Source
   // of truth is `html.sidebar-collapsed` (set early by an inline script
@@ -83,6 +101,82 @@ const Hooks = {
         clearTimeout(this._t)
         this._t = setTimeout(() => this.el.classList.remove("copied"), 1200)
       })
+    },
+  },
+
+  // Render a chart block's result via ECharts. The server puts the viz
+  // spec + result rows in data-spec (charts never exceed 1000 rows, so
+  // an attribute is fine); phx-update="ignore" keeps LV from touching
+  // the canvas ECharts owns. Palette mirrors the app CSS variables.
+  Chart: {
+    mounted() {
+      loadECharts().then(() => {
+        this.render()
+        this._onResize = () => this.chart && this.chart.resize()
+        window.addEventListener("resize", this._onResize)
+      })
+    },
+    updated() {
+      if (window.echarts) this.render()
+    },
+    destroyed() {
+      window.removeEventListener("resize", this._onResize)
+      if (this.chart) this.chart.dispose()
+    },
+    render() {
+      const echarts = window.echarts
+      const spec = JSON.parse(this.el.dataset.spec)
+      const css = getComputedStyle(document.documentElement)
+      const color = (name, fallback) => (css.getPropertyValue(name) || fallback).trim()
+      const text = color("--text-secondary", "#9BA1AA")
+      const muted = color("--text-muted", "#6B7280")
+      const border = color("--border", "#2A2D33")
+      const accent = color("--accent", "#3B82F6")
+
+      const xi = spec.columns.indexOf(spec.viz.x)
+      const yi = spec.columns.indexOf(spec.viz.y)
+      const xs = spec.rows.map((r) => r[xi])
+      const ys = spec.rows.map((r) => r[yi])
+
+      const option = {
+        animationDuration: 250,
+        grid: { left: 8, right: 12, top: 16, bottom: 8, containLabel: true },
+        color: [accent],
+        textStyle: { fontFamily: "inherit" },
+        tooltip: {
+          trigger: "axis",
+          backgroundColor: color("--bg-card", "#17181C"),
+          borderColor: border,
+          textStyle: { color: text, fontSize: 12 },
+        },
+        xAxis: {
+          type: "category",
+          data: xs,
+          axisLine: { lineStyle: { color: border } },
+          axisTick: { show: false },
+          axisLabel: { color: muted, fontSize: 10.5 },
+        },
+        yAxis: {
+          type: "value",
+          axisLabel: { color: muted, fontSize: 10.5 },
+          splitLine: { lineStyle: { color: border, type: "dashed" } },
+        },
+        series: [
+          spec.viz.type === "line"
+            ? {
+                type: "line",
+                data: ys,
+                showSymbol: xs.length < 30,
+                symbolSize: 6,
+                lineStyle: { width: 2 },
+                areaStyle: { opacity: 0.08 },
+              }
+            : { type: "bar", data: ys, barMaxWidth: 42, itemStyle: { borderRadius: [3, 3, 0, 0] } },
+        ],
+      }
+
+      if (!this.chart) this.chart = echarts.init(this.el)
+      this.chart.setOption(option, { notMerge: true })
     },
   },
 
