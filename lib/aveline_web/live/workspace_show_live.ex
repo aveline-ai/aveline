@@ -616,31 +616,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
         </button>
       </div>
 
-      <div
-        :if={@selected_tags != [] or @selected_authors != []}
-        class="fpills"
-      >
-        <button
-          :for={tag <- @selected_tags}
-          type="button"
-          class="fpill"
-          phx-click="toggle_tag"
-          phx-value-tag={tag}
-          title="Remove filter"
-        >
-          {tag} <span class="fpill-x">×</span>
-        </button>
-        <button
-          :for={a <- @selected_authors}
-          type="button"
-          class="fpill"
-          phx-click="toggle_author"
-          phx-value-author={a}
-          title="Remove filter"
-        >
-          @{a} <span class="fpill-x">×</span>
-        </button>
-      </div>
       </div>
 
       <%= if @shown_items == [] do %>
