@@ -965,7 +965,9 @@
         width: 18px; height: 18px; flex: none;
         color: var(--text-muted); margin-top: 3px;
       }
-      .title-fdd-menu {
+      /* Two-class selector: the generic .fdd-menu rule sits later in
+         this file and would win a same-specificity tie. */
+      .title-fdd .title-fdd-menu {
         min-width: 560px; max-width: 640px;
         max-height: 60vh; overflow-y: auto;
       }
