@@ -20,10 +20,7 @@ defmodule AvelineWeb.Api.DocController do
     ws = conn.assigns.current_workspace
 
     items =
-      Docs.list_current(ws.id,
-        tags: parse_tag_list(params["tag"] || params["tags"]),
-        has: parse_has(params["has"])
-      )
+      Docs.list_current(ws.id, tags: parse_tag_list(params["tag"] || params["tags"]))
 
     Envelope.ok(conn, %{docs: Enum.map(items, &Views.doc_summary/1)})
   end
@@ -278,15 +275,6 @@ defmodule AvelineWeb.Api.DocController do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
-
-  # ?has=links,board — structural kind filter (doc contains doc_links /
-  # a board block). Unknown values are ignored.
-  defp parse_has(nil), do: []
-  defp parse_has(""), do: []
-  defp parse_has(list) when is_list(list), do: Enum.filter(list, &(&1 in Docs.has_kinds()))
-
-  defp parse_has(s) when is_binary(s),
-    do: s |> String.split(",", trim: true) |> Enum.filter(&(&1 in Docs.has_kinds()))
 
   defp parse_tag_list(nil), do: []
   defp parse_tag_list(""), do: []

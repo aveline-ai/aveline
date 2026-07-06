@@ -38,7 +38,6 @@ defmodule Aveline.Docs do
     sort = Keyword.get(opts, :sort, :recent)
     tags = Keyword.get(opts, :tags, []) || []
     owner_ids = Keyword.get(opts, :owner_ids, []) || []
-    has = Keyword.get(opts, :has, []) || []
     search = (Keyword.get(opts, :search) || "") |> to_string() |> String.trim()
     limit = Keyword.get(opts, :limit)
     offset = Keyword.get(opts, :offset, 0)
@@ -50,7 +49,6 @@ defmodule Aveline.Docs do
     base
     |> maybe_filter_tags(tags)
     |> maybe_filter_owners(owner_ids)
-    |> maybe_filter_has(has)
     |> maybe_filter_search(search)
     |> apply_sort(sort)
     |> maybe_paginate(limit, offset)
@@ -82,23 +80,6 @@ defmodule Aveline.Docs do
     scrubbed
   end
 
-  @doc "Structural doc kinds the `has:` filter understands."
-  def has_kinds, do: ~w(board)
-
-  # Structural kind filter: a doc is a board because of what's in its
-  # blocks (jsonb containment). Links are just what documents do, not a
-  # kind worth filtering on.
-  defp maybe_filter_has(query, []), do: query
-
-  defp maybe_filter_has(query, kinds) when is_list(kinds) do
-    Enum.reduce(kinds, query, fn
-      "board", q ->
-        from(d in q, where: fragment("? @> '[{\"type\": \"board\"}]'::jsonb", d.blocks))
-
-      _, q ->
-        q
-    end)
-  end
 
   # Postgres full-text: websearch_to_tsquery handles the user-facing syntax
   # (phrase in quotes, -word to exclude, OR for either). Matches against
@@ -366,15 +347,11 @@ defmodule Aveline.Docs do
       their latest metadata plus `"deleted" => true`)
     * inline spans whose `"link"` carries a `"doc_id"` gain the same
       echo under `"link" => %{"target" => ...}`
-    * board blocks gain a `"view"` map — columns (the `by` scope's
-      members in creation order) and cards (docs matching the filter
-      tags, each with its column)
   """
   def enrich_blocks(blocks, workspace_id) when is_list(blocks) do
     blocks
     |> enrich_doc_links(workspace_id)
     |> Enum.map(fn
-      %{"type" => "board"} = b -> Map.put(b, "view", board_view(b, workspace_id))
       %{"type" => "chart"} = b -> Map.merge(b, chart_echo(b, workspace_id))
       b -> b
     end)
@@ -408,35 +385,6 @@ defmodule Aveline.Docs do
   end
 
   defp chart_echo(_block, _ws), do: %{"result" => %{"error" => "invalid chart block"}}
-
-  defp board_view(%{"tags" => filter, "by" => scope}, workspace_id) do
-    columns = Tags.list_scope_members(workspace_id, scope)
-
-    colors =
-      workspace_id
-      |> Tags.list_for_workspace()
-      |> Enum.filter(&(&1.slug in columns and not is_nil(&1.color)))
-      |> Map.new(&{&1.slug, &1.color})
-
-    cards =
-      workspace_id
-      |> list_current(tags: filter)
-      |> Enum.map(fn d ->
-        %{
-          "slug" => d.slug,
-          "title" => d.title,
-          "summary" => d.summary,
-          "owner" => d.owner && d.owner.username,
-          "updated_at" => d.updated_at && DateTime.to_iso8601(d.updated_at),
-          # Exclusivity guarantees at most one match.
-          "column" => Enum.find(columns, &(&1 in d.tags))
-        }
-      end)
-
-    %{"columns" => columns, "colors" => colors, "cards" => cards}
-  end
-
-  defp board_view(_block, _ws), do: %{"columns" => [], "cards" => []}
 
   defp enrich_doc_links(blocks, workspace_id) when is_list(blocks) do
     block_ids =
@@ -629,22 +577,11 @@ defmodule Aveline.Docs do
   defp resolve_op_doc_link(op, _ws_id), do: {:ok, op}
 
   # Works on full blocks and modify_block patches alike: resolve the
-  # block-level target (doc_link doc/doc_id, board tags), then every
+  # block-level target (doc_link doc/doc_id, chart source), then every
   # span-level link in whatever span-carrying fields are present.
   defp resolve_block_doc_link(%{} = block, ws_id) do
     with {:ok, block} <- resolve_block_target(block, ws_id) do
       resolve_span_links(block, ws_id)
-    end
-  end
-
-  # Board blocks validate their filter tags at write time (same spirit
-  # as doc_link target checks): a board over unknown tags is a typo, not
-  # an empty board.
-  defp resolve_block_target(%{"type" => "board", "tags" => tags} = block, ws_id)
-       when is_list(tags) do
-    case Tags.ensure_all_exist(ws_id, Enum.filter(tags, &is_binary/1)) do
-      :ok -> {:ok, block}
-      err -> err
     end
   end
 

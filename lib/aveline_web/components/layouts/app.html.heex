@@ -64,6 +64,16 @@
             <span class="count">{@total_count}</span>
           <% end %>
         </.link>
+        <div :if={assigns[:sidebar_views] && @sidebar_views != []} class="sidebar-views">
+          <.link
+            :for={v <- @sidebar_views}
+            navigate={~p"/w/#{@workspace.slug}/v/#{v.name}"}
+            class={"sidebar-item " <> if assigns[:nav_active] == {:view, v.name}, do: "active", else: ""}
+            title={v.description}
+          >
+            <span class="label">{v.name}</span>
+          </.link>
+        </div>
         <.link
           navigate={~p"/w/#{@workspace.slug}/activity"}
           class={"sidebar-item " <> if assigns[:nav_active] == :activity, do: "active", else: ""}

@@ -40,6 +40,7 @@ defmodule AvelineWeb.Api.ErrorCodes do
   | invalid_data_source_url    | 422  | connection template isn't a postgres:// or mysql:// URL with a <password> placeholder |
   | password_required          | 422  | template change submitted without the password (secrets never pair with new settings) |
   | query_failed               | 422  | ad-hoc data source query failed (carries the driver's message)                        |
+  | view_invalid               | 422  | view config rejected (unknown tags, bad group_by scope)                               |
   | internal_error             | 500  | something unexpected blew up                                                          |
   """
 
@@ -76,6 +77,7 @@ defmodule AvelineWeb.Api.ErrorCodes do
       invalid_data_source_url
       password_required
       query_failed
+      view_invalid
       internal_error
     )
   end

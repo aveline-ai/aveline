@@ -12,7 +12,7 @@ defmodule Aveline.Workspaces.Template do
 
   The pipeline the set encodes: feedback (evidence) becomes a brief
   (what and why) becomes a tip (how) becomes tickets (typed, statused,
-  on boards), while product, architecture, runbook, and oncall docs
+  in views), while product, architecture, runbook, and oncall docs
   accumulate as durable knowledge. stage: covers editorial trust for
   any doc; no stage tag means live.
   """
@@ -103,9 +103,11 @@ defmodule Aveline.Workspaces.Template do
           code_t("ticket:*"),
           t(" (bug or feature) plus one "),
           code_t("status:*"),
-          t(". A doc with a "),
-          code_t("board"),
-          t(" block over a topic tag is a live kanban. Move a card by retagging.")
+          t(". Views (Docs page and sidebar) are saved slices of the docs: group one by "),
+          code_t("status"),
+          t(" and it's a live kanban. Move a card by retagging; save views with "),
+          code_t("create-view"),
+          t(".")
         ],
         [
           t("Proposals get pitched: a "),

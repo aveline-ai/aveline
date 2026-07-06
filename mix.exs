@@ -37,6 +37,7 @@ defmodule Aveline.MixProject do
       {:myxql, "~> 0.7"},
       {:cloak_ecto, "~> 1.3"},
       {:floki, ">= 0.36.0", only: :test},
+      {:lazy_html, ">= 0.1.0", only: :test},
       {:swoosh, "~> 1.18"},
       {:finch, "~> 0.19"},
       {:telemetry_metrics, "~> 1.1"},

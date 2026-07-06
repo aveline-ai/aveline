@@ -30,6 +30,7 @@ defmodule AvelineWeb.DataSourcesLive do
            current_user: user,
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
+           sidebar_views: Aveline.Views.list_pinned(ws.id),
            nav_active: :data_sources,
            topbar_title: "Data sources",
            sources: sources,
