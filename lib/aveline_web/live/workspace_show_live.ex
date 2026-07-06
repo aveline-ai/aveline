@@ -622,11 +622,11 @@ defmodule AvelineWeb.WorkspaceShowLive do
         <div class="empty">No docs match the current filter.</div>
       <% else %>
         <%= if @group_by && @kanban do %>
-          <div class="board docs-board">
-            <div :for={{col, docs} <- @kanban.columns} class="board-col">
-              <div class="board-col-head">
+          <div class="grouped-list">
+            <%= for {col, docs} <- @kanban.columns, docs != [] do %>
+              <div class="group-head">
                 <span
-                  class="board-col-dot"
+                  class="group-dot"
                   style={
                     if c = Map.get(@tag_colors, col) do
                       "background: " <> c
@@ -634,33 +634,27 @@ defmodule AvelineWeb.WorkspaceShowLive do
                   }
                 >
                 </span>
-                <span class="board-col-name">{Tags.value_of(col)}</span>
-                <span class="board-col-count">{length(docs)}</span>
+                <span class="group-head-name">{Tags.value_of(col)}</span>
+                <span class="group-head-count">{length(docs)}</span>
               </div>
-              <div class="board-col-cards">
-                <.link :for={d <- docs} navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}"} class="board-card">
-                  <span class="board-card-title">{d.title}</span>
-                  <span :if={d.owner} class="board-card-owner">{d.owner.username}</span>
-                </.link>
+              <ul class="card-list">
+                <li :for={i <- docs}>
+                  <.doc_card i={i} ws={@workspace} view_counts={@view_counts} kudos_counts={@kudos_counts} tag_colors={@tag_colors} />
+                </li>
+              </ul>
+            <% end %>
+            <%= if @kanban.unassigned != [] do %>
+              <div class="group-head">
+                <span class="group-dot"></span>
+                <span class="group-head-name">no {@group_by}</span>
+                <span class="group-head-count">{length(@kanban.unassigned)}</span>
               </div>
-            </div>
-            <div :if={@kanban.unassigned != []} class="board-col board-col-unassigned">
-              <div class="board-col-head">
-                <span class="board-col-dot"></span>
-                <span class="board-col-name">no {@group_by}</span>
-                <span class="board-col-count">{length(@kanban.unassigned)}</span>
-              </div>
-              <div class="board-col-cards">
-                <.link
-                  :for={d <- @kanban.unassigned}
-                  navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}"}
-                  class="board-card"
-                >
-                  <span class="board-card-title">{d.title}</span>
-                  <span :if={d.owner} class="board-card-owner">{d.owner.username}</span>
-                </.link>
-              </div>
-            </div>
+              <ul class="card-list">
+                <li :for={i <- @kanban.unassigned}>
+                  <.doc_card i={i} ws={@workspace} view_counts={@view_counts} kudos_counts={@kudos_counts} tag_colors={@tag_colors} />
+                </li>
+              </ul>
+            <% end %>
           </div>
           <%= if @has_more? do %>
             <div class="load-more-wrap">
@@ -670,46 +664,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
         <% else %>
         <ul class="card-list">
           <li :for={i <- @shown_items}>
-            <.link navigate={~p"/w/#{@workspace.slug}/d/#{i.slug}"} class="card">
-              <div class="card-title">
-                {i.title}
-              </div>
-              <%= if i.summary do %>
-                <div class="card-summary">{i.summary}</div>
-              <% end %>
-              <div class="card-meta">
-                <%= if i.actor_user do %>
-                  <.author text={i.actor_user.username} />
-                  <span class="card-meta-dot">·</span>
-                <% end %>
-                <span title={absolute_time(i.updated_at)}>{relative_time(i.updated_at)}</span>
-                <span class="card-meta-dot">·</span>
-                <span class="card-stat" title={"#{Map.get(@view_counts, i.base_doc_id, 0)} views"}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                  <span>{Map.get(@view_counts, i.base_doc_id, 0)}</span>
-                </span>
-                <span class="card-stat" title={"#{Map.get(@kudos_counts, i.base_doc_id, 0)} kudos"}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
-                    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
-                    <path d="M4 22h16"/>
-                    <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
-                    <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
-                    <path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/>
-                  </svg>
-                  <span>{Map.get(@kudos_counts, i.base_doc_id, 0)}</span>
-                </span>
-                <%= if i.tags != [] do %>
-                  <span class="card-meta-dot">·</span>
-                  <span style="display:flex;gap:4px;flex-wrap:wrap">
-                    <.tag :for={t <- i.tags} text={t} color={Map.get(@tag_colors, t)} />
-                  </span>
-                <% end %>
-              </div>
-            </.link>
+            <.doc_card i={i} ws={@workspace} view_counts={@view_counts} kudos_counts={@kudos_counts} tag_colors={@tag_colors} />
           </li>
         </ul>
         <%= if @has_more? do %>
@@ -722,6 +677,58 @@ defmodule AvelineWeb.WorkspaceShowLive do
         <% end %>
       <% end %>
     </div>
+    """
+  end
+
+
+  attr :i, :map, required: true
+  attr :ws, :map, required: true
+  attr :view_counts, :map, required: true
+  attr :kudos_counts, :map, required: true
+  attr :tag_colors, :map, required: true
+
+  defp doc_card(assigns) do
+    ~H"""
+    <.link navigate={~p"/w/#{@ws.slug}/d/#{@i.slug}"} class="card">
+              <div class="card-title">
+                {@i.title}
+              </div>
+              <%= if @i.summary do %>
+                <div class="card-summary">{@i.summary}</div>
+              <% end %>
+              <div class="card-meta">
+                <%= if @i.actor_user do %>
+                  <.author text={@i.actor_user.username} />
+                  <span class="card-meta-dot">·</span>
+                <% end %>
+                <span title={absolute_time(@i.updated_at)}>{relative_time(@i.updated_at)}</span>
+                <span class="card-meta-dot">·</span>
+                <span class="card-stat" title={"#{Map.get(@view_counts, @i.base_doc_id, 0)} views"}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <span>{Map.get(@view_counts, @i.base_doc_id, 0)}</span>
+                </span>
+                <span class="card-stat" title={"#{Map.get(@kudos_counts, @i.base_doc_id, 0)} kudos"}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+                    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+                    <path d="M4 22h16"/>
+                    <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+                    <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+                    <path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/>
+                  </svg>
+                  <span>{Map.get(@kudos_counts, @i.base_doc_id, 0)}</span>
+                </span>
+                <%= if @i.tags != [] do %>
+                  <span class="card-meta-dot">·</span>
+                  <span style="display:flex;gap:4px;flex-wrap:wrap">
+                    <.tag :for={t <- @i.tags} text={t} color={Map.get(@tag_colors, t)} />
+                  </span>
+                <% end %>
+              </div>
+            </.link>
     """
   end
 

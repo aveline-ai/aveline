@@ -46,10 +46,10 @@ defmodule AvelineWeb.DocsViewsLiveTest do
   test "group param turns the docs list into a kanban", %{conn: conn, ws: ws} do
     {:ok, _lv, html} = live(conn, "/w/#{ws.slug}/docs?group=status")
 
-    assert html =~ "board-col-name"
+    assert html =~ "group-head-name"
     assert html =~ "todo"
     assert html =~ "done"
-    # The untagged doc lands in the unassigned column.
+    # The untagged doc lands in the trailing unassigned section.
     assert html =~ "no status"
     assert html =~ "Plain doc"
   end
@@ -60,7 +60,7 @@ defmodule AvelineWeb.DocsViewsLiveTest do
     # Title + description from the view; kanban from group_by; filtered set.
     assert has_element?(lv, ".page-title", "tickets")
     assert html =~ "All open work by status."
-    assert has_element?(lv, ".board-col-name", "todo")
+    assert has_element?(lv, ".group-head-name", "todo")
     assert html =~ "Ticket one"
     refute html =~ "Plain doc"
     refute has_element?(lv, ".view-modified")
@@ -74,7 +74,7 @@ defmodule AvelineWeb.DocsViewsLiveTest do
     # Reset patches back to the bare view URL → pristine again.
     lv |> element("button.view-reset") |> render_click()
     refute has_element?(lv, ".view-modified")
-    assert has_element?(lv, ".board-col-name", "todo")
+    assert has_element?(lv, ".group-head-name", "todo")
   end
 
   test "session knobs work inside a view without touching it", %{conn: conn, ws: ws} do
@@ -82,7 +82,7 @@ defmodule AvelineWeb.DocsViewsLiveTest do
 
     # Ungroup via the group control: kanban becomes a list, view marked modified.
     render_click(lv, "set_group", %{"group" => "none"})
-    refute has_element?(lv, ".board-col-name")
+    refute has_element?(lv, ".group-head-name")
     assert has_element?(lv, ".view-modified")
 
     # Saved view unchanged.
