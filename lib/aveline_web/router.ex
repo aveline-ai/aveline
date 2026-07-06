@@ -23,6 +23,10 @@ defmodule AvelineWeb.Router do
     plug AvelineWeb.Plugs.WorkspaceScope
   end
 
+  pipeline :workspace_gate do
+    plug AvelineWeb.Plugs.WorkspaceGate
+  end
+
   # ===== Browser routes =====
 
   scope "/", AvelineWeb do
@@ -37,6 +41,14 @@ defmodule AvelineWeb.Router do
     get "/logout", SessionController, :delete
 
     live "/", SignupLive, :index
+  end
+
+  # Workspace-scoped pages sit behind the access gate: non-members (and
+  # unfurl bots) get a branded private page AT the URL instead of a
+  # redirect to signup. See Plugs.WorkspaceGate.
+  scope "/", AvelineWeb do
+    pipe_through [:browser, :workspace_gate]
+
     live "/w/:slug", HomeLive, :index
     live "/w/:slug/docs", WorkspaceShowLive, :index
     live "/w/:slug/d/:doc_slug", DocShowLive, :show

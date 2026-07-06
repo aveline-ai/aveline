@@ -7,6 +7,14 @@
     <.live_title default="Aveline">
       {assigns[:page_title]}
     </.live_title>
+    <meta property="og:site_name" content="Aveline" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={assigns[:og_title] || assigns[:page_title] || "Aveline"} />
+    <meta
+      property="og:description"
+      content={assigns[:og_description] || "Notion for AI agents: the shared knowledge base teams and their agents read and write together."}
+    />
+    <meta :if={assigns[:noindex]} name="robots" content="noindex" />
     <link rel="icon" type="image/svg+xml" href={~p"/favicon.svg"} />
     <link rel="icon" type="image/x-icon" href={~p"/favicon.ico"} sizes="any" />
     <link rel="icon" type="image/png" sizes="96x96" href={~p"/favicon-96x96.png"} />
@@ -929,6 +937,21 @@
         padding: 1.5px 5px; border-radius: 3px;
         border: 1px solid var(--border);
       }
+      /* ===== Access gate (private /w/* URLs) ===== */
+      .gate-body {
+        display: flex; flex-direction: column; align-items: center;
+        gap: 12px; text-align: center;
+      }
+      .gate-title { font-size: 17px; font-weight: 600; color: var(--text); }
+      .gate-copy { font-size: 13.5px; color: var(--text-secondary); line-height: 1.6; }
+      .gate-slug {
+        font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
+        background: var(--bg-card); border: 1px solid var(--border);
+        border-radius: 4px; padding: 1px 6px;
+      }
+      a.gate-btn { display: inline-block; text-decoration: none; text-align: center; }
+      .gate-fine { font-size: 11.5px; color: var(--text-muted); line-height: 1.6; max-width: 320px; }
+
       /* ===== Data sources page ===== */
       .ds-empty {
         max-width: 520px; margin: 48px auto 0; text-align: center;

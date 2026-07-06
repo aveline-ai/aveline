@@ -6,13 +6,19 @@ defmodule AvelineWeb.LoginLive do
   use AvelineWeb, :live_view
 
   @impl true
-  def mount(_params, session, socket) do
+  def mount(params, session, socket) do
     # Use LiveSession.current_user (not session["user_id"]) so a stale
     # cookie pointing at a deleted user falls through to the login form
     # instead of bouncing through /.
     case AvelineWeb.LiveSession.current_user(session) do
-      nil -> {:ok, assign(socket, page_title: "Aveline · Log in"), layout: false}
-      _user -> {:ok, push_navigate(socket, to: ~p"/")}
+      nil ->
+        # Carried into the form so SessionController can land the user
+        # back where they were headed (it sanitizes to relative paths).
+        {:ok, assign(socket, page_title: "Aveline · Log in", next: params["next"]),
+         layout: false}
+
+      _user ->
+        {:ok, push_navigate(socket, to: ~p"/")}
     end
   end
 
@@ -28,6 +34,7 @@ defmodule AvelineWeb.LoginLive do
 
         <form action={~p"/login"} method="post" class="auth-form">
           <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+          <input :if={@next} type="hidden" name="next" value={@next} />
           <label class="auth-label" for="token">API key</label>
           <input
             type="text"
