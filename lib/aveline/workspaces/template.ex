@@ -105,7 +105,7 @@ defmodule Aveline.Workspaces.Template do
           code_t("status:*"),
           t(". Views (Docs page and sidebar) are saved slices of the docs: group one by "),
           code_t("status"),
-          t(" and it's a live kanban. Move a card by retagging; save views with "),
+          t(" to track work through its stages. Move work forward by retagging; save views with "),
           code_t("create-view"),
           t(".")
         ],
