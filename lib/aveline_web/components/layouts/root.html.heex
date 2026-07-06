@@ -937,6 +937,41 @@
         padding: 1.5px 5px; border-radius: 3px;
         border: 1px solid var(--border);
       }
+      /* ===== Views (docs page switcher + kanban) ===== */
+      .docs-head { display: flex; align-items: baseline; gap: 12px; }
+      .view-modified {
+        font-size: 11px; color: var(--attn);
+        display: inline-flex; gap: 8px; align-items: baseline;
+      }
+      .view-reset {
+        font: inherit; color: var(--text-muted); background: none; border: none;
+        cursor: pointer; text-decoration: underline; padding: 0;
+      }
+      .view-reset:hover { color: var(--text); }
+      .view-switcher {
+        display: flex; gap: 4px; flex-wrap: wrap;
+        margin: -16px 0 20px;
+      }
+      .view-tab {
+        font-size: 12.5px; font-weight: 500; color: var(--text-muted);
+        padding: 3px 10px; border-radius: 999px;
+        text-decoration: none; border: 1px solid transparent;
+      }
+      .view-tab:hover { color: var(--text-secondary); }
+      .view-tab-active {
+        color: var(--text); background: var(--bg-card);
+        border-color: var(--border-strong);
+      }
+      .docs-board { margin-top: 4px; }
+      .docs-board .board-col-cards .board-card {
+        display: flex; flex-direction: column; gap: 2px;
+        text-decoration: none;
+      }
+      /* Sidebar pinned views: expanded mode only. */
+      .sidebar-views { display: flex; flex-direction: column; }
+      .sidebar-views .sidebar-item { padding-left: 34px; font-size: 12.5px; }
+      html.sidebar-collapsed .sidebar-views { display: none; }
+
       /* ===== Access gate (private /w/* URLs) ===== */
       .gate-body {
         display: flex; flex-direction: column; align-items: center;

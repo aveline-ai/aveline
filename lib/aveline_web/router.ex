@@ -51,6 +51,7 @@ defmodule AvelineWeb.Router do
 
     live "/w/:slug", HomeLive, :index
     live "/w/:slug/docs", WorkspaceShowLive, :index
+    live "/w/:slug/v/:view_name", WorkspaceShowLive, :view
     live "/w/:slug/d/:doc_slug", DocShowLive, :show
     live "/w/:slug/d/:doc_slug/v/:version", DocShowLive, :show_version
     live "/w/:slug/activity", ActivityLive, :index
@@ -112,6 +113,15 @@ defmodule AvelineWeb.Router do
     post "/comments/:id/unresolve", CommentController, :unresolve
 
     # Tags
+    get "/views", ViewController, :index
+    post "/views", ViewController, :create
+    patch "/views/:name", ViewController, :update
+    put "/views/:name", ViewController, :update
+    delete "/views/:name", ViewController, :delete
+    post "/views/:name/restore", ViewController, :restore
+    post "/views/:name/pin", ViewController, :pin
+    delete "/views/:name/pin", ViewController, :unpin
+
     get "/data-sources", DataSourceController, :index
     post "/data-sources", DataSourceController, :create
     patch "/data-sources/:name", DataSourceController, :update

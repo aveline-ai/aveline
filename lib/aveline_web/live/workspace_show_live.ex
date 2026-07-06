@@ -22,6 +22,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
            current_user: user,
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
+           sidebar_views: Aveline.Views.list_pinned(ws.id),
            workspace_tags: Docs.list_workspace_tags(ws.id),
            tag_colors: tag_colors(ws.id),
            # Every workspace member appears as a chip — non-owners just
@@ -34,7 +35,10 @@ defmodule AvelineWeb.WorkspaceShowLive do
            author_counts: %{},
            selected_tags: [],
            selected_authors: [],
-           selected_has: [],
+           group_by: nil,
+           views: Aveline.Views.list_for_workspace(ws.id),
+           current_view: nil,
+           modified?: false,
            sort: :recent,
            search: "",
            items: [],
@@ -61,15 +65,53 @@ defmodule AvelineWeb.WorkspaceShowLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    selected_tags = parse_tags(params["tag"])
+    ws = socket.assigns.workspace
 
-    selected_authors =
-      parse_authors(params["author"], socket.assigns.workspace_authors)
+    current_view =
+      case params["view_name"] do
+        nil -> nil
+        name -> Aveline.Views.get_current_by_name(ws.id, name)
+      end
 
-    selected_has = parse_has(params["has"])
-    sort = parse_sort(params["sort"])
-    search = params["q"] || ""
+    if params["view_name"] && is_nil(current_view) do
+      {:noreply,
+       socket
+       |> put_flash(:error, "View not found.")
+       |> push_navigate(to: ~p"/w/#{ws.slug}/docs")}
+    else
+      config = (current_view && current_view.config) || %{}
 
+      # Pristine view URL (no knob params): seed the knobs from the
+      # saved config. Any knob param present = session state, taken
+      # entirely from the URL. The saved view is never mutated from
+      # here — screens deviate, agents save.
+      pristine? =
+        not Enum.any?(~w(tag author group sort q), &Map.has_key?(params, &1))
+
+      {selected_tags, group_by, sort, selected_authors, search} =
+        if pristine? do
+          {Map.get(config, "tags", []), Map.get(config, "group_by"),
+           parse_sort(Map.get(config, "sort")), [], ""}
+        else
+          {parse_tags(params["tag"]),
+           parse_group(params["group"], ws.id),
+           parse_sort(params["sort"]),
+           parse_authors(params["author"], socket.assigns.workspace_authors),
+           params["q"] || ""}
+        end
+
+      modified? =
+        current_view != nil and
+          (Enum.sort(selected_tags) != Enum.sort(Map.get(config, "tags", [])) or
+             group_by != Map.get(config, "group_by") or
+             sort != parse_sort(Map.get(config, "sort")) or
+             selected_authors != [] or search != "")
+
+      handle_docs_params(socket, current_view, selected_tags, group_by, sort, selected_authors, search, modified?)
+    end
+  end
+
+  defp handle_docs_params(socket, current_view, selected_tags, group_by, sort, selected_authors, search, modified?) do
     ws = socket.assigns.workspace
     page_size = socket.assigns.page_size
     owner_ids = author_ids(selected_authors, socket.assigns.workspace_authors)
@@ -81,7 +123,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
         sort: sort,
         tags: selected_tags,
         owner_ids: owner_ids,
-        has: selected_has,
         search: search,
         limit: page_size + 1
       )
@@ -108,7 +149,10 @@ defmodule AvelineWeb.WorkspaceShowLive do
      assign(socket,
        selected_tags: selected_tags,
        selected_authors: selected_authors,
-       selected_has: selected_has,
+       group_by: group_by,
+       current_view: current_view,
+       modified?: modified?,
+       kanban: group_by && kanban_columns(ws.id, group_by, items),
        sort: sort,
        search: search,
        items: items,
@@ -124,12 +168,28 @@ defmodule AvelineWeb.WorkspaceShowLive do
        # naturally via handle_params.
        nav_active: :all,
        topbar_title:
-         case selected_tags do
-           [] -> "Docs"
-           [one] -> "##{one}"
-           many -> Enum.map_join(many, " · ", &"##{&1}")
+         cond do
+           current_view -> current_view.name
+           selected_tags == [] -> "Docs"
+           true -> Enum.map_join(selected_tags, " · ", &"##{&1}")
          end
      )}
+  end
+
+  # Columns for the grouped (kanban) rendering: the scope's members in
+  # tag order, each with its docs; docs carrying no tag from the scope
+  # land in an unassigned column. Colors come from @tag_colors.
+  defp kanban_columns(workspace_id, scope, items) do
+    members = Tags.list_scope_members(workspace_id, scope)
+
+    grouped =
+      Enum.group_by(items, fn i -> Enum.find(members, &(&1 in i.tags)) end)
+
+    %{
+      scope: scope,
+      columns: Enum.map(members, fn m -> {m, Map.get(grouped, m, [])} end),
+      unassigned: Map.get(grouped, nil, [])
+    }
   end
 
   # slug => custom color for every live tag that has one.
@@ -161,12 +221,16 @@ defmodule AvelineWeb.WorkspaceShowLive do
     Enum.flat_map(usernames, fn u -> if id = lookup[u], do: [id], else: [] end)
   end
 
-  defp parse_has(nil), do: []
-  defp parse_has(""), do: []
-  defp parse_has(s) when is_binary(s), do: parse_has([s])
+  # A group value is a tag scope with members in this workspace;
+  # anything else means ungrouped.
+  defp parse_group(nil, _ws), do: nil
+  defp parse_group("", _ws), do: nil
 
-  defp parse_has(list) when is_list(list),
-    do: list |> Enum.filter(&(&1 in Docs.has_kinds())) |> Enum.uniq()
+  defp parse_group(s, ws_id) when is_binary(s) do
+    if Tags.list_scope_members(ws_id, s) != [], do: s, else: nil
+  end
+
+  defp parse_group(_, _), do: nil
 
   defp parse_sort("kudos"), do: :kudos
   defp parse_sort("views"), do: :views
@@ -195,22 +259,22 @@ defmodule AvelineWeb.WorkspaceShowLive do
     {:noreply, push_patch(socket, to: build_path(socket, %{author: new_authors}))}
   end
 
-  def handle_event("toggle_has", %{"kind" => kind}, socket) do
-    new_has =
-      if kind in socket.assigns.selected_has do
-        List.delete(socket.assigns.selected_has, kind)
-      else
-        socket.assigns.selected_has ++ [kind]
-      end
-
-    {:noreply, push_patch(socket, to: build_path(socket, %{has: new_has}))}
+  def handle_event("set_group", %{"group" => group}, socket) do
+    group = if group in [nil, "", "none"], do: nil, else: group
+    {:noreply, push_patch(socket, to: build_path(socket, %{group: group}))}
   end
 
   def handle_event("clear_filters", _params, socket) do
     {:noreply,
      push_patch(socket,
-       to: build_path(socket, %{tag: [], author: [], has: [], q: nil})
+       to: build_path(socket, %{tag: [], author: [], group: nil, q: nil})
      )}
+  end
+
+  # Back to the saved view: the bare view URL re-seeds from config.
+  def handle_event("reset_view", _params, socket) do
+    view = socket.assigns.current_view
+    {:noreply, push_patch(socket, to: ~p"/w/#{socket.assigns.workspace.slug}/v/#{view.name}")}
   end
 
   def handle_event("search", %{"value" => v}, socket) do
@@ -226,7 +290,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
       workspace: ws,
       selected_tags: tags,
       selected_authors: authors,
-      selected_has: has,
       workspace_authors: ws_authors,
       sort: sort,
       items: existing,
@@ -238,7 +301,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
         sort: sort,
         tags: tags,
         owner_ids: author_ids(authors, ws_authors),
-        has: has,
         search: socket.assigns.search,
         limit: page_size + 1,
         offset: length(existing)
@@ -256,6 +318,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
     {:noreply,
      assign(socket,
        items: items,
+       kanban: socket.assigns.group_by && kanban_columns(ws.id, socket.assigns.group_by, items),
        view_counts: DocViews.counts_by_base(base_ids),
        kudos_counts: Kudos.counts_by_base(base_ids),
        chip_counts: items |> Enum.flat_map(& &1.tags) |> Enum.frequencies(),
@@ -274,7 +337,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
     base = %{
       tag: socket.assigns.selected_tags,
       author: socket.assigns.selected_authors,
-      has: socket.assigns.selected_has,
+      group: socket.assigns.group_by,
       sort: sort_param(socket.assigns.sort),
       q: nz(socket.assigns.search)
     }
@@ -286,11 +349,10 @@ defmodule AvelineWeb.WorkspaceShowLive do
     # as a list and Plug handles the [] syntax for us.
     tags = Map.get(merged, :tag, [])
     authors = Map.get(merged, :author, [])
-    has = Map.get(merged, :has, [])
 
     scalars =
       merged
-      |> Map.drop([:tag, :author, :has])
+      |> Map.drop([:tag, :author])
       |> Enum.reject(fn {_k, v} -> v in [nil, "", false] end)
       |> Enum.map(fn {k, v} -> {Atom.to_string(k), v} end)
 
@@ -298,12 +360,19 @@ defmodule AvelineWeb.WorkspaceShowLive do
       scalars
       |> maybe_append_list("tag", tags)
       |> maybe_append_list("author", authors)
-      |> maybe_append_list("has", has)
+
+    # Session state stays on the view URL when a view is open, so the
+    # modified indicator and reset have something to deviate from.
+    base_path =
+      case socket.assigns.current_view do
+        nil -> ~p"/w/#{socket.assigns.workspace.slug}/docs"
+        view -> ~p"/w/#{socket.assigns.workspace.slug}/v/#{view.name}"
+      end
 
     if query == [] do
-      ~p"/w/#{socket.assigns.workspace.slug}/docs"
+      base_path
     else
-      ~p"/w/#{socket.assigns.workspace.slug}/docs?#{query}"
+      base_path <> "?" <> Plug.Conn.Query.encode(Map.new(query))
     end
   end
 
@@ -366,13 +435,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
     {plain, grouped}
   end
 
-  defp type_options do
-    [{"board", "Boards", "has a kanban"}]
-  end
-
-  defp has_label("board"), do: "Boards"
-  defp has_label(other), do: other
-
   defp sort_label(:recent), do: "Recent"
   defp sort_label(:kudos), do: "Kudos"
   defp sort_label(:views), do: "Views"
@@ -385,10 +447,37 @@ defmodule AvelineWeb.WorkspaceShowLive do
 
     ~H"""
     <div class="content">
-      <h1 class="page-title">Docs</h1>
+      <div class="docs-head">
+        <h1 class="page-title">{if @current_view, do: @current_view.name, else: "Docs"}</h1>
+        <span :if={@modified?} class="view-modified">
+          modified
+          <button type="button" class="view-reset" phx-click="reset_view">reset</button>
+        </span>
+      </div>
       <p class="page-subtitle docs-subtitle">
-        Everything written in <span class="mono">{@workspace.slug}</span>. Filter, search, sort.
+        <%= if @current_view do %>
+          {@current_view.description}
+        <% else %>
+          Everything written in <span class="mono">{@workspace.slug}</span>. Filter, search, sort, group.
+        <% end %>
       </p>
+
+      <div :if={@views != []} class="view-switcher">
+        <.link
+          patch={~p"/w/#{@workspace.slug}/docs"}
+          class={["view-tab", is_nil(@current_view) && "view-tab-active"]}
+        >
+          All docs
+        </.link>
+        <.link
+          :for={v <- @views}
+          patch={~p"/w/#{@workspace.slug}/v/#{v.name}"}
+          class={["view-tab", @current_view && @current_view.name == v.name && "view-tab-active"]}
+          title={v.description}
+        >
+          {v.name}
+        </.link>
+      </div>
 
       <div class="docs-controls">
       <div class="filter-bar">
@@ -456,17 +545,27 @@ defmodule AvelineWeb.WorkspaceShowLive do
           </button>
         </.fdd>
 
-        <.fdd id="fdd-type" label="Type" count={length(@selected_has)}>
+        <.fdd
+          id="fdd-group"
+          label={if @group_by, do: "Group · " <> @group_by, else: "Group"}
+          count={0}
+        >
           <button
-            :for={{kind, label, hint} <- type_options()}
             type="button"
             class="fdd-item"
-            phx-click="toggle_has"
-            phx-value-kind={kind}
+            phx-click={JS.hide(to: "#fdd-group-menu") |> JS.push("set_group", value: %{group: "none"})}
           >
-            <span class={"fdd-check " <> if kind in @selected_has, do: "on", else: ""}></span>
-            <span class="fdd-item-label">{label}</span>
-            <span class="fdd-item-hint">{hint}</span>
+            <span class={"fdd-check fdd-radio " <> if is_nil(@group_by), do: "on", else: ""}></span>
+            <span class="fdd-item-label">None</span>
+          </button>
+          <button
+            :for={scope <- workspace_scopes(@workspace_tags)}
+            type="button"
+            class="fdd-item"
+            phx-click={JS.hide(to: "#fdd-group-menu") |> JS.push("set_group", value: %{group: scope})}
+          >
+            <span class={"fdd-check fdd-radio " <> if @group_by == scope, do: "on", else: ""}></span>
+            <span class="fdd-item-label">{scope}</span>
           </button>
         </.fdd>
 
@@ -483,7 +582,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
         </.fdd>
 
         <button
-          :if={@selected_tags != [] or @selected_authors != [] or @selected_has != [] or @search != ""}
+          :if={is_nil(@current_view) and (@selected_tags != [] or @selected_authors != [] or @group_by != nil or @search != "")}
           type="button"
           class="fbar-clear"
           phx-click="clear_filters"
@@ -493,7 +592,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
       </div>
 
       <div
-        :if={@selected_tags != [] or @selected_authors != [] or @selected_has != []}
+        :if={@selected_tags != [] or @selected_authors != []}
         class="fpills"
       >
         <button
@@ -516,22 +615,59 @@ defmodule AvelineWeb.WorkspaceShowLive do
         >
           @{a} <span class="fpill-x">×</span>
         </button>
-        <button
-          :for={kind <- @selected_has}
-          type="button"
-          class="fpill"
-          phx-click="toggle_has"
-          phx-value-kind={kind}
-          title="Remove filter"
-        >
-          {has_label(kind)} <span class="fpill-x">×</span>
-        </button>
       </div>
       </div>
 
       <%= if @shown_items == [] do %>
         <div class="empty">No docs match the current filter.</div>
       <% else %>
+        <%= if @group_by && @kanban do %>
+          <div class="board docs-board">
+            <div :for={{col, docs} <- @kanban.columns} class="board-col">
+              <div class="board-col-head">
+                <span
+                  class="board-col-dot"
+                  style={
+                    if c = Map.get(@tag_colors, col) do
+                      "background: " <> c
+                    end
+                  }
+                >
+                </span>
+                <span class="board-col-name">{Tags.value_of(col)}</span>
+                <span class="board-col-count">{length(docs)}</span>
+              </div>
+              <div class="board-col-cards">
+                <.link :for={d <- docs} navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}"} class="board-card">
+                  <span class="board-card-title">{d.title}</span>
+                  <span :if={d.owner} class="board-card-owner">{d.owner.username}</span>
+                </.link>
+              </div>
+            </div>
+            <div :if={@kanban.unassigned != []} class="board-col board-col-unassigned">
+              <div class="board-col-head">
+                <span class="board-col-dot"></span>
+                <span class="board-col-name">no {@group_by}</span>
+                <span class="board-col-count">{length(@kanban.unassigned)}</span>
+              </div>
+              <div class="board-col-cards">
+                <.link
+                  :for={d <- @kanban.unassigned}
+                  navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}"}
+                  class="board-card"
+                >
+                  <span class="board-card-title">{d.title}</span>
+                  <span :if={d.owner} class="board-card-owner">{d.owner.username}</span>
+                </.link>
+              </div>
+            </div>
+          </div>
+          <%= if @has_more? do %>
+            <div class="load-more-wrap">
+              <button type="button" phx-click="load_more" class="load-more-btn">Load more</button>
+            </div>
+          <% end %>
+        <% else %>
         <ul class="card-list">
           <li :for={i <- @shown_items}>
             <.link navigate={~p"/w/#{@workspace.slug}/d/#{i.slug}"} class="card">
@@ -583,8 +719,17 @@ defmodule AvelineWeb.WorkspaceShowLive do
             </button>
           </div>
         <% end %>
+        <% end %>
       <% end %>
     </div>
     """
+  end
+
+  # Scopes (with members) present in this workspace's tags, in order.
+  defp workspace_scopes(tags) do
+    tags
+    |> Enum.map(&Tags.scope_of/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
   end
 end

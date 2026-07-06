@@ -445,23 +445,22 @@ doc_specs =
       issue.("Kanban: ship boards-as-docs", "board block + scoped status tags + the Boards directory tab.", alice, "in-progress"),
       issue.("Kanban: settle the tag model", "Scoped tags (status:todo) with per-scope exclusivity. Decided.", alice, "done"),
       %{
-        slug: "board-kanban-feature",
-        title: "Kanban feature — board",
-        summary: "Live board for the kanban feature work. Cards are docs tagged kanban-feature; columns come from the status scope.",
+        slug: "kanban-feature-notes",
+        title: "Kanban feature — notes",
+        summary: "Working notes for the kanban feature. The live board is the kanban-feature VIEW (sidebar).",
         owner: alice,
-        # Deliberately NOT tagged kanban-feature — a board carrying its
-        # own filter tag becomes one of its own cards.
         tags: [],
         blocks: [
           para.([
             t.("Everything tagged "),
             b.("kanban-feature", ["code"]),
-            t.(" below, grouped by "),
+            t.(" lives in the "),
+            b.("kanban-feature", ["code"]),
+            t.(" view (pinned in the sidebar), grouped by "),
             b.("status", ["code"]),
             t.(". Agents move cards by retagging: "),
             b.("aveline apply-ops <slug> --tag kanban-feature --tag status:done --ops \"[]\"", ["code"])
-          ]),
-          %{"type" => "board", "tags" => ["kanban-feature"], "by" => "status"}
+          ])
         ]
       }
     ]
@@ -916,6 +915,23 @@ if is_nil(Docs.get_current_by_slug(workspace.id, "metrics-dashboard")) do
         )
       ]
     })
+end
+
+# ===== Views =====
+# The kanban-feature view: what the old board doc used to be, as a
+# first-class view. Pinned so it shows in the sidebar.
+
+if is_nil(Aveline.Views.get_current_by_name(workspace.id, "kanban-feature")) do
+  {:ok, seeded_view} =
+    Aveline.Views.create(
+      workspace.id,
+      "kanban-feature",
+      "All work on the kanban feature, grouped by status. Move a card by retagging.",
+      %{"tags" => ["kanban-feature"], "group_by" => "status"},
+      alice.id
+    )
+
+  {:ok, _} = Aveline.Views.set_pinned(seeded_view, true)
 end
 
 IO.puts("=== Local seed complete ===")

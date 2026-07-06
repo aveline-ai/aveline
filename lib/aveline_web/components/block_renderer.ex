@@ -252,95 +252,12 @@ defmodule AvelineWeb.BlockRenderer do
   end
 
 
-  # board — a live kanban over the workspace's tags. Read-only in the
-  # web (humans comment; agents move cards by retagging via apply-ops).
-  # `view` is the read-time echo merged in by Docs.enrich_blocks.
-  def block(%{block: %{"type" => "board"}} = assigns) do
-    view = assigns.block["view"] || %{}
-    columns = view["columns"] || []
-    colors = view["colors"] || %{}
-    cards = view["cards"] || []
-    grouped = Enum.group_by(cards, & &1["column"])
-    unassigned = Map.get(grouped, nil, [])
-
-    assigns =
-      assign(assigns, columns: columns, colors: colors, grouped: grouped, unassigned: unassigned)
-
-    ~H"""
-    <div id={@block["id"]} class="blk-board blk-anchored">
-      <.block_anchor id={@block["id"]} />
-      <div class="blk-board-meta">
-        <span class="blk-board-filter">
-          <.scoped_tag :for={t <- @block["tags"] || []} slug={t} />
-        </span>
-        <span class="blk-board-by">by {@block["by"]}</span>
-      </div>
-      <div :if={@columns == []} class="blk-board-empty">
-        No <code>{@block["by"]}:*</code> tags exist yet — create them
-        (<code>aveline create-tag --name {@block["by"]}:todo ...</code>) and they become this board's columns.
-      </div>
-      <div :if={@columns != []} class="board">
-        <div :for={col <- @columns} class="board-col" style={"--h: #{board_hue(col)}"}>
-          <div class="board-col-head">
-            <span
-              class="board-col-dot"
-              style={if c = @colors[col], do: "background: #{c}"}
-              aria-hidden="true"
-            >
-            </span>
-            <span class="board-col-name">{Aveline.Tags.value_of(col)}</span>
-            <span class="board-col-count">{length(Map.get(@grouped, col, []))}</span>
-          </div>
-          <div class="board-col-cards">
-            <div :for={card <- Map.get(@grouped, col, [])} class="board-card">
-              <.link navigate={"/w/#{@ws_slug}/d/#{card["slug"]}"} class="board-card-title">{card["title"]}</.link>
-              <div :if={card["summary"]} class="board-card-summary">{card["summary"]}</div>
-              <div class="board-card-foot">
-                <span :if={card["owner"]} class="board-card-owner">{card["owner"]}</span>
-              </div>
-            </div>
-            <div :if={Map.get(@grouped, col, []) == []} class="board-col-empty">—</div>
-          </div>
-        </div>
-        <div :if={@unassigned != []} class="board-col board-col-none">
-          <div class="board-col-head">
-            <span class="board-col-name">no {@block["by"]}</span>
-            <span class="board-col-count">{length(@unassigned)}</span>
-          </div>
-          <div class="board-col-cards">
-            <div :for={card <- @unassigned} class="board-card">
-              <.link navigate={"/w/#{@ws_slug}/d/#{card["slug"]}"} class="board-card-title">{card["title"]}</.link>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    """
-  end
-
   def block(assigns) do
     ~H"""
     <div class="blk-unknown">Unknown block type: {@block["type"]}</div>
     """
   end
 
-  defp board_hue(s), do: :erlang.phash2(s || "", 360)
-
-  @doc """
-  A tag chip that renders scoped tags (`status:todo`) two-tone — scope
-  dim, value bright — and plain tags as ordinary chips.
-  """
-  attr :slug, :string, required: true
-
-  def scoped_tag(assigns) do
-    assigns = assign(assigns, scope: Aveline.Tags.scope_of(assigns.slug))
-
-    ~H"""
-    <span class="scoped-tag">
-      <span :if={@scope} class="scoped-tag-scope">{@scope}:</span><span class="scoped-tag-value">{Aveline.Tags.value_of(@slug)}</span>
-    </span>
-    """
-  end
 
   attr :id, :string, required: true
 

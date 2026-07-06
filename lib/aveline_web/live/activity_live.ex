@@ -28,6 +28,7 @@ defmodule AvelineWeb.ActivityLive do
            current_user: user,
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
+           sidebar_views: Aveline.Views.list_pinned(ws.id),
            topbar_title: "Activity",
            nav_active: :activity,
            events: events,
