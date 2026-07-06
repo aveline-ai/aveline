@@ -24,6 +24,21 @@ function loadECharts() {
   return echartsLoading
 }
 
+let sqlFormatterLoading = null
+function loadSqlFormatter() {
+  if (window.sqlFormatter) return Promise.resolve()
+  if (!sqlFormatterLoading) {
+    sqlFormatterLoading = new Promise((resolve, reject) => {
+      const s = document.createElement("script")
+      s.src = "/assets/js/sqlformatter-loader.js"
+      s.onload = resolve
+      s.onerror = reject
+      document.head.appendChild(s)
+    })
+  }
+  return sqlFormatterLoading
+}
+
 const Hooks = {
   // Toggle the workspace sidebar between expanded and collapsed. Source
   // of truth is `html.sidebar-collapsed` (set early by an inline script
@@ -202,6 +217,39 @@ const Hooks = {
 
       if (!this.chart) this.chart = echarts.init(this.el)
       this.chart.setOption(option, { notMerge: true })
+    },
+  },
+
+  // A chart block's SQL pane. The stored query is shown as written; on
+  // the FIRST open of the tab we lazily fetch sql-formatter, pretty-
+  // print for display only (dialect from the source adapter), and let
+  // Prism re-highlight. The database is never touched — formatting is
+  // presentation, like every other read-time echo.
+  SqlPane: {
+    mounted() {
+      const tab = document.getElementById(this.el.id.replace("-pane-sql", "-tab-sql"))
+      if (!tab) return
+      this._onTab = () => this.formatOnce()
+      tab.addEventListener("click", this._onTab)
+    },
+    destroyed() {
+      const tab = document.getElementById(this.el.id.replace("-pane-sql", "-tab-sql"))
+      if (tab && this._onTab) tab.removeEventListener("click", this._onTab)
+    },
+    formatOnce() {
+      if (this.el.dataset.formatted) return
+      this.el.dataset.formatted = "1"
+      loadSqlFormatter()
+        .then(() => {
+          const code = this.el.querySelector("code")
+          if (!code) return
+          code.textContent = window.sqlFormatter.format(code.textContent, {
+            language: this.el.dataset.dialect || "sql",
+            keywordCase: "upper",
+          })
+          if (window.Prism) window.Prism.highlightElement(code)
+        })
+        .catch(() => {}) // formatting is a nicety; the raw SQL still shows
     },
   },
 

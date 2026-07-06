@@ -232,13 +232,18 @@ defmodule AvelineWeb.BlockRenderer do
             <div class="chart-error">nothing to render</div>
         <% end %>
       </div>
-      <div id={@block["id"] <> "-pane-sql"} hidden>
+      <div
+        id={@block["id"] <> "-pane-sql"}
+        phx-hook="SqlPane"
+        phx-update="ignore"
+        data-dialect={sql_dialect(@source)}
+        hidden
+      >
         <pre
           id={@block["id"] <> "-sqlcode"}
           class="blk-code"
           data-lang="sql"
           phx-hook="HighlightCode"
-          phx-update="ignore"
         ><code class="language-sql">{@block["query"]}</code></pre>
       </div>
       <div class="chart-caption">
@@ -428,6 +433,11 @@ defmodule AvelineWeb.BlockRenderer do
   defp render_doc_mention(inner_html, _target, _ws_slug), do: Phoenix.HTML.raw(inner_html)
 
   defp esc(s), do: Phoenix.HTML.html_escape(s) |> Phoenix.HTML.safe_to_string()
+
+  # sql-formatter dialect id from the source adapter echo.
+  defp sql_dialect(%{"adapter" => "postgres"}), do: "postgresql"
+  defp sql_dialect(%{"adapter" => "mysql"}), do: "mysql"
+  defp sql_dialect(_), do: "sql"
 
   # Client-only pane switch: show one pane, hide the other, move the
   # active class. No server round trip for a peek at the SQL.

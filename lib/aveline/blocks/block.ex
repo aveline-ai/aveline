@@ -303,20 +303,6 @@ defmodule Aveline.Blocks.Block do
     end
   end
 
-  defp valid_combo_series?(%{"x" => x, "series" => series}) when is_binary(x) and x != "" do
-    is_list(series) and length(series) in 1..4 and
-      Enum.all?(series, fn
-        %{"y" => y, "type" => t} = s ->
-          is_binary(y) and y != "" and t in ["line", "bar"] and
-            Map.get(s, "axis", "left") in ["left", "right"]
-
-        _ ->
-          false
-      end)
-  end
-
-  defp valid_combo_series?(_), do: false
-
   defp validate_type_fields("chart", _) do
     {:error,
      "chart requires data_source_id (source base id, or source: <name> resolved server-side), query (SQL), and optional viz"}
@@ -344,6 +330,20 @@ defmodule Aveline.Blocks.Block do
 
   # ===== Helpers (placed after all validate_type_fields clauses so the
   # compiler doesn't complain about non-contiguous clause grouping) =====
+
+  defp valid_combo_series?(%{"x" => x, "series" => series}) when is_binary(x) and x != "" do
+    is_list(series) and length(series) in 1..4 and
+      Enum.all?(series, fn
+        %{"y" => y, "type" => t} = s ->
+          is_binary(y) and y != "" and t in ["line", "bar"] and
+            Map.get(s, "axis", "left") in ["left", "right"]
+
+        _ ->
+          false
+      end)
+  end
+
+  defp valid_combo_series?(_), do: false
 
   defp validate_list_items(items) do
     Enum.reduce_while(items, {:ok, []}, fn raw_item, {:ok, acc} ->
