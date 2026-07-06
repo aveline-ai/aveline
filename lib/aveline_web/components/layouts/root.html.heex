@@ -949,7 +949,12 @@
         background: var(--bg-card); border: 1px solid var(--border);
         border-radius: 4px; padding: 1px 6px;
       }
-      a.gate-btn { display: inline-block; text-decoration: none; text-align: center; }
+      /* .auth-submit assumes a <button> (native label centering); on an
+         anchor the text top-aligns inside the 40px box — flex-center it. */
+      a.gate-btn {
+        display: flex; align-items: center; justify-content: center;
+        text-decoration: none;
+      }
       .gate-fine { font-size: 11.5px; color: var(--text-muted); line-height: 1.6; max-width: 320px; }
 
       /* ===== Data sources page ===== */
