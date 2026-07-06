@@ -162,11 +162,9 @@ defmodule AvelineWeb.WorkspaceShowLive do
        kudos_counts: Kudos.counts_by_base(base_ids),
        total_count: length(items),
        has_more?: has_more?,
-       # Docs is THE docs tab — stay highlighted regardless of filter state
-       # so it's clear what page you're on. Clicking the sidebar link
-       # navigates to /w/:slug with no query string, which resets filters
-       # naturally via handle_params.
-       nav_active: :all,
+       # On a view, the sidebar highlights that view's item; otherwise
+       # Docs stays highlighted regardless of filter state.
+       nav_active: if(current_view, do: {:view, current_view.name}, else: :all),
        topbar_title:
          cond do
            current_view -> current_view.name
