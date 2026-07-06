@@ -465,14 +465,23 @@ defmodule AvelineWeb.WorkspaceShowLive do
               </button>
             </h1>
             <div class="fdd-menu title-fdd-menu" id="fdd-view-menu" hidden>
-              <.link patch={~p"/w/#{@workspace.slug}/docs"} class="vmenu-item">
+              <.link
+                patch={~p"/w/#{@workspace.slug}/docs"}
+                phx-click={JS.hide(to: "#fdd-view-menu")}
+                class="vmenu-item"
+              >
                 <span class={"fdd-check fdd-radio " <> if is_nil(@current_view), do: "on", else: ""}></span>
                 <span class="vmenu-body">
                   <span class="vmenu-name">All docs</span>
                   <span class="vmenu-desc">Everything written in this workspace.</span>
                 </span>
               </.link>
-              <.link :for={v <- @views} patch={~p"/w/#{@workspace.slug}/v/#{v.name}"} class="vmenu-item">
+              <.link
+                :for={v <- @views}
+                patch={~p"/w/#{@workspace.slug}/v/#{v.name}"}
+                phx-click={JS.hide(to: "#fdd-view-menu")}
+                class="vmenu-item"
+              >
                 <span class={"fdd-check fdd-radio " <> if @current_view && @current_view.name == v.name, do: "on", else: ""}></span>
                 <span class="vmenu-body">
                   <span class="vmenu-name">{v.name}</span>
