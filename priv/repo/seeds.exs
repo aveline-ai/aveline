@@ -934,6 +934,19 @@ if is_nil(Aveline.Views.get_current_by_name(workspace.id, "kanban-feature")) do
   {:ok, _} = Aveline.Views.set_pinned(seeded_view, true)
 end
 
+# An UNPINNED view: reachable from the title switcher but absent from
+# the sidebar — the two placements demoed side by side.
+if is_nil(Aveline.Views.get_current_by_name(workspace.id, "runbooks")) do
+  {:ok, _} =
+    Aveline.Views.create(
+      workspace.id,
+      "runbooks",
+      "Operational docs only. Unpinned on purpose: switcher-only.",
+      %{"tags" => ["runbook"]},
+      alice.id
+    )
+end
+
 IO.puts("=== Local seed complete ===")
 IO.puts("Workspace: #{workspace.slug} (Local Pod)")
 IO.puts("")
