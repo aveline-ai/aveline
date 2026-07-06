@@ -206,6 +206,68 @@ defmodule Aveline.DataSourcesTest do
     end
   end
 
+  describe "combo viz" do
+    test "block validation: series shape, unknown keys stripped" do
+      uuid = Ecto.UUID.generate()
+      base = %{"type" => "chart", "data_source_id" => uuid, "query" => "select 1"}
+
+      viz = %{
+        "type" => "combo",
+        "x" => "day",
+        "series" => [
+          %{"y" => "signups", "type" => "bar", "junk" => 1},
+          %{"y" => "total", "type" => "line", "axis" => "right"}
+        ]
+      }
+
+      assert {:ok, out} = Block.validate(Map.put(base, "viz", viz), mint_id?: true)
+
+      assert out["viz"] == %{
+               "type" => "combo",
+               "x" => "day",
+               "series" => [
+                 %{"y" => "signups", "type" => "bar"},
+                 %{"y" => "total", "type" => "line", "axis" => "right"}
+               ]
+             }
+
+      # Bad shapes rejected.
+      for bad <- [
+            %{"type" => "combo", "x" => "day"},
+            %{"type" => "combo", "x" => "day", "series" => []},
+            %{"type" => "combo", "x" => "day", "series" => [%{"y" => "a", "type" => "pie"}]},
+            %{"type" => "combo", "x" => "day", "series" => [%{"y" => "a", "type" => "bar", "axis" => "top"}]}
+          ] do
+        assert {:error, msg} = Block.validate(Map.put(base, "viz", bad), mint_id?: true)
+        assert msg =~ "combo"
+      end
+    end
+
+    test "spec validation: all series columns must exist and be numeric" do
+      result = %{"columns" => ["day", "signups", "total"], "rows" => [["2026-07-04", 1, 5]]}
+
+      viz = %{
+        "type" => "combo",
+        "x" => "day",
+        "series" => [
+          %{"y" => "signups", "type" => "bar"},
+          %{"y" => "total", "type" => "line", "axis" => "right"}
+        ]
+      }
+
+      assert {:ok, spec} = AvelineWeb.ChartRenderer.spec(result, viz)
+      assert spec["viz"] == viz
+
+      bad_col = put_in(viz, ["series", Access.at(1), "y"], "ghost")
+      assert {:error, msg} = AvelineWeb.ChartRenderer.spec(result, bad_col)
+      assert msg =~ "ghost"
+
+      bad_rows = %{result | "rows" => [["2026-07-04", 1, "not-a-number"]]}
+      assert {:error, msg2} = AvelineWeb.ChartRenderer.spec(bad_rows, viz)
+      assert msg2 =~ "numeric"
+    end
+  end
+
   describe "chart block validation" do
     test "valid chart normalizes; echoes stripped" do
       uuid = Ecto.UUID.generate()

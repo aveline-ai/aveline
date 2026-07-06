@@ -262,18 +262,36 @@ defmodule Aveline.Blocks.Block do
       String.length(query) > 10_000 ->
         {:error, "chart.query too long (10k max)"}
 
-      not is_map(viz) or viz["type"] not in ["table", "line", "bar"] ->
-        {:error, "chart.viz.type must be \"table\", \"line\", or \"bar\""}
+      not is_map(viz) or viz["type"] not in ["table", "line", "bar", "combo"] ->
+        {:error, "chart.viz.type must be \"table\", \"line\", \"bar\", or \"combo\""}
 
       viz["type"] in ["line", "bar"] and
           not (is_binary(viz["x"]) and viz["x"] != "" and is_binary(viz["y"]) and viz["y"] != "") ->
         {:error, "chart.viz needs x and y (column names) for line/bar"}
 
+      viz["type"] == "combo" and not valid_combo_series?(viz) ->
+        {:error,
+         "chart.viz combo needs x and series: 1-4 of {y: column, type: line | bar, axis?: left | right}"}
+
       true ->
         clean_viz =
           case viz["type"] do
-            "table" -> %{"type" => "table"}
-            t -> %{"type" => t, "x" => viz["x"], "y" => viz["y"]}
+            "table" ->
+              %{"type" => "table"}
+
+            "combo" ->
+              %{
+                "type" => "combo",
+                "x" => viz["x"],
+                "series" =>
+                  Enum.map(viz["series"], fn s ->
+                    base = %{"y" => s["y"], "type" => s["type"]}
+                    if s["axis"] == "right", do: Map.put(base, "axis", "right"), else: base
+                  end)
+              }
+
+            t ->
+              %{"type" => t, "x" => viz["x"], "y" => viz["y"]}
           end
 
         {:ok,
@@ -284,6 +302,20 @@ defmodule Aveline.Blocks.Block do
          }}
     end
   end
+
+  defp valid_combo_series?(%{"x" => x, "series" => series}) when is_binary(x) and x != "" do
+    is_list(series) and length(series) in 1..4 and
+      Enum.all?(series, fn
+        %{"y" => y, "type" => t} = s ->
+          is_binary(y) and y != "" and t in ["line", "bar"] and
+            Map.get(s, "axis", "left") in ["left", "right"]
+
+        _ ->
+          false
+      end)
+  end
+
+  defp valid_combo_series?(_), do: false
 
   defp validate_type_fields("chart", _) do
     {:error,

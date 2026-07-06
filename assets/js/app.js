@@ -134,14 +134,48 @@ const Hooks = {
       const accent = color("--accent", "#3B82F6")
 
       const xi = spec.columns.indexOf(spec.viz.x)
-      const yi = spec.columns.indexOf(spec.viz.y)
       const xs = spec.rows.map((r) => r[xi])
-      const ys = spec.rows.map((r) => r[yi])
+
+      // Normalize: line/bar are sugar for a one-series combo.
+      const seriesSpecs =
+        spec.viz.type === "combo"
+          ? spec.viz.series
+          : [{ y: spec.viz.y, type: spec.viz.type }]
+      const useRightAxis = seriesSpecs.some((s) => s.axis === "right")
+      const palette = [accent, color("--attn", "#E09150"), "#8B5CF6", "#22C55E"]
+
+      const series = seriesSpecs.map((s) => {
+        const yi = spec.columns.indexOf(s.y)
+        const ys = spec.rows.map((r) => r[yi])
+        const base = { name: s.y, data: ys, yAxisIndex: s.axis === "right" ? 1 : 0 }
+        return s.type === "line"
+          ? {
+              ...base,
+              type: "line",
+              showSymbol: xs.length < 30,
+              symbolSize: 6,
+              lineStyle: { width: 2 },
+              areaStyle: seriesSpecs.length === 1 ? { opacity: 0.08 } : undefined,
+            }
+          : { ...base, type: "bar", barMaxWidth: 42, itemStyle: { borderRadius: [3, 3, 0, 0] } }
+      })
+
+      const yAxisBase = {
+        type: "value",
+        axisLabel: { color: muted, fontSize: 10.5 },
+        splitLine: { lineStyle: { color: border, type: "dashed" } },
+      }
 
       const option = {
         animationDuration: 250,
-        grid: { left: 8, right: 12, top: 16, bottom: 8, containLabel: true },
-        color: [accent],
+        grid: {
+          left: 8,
+          right: 12,
+          top: seriesSpecs.length > 1 ? 32 : 16,
+          bottom: 8,
+          containLabel: true,
+        },
+        color: palette,
         textStyle: { fontFamily: "inherit" },
         tooltip: {
           trigger: "axis",
@@ -156,23 +190,14 @@ const Hooks = {
           axisTick: { show: false },
           axisLabel: { color: muted, fontSize: 10.5 },
         },
-        yAxis: {
-          type: "value",
-          axisLabel: { color: muted, fontSize: 10.5 },
-          splitLine: { lineStyle: { color: border, type: "dashed" } },
-        },
-        series: [
-          spec.viz.type === "line"
-            ? {
-                type: "line",
-                data: ys,
-                showSymbol: xs.length < 30,
-                symbolSize: 6,
-                lineStyle: { width: 2 },
-                areaStyle: { opacity: 0.08 },
-              }
-            : { type: "bar", data: ys, barMaxWidth: 42, itemStyle: { borderRadius: [3, 3, 0, 0] } },
-        ],
+        yAxis: useRightAxis
+          ? [yAxisBase, { ...yAxisBase, splitLine: { show: false } }]
+          : [yAxisBase],
+        legend:
+          seriesSpecs.length > 1
+            ? { top: 0, right: 0, textStyle: { color: muted, fontSize: 11 }, icon: "circle" }
+            : undefined,
+        series: series,
       }
 
       if (!this.chart) this.chart = echarts.init(this.el)

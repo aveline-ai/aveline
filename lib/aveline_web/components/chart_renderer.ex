@@ -38,6 +38,33 @@ defmodule AvelineWeb.ChartRenderer do
     end
   end
 
+  def spec(%{"columns" => cols, "rows" => rows}, %{"type" => "combo"} = viz) do
+    x = viz["x"]
+    ys = Enum.map(viz["series"] || [], & &1["y"])
+
+    missing = Enum.filter([x | ys], &(&1 not in cols))
+
+    cond do
+      missing != [] ->
+        {:error,
+         "column#{if length(missing) > 1, do: "s"} #{Enum.map_join(missing, ", ", &inspect/1)} not in result (has: #{Enum.join(cols, ", ")})"}
+
+      rows == [] ->
+        {:error, "query returned no rows"}
+
+      true ->
+        bad_y =
+          Enum.find(ys, fn y ->
+            yi = Enum.find_index(cols, &(&1 == y))
+            not Enum.all?(rows, fn row -> row |> Enum.at(yi) |> numeric?() end)
+          end)
+
+        if bad_y,
+          do: {:error, "column #{inspect(bad_y)} must be numeric for combo charts"},
+          else: {:ok, %{"columns" => cols, "rows" => rows, "viz" => viz}}
+    end
+  end
+
   def spec(_result, _viz), do: {:error, "nothing to render"}
 
   defp numeric?(v) when is_number(v), do: true
