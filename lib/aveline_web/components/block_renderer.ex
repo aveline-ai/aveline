@@ -189,12 +189,7 @@ defmodule AvelineWeb.BlockRenderer do
         >
           chart
         </button>
-        <button
-          type="button"
-          id={@block["id"] <> "-tab-sql"}
-          class="chart-tab"
-          phx-click={chart_tab(@block["id"], "sql")}
-        >
+        <button type="button" id={@block["id"] <> "-tab-sql"} class="chart-tab">
           sql
         </button>
       </div>

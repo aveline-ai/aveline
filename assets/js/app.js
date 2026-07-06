@@ -229,7 +229,10 @@ const Hooks = {
     mounted() {
       const tab = document.getElementById(this.el.id.replace("-pane-sql", "-tab-sql"))
       if (!tab) return
-      this._onTab = () => this.formatOnce()
+      // The hook owns this tab's pane switch (the chart tab stays a pure
+      // LV JS command): format FIRST, reveal AFTER, so the unformatted
+      // one-liner never paints.
+      this._onTab = () => this.formatOnce().then(() => this.reveal())
       tab.addEventListener("click", this._onTab)
     },
     destroyed() {
@@ -237,9 +240,8 @@ const Hooks = {
       if (tab && this._onTab) tab.removeEventListener("click", this._onTab)
     },
     formatOnce() {
-      if (this.el.dataset.formatted) return
-      this.el.dataset.formatted = "1"
-      loadSqlFormatter()
+      if (this.el.dataset.formatted) return Promise.resolve()
+      return loadSqlFormatter()
         .then(() => {
           const code = this.el.querySelector("code")
           if (!code) return
@@ -248,8 +250,20 @@ const Hooks = {
             keywordCase: "upper",
           })
           if (window.Prism) window.Prism.highlightElement(code)
+          this.el.dataset.formatted = "1"
         })
         .catch(() => {}) // formatting is a nicety; the raw SQL still shows
+    },
+    reveal() {
+      const base = this.el.id.replace("-pane-sql", "")
+      const viz = document.getElementById(base + "-pane-viz")
+      if (viz) viz.style.display = "none"
+      this.el.hidden = false
+      this.el.style.display = ""
+      const sqlTab = document.getElementById(base + "-tab-sql")
+      const vizTab = document.getElementById(base + "-tab-viz")
+      if (sqlTab) sqlTab.classList.add("chart-tab-active")
+      if (vizTab) vizTab.classList.remove("chart-tab-active")
     },
   },
 
