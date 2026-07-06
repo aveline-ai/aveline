@@ -17,8 +17,13 @@ defmodule Aveline.Views do
     from v in View, where: not v.superseded and is_nil(v.deleted_at)
   end
 
+  # Pinned first, then name — the one ordering every surface uses
+  # (title switcher, list-views, sidebar).
   def list_for_workspace(workspace_id) do
-    from(v in base_query(), where: v.workspace_id == ^workspace_id, order_by: v.name)
+    from(v in base_query(),
+      where: v.workspace_id == ^workspace_id,
+      order_by: [desc: v.pinned, asc: v.name]
+    )
     |> Repo.all()
   end
 

@@ -74,6 +74,15 @@ defmodule Aveline.ViewsTest do
     assert [%{name: "work"}] = Views.list_pinned(ws.id)
   end
 
+  test "list_for_workspace orders pinned first, then name" do
+    %{user: user, ws: ws} = setup_ws()
+    {:ok, _a} = Views.create(ws.id, "alpha", "First alphabetically.", %{}, user.id)
+    {:ok, z} = Views.create(ws.id, "zulu", "Last alphabetically.", %{}, user.id)
+    {:ok, _} = Views.set_pinned(z, true)
+
+    assert ["zulu", "alpha"] = ws.id |> Views.list_for_workspace() |> Enum.map(& &1.name)
+  end
+
   test "safe_map shape" do
     %{user: user, ws: ws} = setup_ws()
     {:ok, view} = Views.create(ws.id, "tickets", "All open work.", %{"tags" => ["ticket"]}, user.id)
