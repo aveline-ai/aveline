@@ -35,9 +35,10 @@ defmodule AvelineWeb.DocsViewsLiveTest do
 
     assert html =~ "Ticket one"
     assert html =~ "Plain doc"
-    # Switcher with the view; All docs active.
-    assert has_element?(lv, ".view-tab-active", "All docs")
-    assert has_element?(lv, ".view-tab", "tickets")
+    # Title menu carries All docs (active) + the view.
+    assert has_element?(lv, ".title-fdd-btn", "Docs")
+    assert has_element?(lv, "#fdd-view-menu .vmenu-item .fdd-check.on + .vmenu-body .vmenu-name", "All docs")
+    assert has_element?(lv, "#fdd-view-menu .vmenu-name", "tickets")
     # Sidebar section carries the pinned view.
     assert has_element?(lv, ".sidebar-views .sidebar-item", "tickets")
   end

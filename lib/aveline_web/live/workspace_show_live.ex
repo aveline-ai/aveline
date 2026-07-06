@@ -446,7 +446,42 @@ defmodule AvelineWeb.WorkspaceShowLive do
     ~H"""
     <div class="content">
       <div class="docs-head">
-        <h1 class="page-title">{if @current_view, do: @current_view.name, else: "Docs"}</h1>
+        <%= if @views == [] do %>
+          <h1 class="page-title">Docs</h1>
+        <% else %>
+          <div
+            class="title-fdd"
+            id="fdd-view"
+            phx-click-away={JS.hide(to: "#fdd-view-menu")}
+            phx-window-keydown={JS.hide(to: "#fdd-view-menu")}
+            phx-key="escape"
+          >
+            <h1 class="page-title">
+              <button type="button" class="title-fdd-btn" phx-click={JS.toggle(to: "#fdd-view-menu")}>
+                {if @current_view, do: @current_view.name, else: "Docs"}
+                <svg class="title-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+            </h1>
+            <div class="fdd-menu title-fdd-menu" id="fdd-view-menu" hidden>
+              <.link patch={~p"/w/#{@workspace.slug}/docs"} class="vmenu-item">
+                <span class={"fdd-check fdd-radio " <> if is_nil(@current_view), do: "on", else: ""}></span>
+                <span class="vmenu-body">
+                  <span class="vmenu-name">All docs</span>
+                  <span class="vmenu-desc">Everything written in this workspace.</span>
+                </span>
+              </.link>
+              <.link :for={v <- @views} patch={~p"/w/#{@workspace.slug}/v/#{v.name}"} class="vmenu-item">
+                <span class={"fdd-check fdd-radio " <> if @current_view && @current_view.name == v.name, do: "on", else: ""}></span>
+                <span class="vmenu-body">
+                  <span class="vmenu-name">{v.name}</span>
+                  <span class="vmenu-desc">{v.description}</span>
+                </span>
+              </.link>
+            </div>
+          </div>
+        <% end %>
         <span :if={@modified?} class="view-modified">
           modified
           <button type="button" class="view-reset" phx-click="reset_view">reset</button>
@@ -459,23 +494,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
           Everything written in <span class="mono">{@workspace.slug}</span>. Filter, search, sort, group.
         <% end %>
       </p>
-
-      <div :if={@views != []} class="view-switcher">
-        <.link
-          patch={~p"/w/#{@workspace.slug}/docs"}
-          class={["view-tab", is_nil(@current_view) && "view-tab-active"]}
-        >
-          All docs
-        </.link>
-        <.link
-          :for={v <- @views}
-          patch={~p"/w/#{@workspace.slug}/v/#{v.name}"}
-          class={["view-tab", @current_view && @current_view.name == v.name && "view-tab-active"]}
-          title={v.description}
-        >
-          {v.name}
-        </.link>
-      </div>
 
       <div class="docs-controls">
       <div class="filter-bar">
