@@ -22,8 +22,7 @@ defmodule AvelineWeb.Api.DocController do
     items =
       Docs.list_current(ws.id,
         tags: parse_tag_list(params["tag"] || params["tags"]),
-        created: params["created"],
-        updated: params["updated"]
+        updated: params["edited"] || params["updated"]
       )
 
     Envelope.ok(conn, %{docs: Enum.map(items, &Views.doc_summary/1)})

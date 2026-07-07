@@ -61,7 +61,6 @@ defmodule AvelineWeb.Api.Views do
       "orientation" => d.orientation,
       "version_number" => d.version_number,
       "owner" => user(preload(d, :owner)),
-      "created_at" => iso(Map.get(d, :created_at) || d.inserted_at),
       "updated_at" => iso(d.updated_at)
     }
   end

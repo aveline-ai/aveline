@@ -36,8 +36,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
            selected_tags: [],
            selected_authors: [],
            group_by: nil,
-           created_within: nil,
-           updated_within: nil,
+           edited_within: nil,
            views: Aveline.Views.list_for_workspace(ws.id),
            current_view: nil,
            modified?: false,
@@ -88,22 +87,20 @@ defmodule AvelineWeb.WorkspaceShowLive do
       # entirely from the URL. The saved view is never mutated from
       # here — screens deviate, agents save.
       pristine? =
-        not Enum.any?(~w(tag author group sort q created updated), &Map.has_key?(params, &1))
+        not Enum.any?(~w(tag author group sort q edited), &Map.has_key?(params, &1))
 
-      {selected_tags, group_by, sort, selected_authors, search, created_within, updated_within} =
+      {selected_tags, group_by, sort, selected_authors, search, edited_within} =
         if pristine? do
           {Map.get(config, "tags", []), Map.get(config, "group_by"),
            parse_sort(Map.get(config, "sort")), [], "",
-           Aveline.Docs.normalize_within(Map.get(config, "created")),
-           Aveline.Docs.normalize_within(Map.get(config, "updated"))}
+           Aveline.Docs.normalize_within(Map.get(config, "edited"))}
         else
           {parse_tags(params["tag"]),
            parse_group(params["group"], ws.id),
            parse_sort(params["sort"]),
            parse_authors(params["author"], socket.assigns.workspace_authors),
            params["q"] || "",
-           Aveline.Docs.normalize_within(params["created"]),
-           Aveline.Docs.normalize_within(params["updated"])}
+           Aveline.Docs.normalize_within(params["edited"])}
         end
 
       modified? =
@@ -111,15 +108,14 @@ defmodule AvelineWeb.WorkspaceShowLive do
           (Enum.sort(selected_tags) != Enum.sort(Map.get(config, "tags", [])) or
              group_by != Map.get(config, "group_by") or
              sort != parse_sort(Map.get(config, "sort")) or
-             created_within != Aveline.Docs.normalize_within(Map.get(config, "created")) or
-             updated_within != Aveline.Docs.normalize_within(Map.get(config, "updated")) or
+             edited_within != Aveline.Docs.normalize_within(Map.get(config, "edited")) or
              selected_authors != [] or search != "")
 
-      handle_docs_params(socket, current_view, selected_tags, group_by, sort, selected_authors, search, created_within, updated_within, modified?)
+      handle_docs_params(socket, current_view, selected_tags, group_by, sort, selected_authors, search, edited_within, modified?)
     end
   end
 
-  defp handle_docs_params(socket, current_view, selected_tags, group_by, sort, selected_authors, search, created_within, updated_within, modified?) do
+  defp handle_docs_params(socket, current_view, selected_tags, group_by, sort, selected_authors, search, edited_within, modified?) do
     ws = socket.assigns.workspace
     page_size = socket.assigns.page_size
     owner_ids = author_ids(selected_authors, socket.assigns.workspace_authors)
@@ -132,8 +128,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
         tags: selected_tags,
         owner_ids: owner_ids,
         search: search,
-        created: created_within,
-        updated: updated_within,
+        updated: edited_within,
         limit: page_size + 1
       )
 
@@ -160,8 +155,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
        selected_tags: selected_tags,
        selected_authors: selected_authors,
        group_by: group_by,
-       created_within: created_within,
-       updated_within: updated_within,
+       edited_within: edited_within,
        current_view: current_view,
        modified?: modified?,
        kanban: group_by && kanban_columns(ws.id, group_by, items),
@@ -242,7 +236,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
 
   defp parse_group(_, _), do: nil
 
-  defp parse_sort("created"), do: :created
   defp parse_sort("kudos"), do: :kudos
   defp parse_sort("views"), do: :views
   defp parse_sort(_), do: :recent
@@ -270,14 +263,9 @@ defmodule AvelineWeb.WorkspaceShowLive do
     {:noreply, push_patch(socket, to: build_path(socket, %{author: new_authors}))}
   end
 
-  def handle_event("set_created", %{"within" => within}, socket) do
+  def handle_event("set_edited", %{"within" => within}, socket) do
     within = if within in [nil, "", "any"], do: nil, else: within
-    {:noreply, push_patch(socket, to: build_path(socket, %{created: within}))}
-  end
-
-  def handle_event("set_updated", %{"within" => within}, socket) do
-    within = if within in [nil, "", "any"], do: nil, else: within
-    {:noreply, push_patch(socket, to: build_path(socket, %{updated: within}))}
+    {:noreply, push_patch(socket, to: build_path(socket, %{edited: within}))}
   end
 
   def handle_event("set_group", %{"group" => group}, socket) do
@@ -288,7 +276,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
   def handle_event("clear_filters", _params, socket) do
     {:noreply,
      push_patch(socket,
-       to: build_path(socket, %{tag: [], author: [], group: nil, created: nil, updated: nil, q: nil})
+       to: build_path(socket, %{tag: [], author: [], group: nil, edited: nil, q: nil})
      )}
   end
 
@@ -323,8 +311,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
         tags: tags,
         owner_ids: author_ids(authors, ws_authors),
         search: socket.assigns.search,
-        created: socket.assigns.created_within,
-        updated: socket.assigns.updated_within,
+        updated: socket.assigns.edited_within,
         limit: page_size + 1,
         offset: length(existing)
       )
@@ -361,8 +348,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
       tag: socket.assigns.selected_tags,
       author: socket.assigns.selected_authors,
       group: socket.assigns.group_by,
-      created: socket.assigns.created_within,
-      updated: socket.assigns.updated_within,
+      edited: socket.assigns.edited_within,
       sort: sort_param(socket.assigns.sort),
       q: nz(socket.assigns.search)
     }
@@ -407,7 +393,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
   defp nz(""), do: nil
   defp nz(s), do: s
 
-  defp sort_param(:created), do: "created"
   defp sort_param(:kudos), do: "kudos"
   defp sort_param(:views), do: "views"
   defp sort_param(_), do: nil
@@ -482,8 +467,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
     {plain, grouped}
   end
 
-  defp sort_label(:recent), do: "Updated"
-  defp sort_label(:created), do: "Created"
+  defp sort_label(:recent), do: "Recent"
   defp sort_label(:kudos), do: "Kudos"
   defp sort_label(:views), do: "Views"
 
@@ -644,12 +628,11 @@ defmodule AvelineWeb.WorkspaceShowLive do
           </button>
         </.fdd>
 
-        <.date_fdd id="fdd-created" name="Created" event="set_created" current={@created_within} />
-        <.date_fdd id="fdd-updated" name="Updated" event="set_updated" current={@updated_within} />
+        <.date_fdd id="fdd-edited" name="Edited" event="set_edited" current={@edited_within} />
 
         <.fdd id="fdd-sort" label={"Sort · " <> sort_label(@sort)} count={0}>
           <button
-            :for={{label, s} <- [{"Recently updated", :recent}, {"Recently created", :created}, {"Kudos", :kudos}, {"Views", :views}]}
+            :for={{label, s} <- [{"Recent", :recent}, {"Kudos", :kudos}, {"Views", :views}]}
             type="button"
             class="fdd-item"
             phx-click={JS.hide(to: "#fdd-sort-menu") |> JS.push("set_sort", value: %{sort: Atom.to_string(s)})}
@@ -660,7 +643,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
         </.fdd>
 
         <button
-          :if={is_nil(@current_view) and (@selected_tags != [] or @selected_authors != [] or @group_by != nil or @created_within != nil or @updated_within != nil or @search != "")}
+          :if={is_nil(@current_view) and (@selected_tags != [] or @selected_authors != [] or @group_by != nil or @edited_within != nil or @search != "")}
           type="button"
           class="fbar-clear"
           phx-click="clear_filters"
@@ -754,11 +737,13 @@ defmodule AvelineWeb.WorkspaceShowLive do
                   <.author text={@i.actor_user.username} />
                   <span class="card-meta-dot">·</span>
                 <% end %>
-                <span title={absolute_time(@i.created_at)}>created {relative_time(@i.created_at)}</span>
-                <%= if @i.version_number > 1 do %>
-                  <span class="card-meta-dot">·</span>
-                  <span title={absolute_time(@i.updated_at)}>updated {relative_time(@i.updated_at)}</span>
-                <% end %>
+                <span class="card-date" title={"Last edited " <> absolute_time(@i.updated_at)}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                  </svg>
+                  <span>{relative_time(@i.updated_at)}</span>
+                </span>
                 <span class="card-meta-dot">·</span>
                 <span class="card-stat" title={"#{Map.get(@view_counts, @i.base_doc_id, 0)} views"}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
