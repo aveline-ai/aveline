@@ -112,6 +112,24 @@ defmodule Aveline.ViewsTest do
                %{"group_by" => "status", "sub_group_by" => "status"}, user.id)
   end
 
+  test "a partial config edit merges, keeping other keys" do
+    %{user: user, ws: ws} = setup_ws()
+
+    {:ok, v1} =
+      Views.create(ws.id, "tickets", "By status.", %{"tags" => ["ticket"], "group_by" => "status"}, user.id)
+
+    # Edit only sub_group_by — tags and group_by must survive.
+    {:ok, v2} = Views.edit(v1, %{config: %{"sub_group_by" => "ticket"}}, user.id)
+
+    assert v2.config["group_by"] == "status"
+    assert v2.config["tags"] == ["ticket"]
+    assert v2.config["sub_group_by"] == "ticket"
+
+    # Clearing a key explicitly with nil.
+    {:ok, v3} = Views.edit(v2, %{config: %{"sub_group_by" => nil}}, user.id)
+    refute Map.has_key?(v3.config, "sub_group_by")
+  end
+
   test "safe_map shape" do
     %{user: user, ws: ws} = setup_ws()
     {:ok, view} = Views.create(ws.id, "tickets", "All open work.", %{"tags" => ["ticket"]}, user.id)

@@ -58,7 +58,14 @@ defmodule Aveline.Views do
   Pinned carries over (placement survives edits).
   """
   def edit(%View{} = current, changes, user_id) when is_map(changes) do
-    config = Map.get(changes, :config, current.config)
+    # Config edits MERGE onto the current config so a partial update
+    # (e.g. just --sub-group-by) doesn't drop the other keys. Callers
+    # clear a key by sending it explicitly as nil.
+    config =
+      case Map.get(changes, :config) do
+        nil -> current.config
+        incoming -> Map.merge(current.config || %{}, incoming)
+      end
 
     with :ok <- validate_config_against_workspace(current.workspace_id, config) do
       Repo.transaction(fn ->
