@@ -72,10 +72,13 @@ defmodule Aveline.DataSources.Runner do
   # ===== postgres =====
 
   defp run_postgres(url, sql) do
+    {url, ssl} = Aveline.DataSources.TLS.split(url)
+
     opts =
       url
       |> Ecto.Repo.Supervisor.parse_url()
       |> with_socket_family()
+      |> then(fn o -> if ssl, do: Keyword.put(o, :ssl, ssl), else: o end)
       |> Keyword.merge(
         timeout: @query_timeout_ms,
         connect_timeout: @connect_timeout_ms,
@@ -118,10 +121,13 @@ defmodule Aveline.DataSources.Runner do
   # ===== mysql =====
 
   defp run_mysql(url, sql) do
+    {url, ssl} = Aveline.DataSources.TLS.split(url)
+
     opts =
       url
       |> Ecto.Repo.Supervisor.parse_url()
       |> with_socket_family()
+      |> then(fn o -> if ssl, do: Keyword.put(o, :ssl, ssl), else: o end)
       |> Keyword.merge(
         timeout: @query_timeout_ms,
         connect_timeout: @connect_timeout_ms,

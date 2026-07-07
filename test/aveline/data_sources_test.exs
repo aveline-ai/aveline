@@ -100,6 +100,51 @@ defmodule Aveline.DataSourcesTest do
     end
   end
 
+  describe "TLS option mapping" do
+    alias Aveline.DataSources.TLS
+
+    test "query params become driver ssl options and are stripped from the url" do
+      # No params: plaintext, url unchanged.
+      assert {"postgres://u:p@h:5432/db", nil} = TLS.split("postgres://u:p@h:5432/db")
+
+      # require: encrypt without verification.
+      assert {"postgres://u:p@h:5432/db", [verify: :verify_none]} =
+               TLS.split("postgres://u:p@h:5432/db?sslmode=require")
+
+      # generic ssl=true / mysql ssl-mode.
+      assert {_, [verify: :verify_none]} = TLS.split("mysql://u:p@h/db?ssl=true")
+      assert {_, [verify: :verify_none]} = TLS.split("mysql://u:p@h/db?ssl-mode=REQUIRED")
+
+      # verify-full: real verification against system roots + hostname check.
+      assert {_, opts} = TLS.split("postgres://u:p@db.example.com/db?sslmode=verify-full")
+      assert opts[:verify] == :verify_peer
+      assert opts[:server_name_indication] == ~c"db.example.com"
+      assert is_list(opts[:cacerts]) and opts[:cacerts] != []
+
+      # disable and explicit false: plaintext.
+      assert {_, nil} = TLS.split("postgres://u:p@h/db?sslmode=disable")
+      assert {_, nil} = TLS.split("mysql://u:p@h/db?ssl=false")
+
+      # Unknown params never leak toward the driver.
+      assert {"postgres://u:p@h/db", nil} = TLS.split("postgres://u:p@h/db?application_name=x")
+    end
+
+    test "dial still works end to end with an explicit sslmode=disable" do
+      %{user: user, ws: ws} = setup_ws()
+
+      {:ok, ds} =
+        DataSources.create(
+          ws.id,
+          "nossl",
+          self_template() <> "?sslmode=disable",
+          self_password(),
+          user.id
+        )
+
+      assert {:ok, %{"rows" => [[1]]}} = Runner.run(ds, "select 1")
+    end
+  end
+
   describe "edit" do
     test "password-only rotation mints a version and scrubs the old secret" do
       %{user: user, ws: ws} = setup_ws()
