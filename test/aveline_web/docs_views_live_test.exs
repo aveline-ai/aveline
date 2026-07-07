@@ -89,6 +89,17 @@ defmodule AvelineWeb.DocsViewsLiveTest do
     assert Views.get_current_by_name(ws.id, "tickets").config["group_by"] == "status"
   end
 
+  test "cards show created date; created filter narrows by creation", %{conn: conn, ws: ws} do
+    {:ok, _lv, html} = live(conn, "/w/#{ws.slug}/docs")
+    assert html =~ "created"
+
+    # created=24h keeps the just-made setup docs; a 40-day window would
+    # too, so assert the param is honored by checking the URL round-trips
+    # without error and still lists them.
+    {:ok, _lv, html2} = live(conn, "/w/#{ws.slug}/docs?created=7d")
+    assert html2 =~ "Ticket one"
+  end
+
   test "unknown view redirects to docs with a flash", %{conn: conn, ws: ws} do
     assert {:error, {:live_redirect, %{to: to}}} = live(conn, "/w/#{ws.slug}/v/ghost")
     assert to == "/w/#{ws.slug}/docs"

@@ -83,6 +83,18 @@ defmodule Aveline.ViewsTest do
     assert ["zulu", "alpha"] = ws.id |> Views.list_for_workspace() |> Enum.map(& &1.name)
   end
 
+  test "config accepts created/updated windows and rejects bad ones" do
+    %{user: user, ws: ws} = setup_ws()
+
+    {:ok, v} =
+      Views.create(ws.id, "recent", "Docs created lately.", %{"created" => "7d", "updated" => "24h"}, user.id)
+
+    assert v.config == %{"created" => "7d", "updated" => "24h", "tags" => []}
+
+    assert {:error, %Ecto.Changeset{}} =
+             Views.create(ws.id, "bad", "Bad window.", %{"created" => "soon"}, user.id)
+  end
+
   test "safe_map shape" do
     %{user: user, ws: ws} = setup_ws()
     {:ok, view} = Views.create(ws.id, "tickets", "All open work.", %{"tags" => ["ticket"]}, user.id)

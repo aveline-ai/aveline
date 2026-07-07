@@ -39,6 +39,8 @@ defmodule Aveline.Docs do
     tags = Keyword.get(opts, :tags, []) || []
     owner_ids = Keyword.get(opts, :owner_ids, []) || []
     search = (Keyword.get(opts, :search) || "") |> to_string() |> String.trim()
+    created = Keyword.get(opts, :created)
+    updated = Keyword.get(opts, :updated)
     limit = Keyword.get(opts, :limit)
     offset = Keyword.get(opts, :offset, 0)
 
@@ -50,11 +52,93 @@ defmodule Aveline.Docs do
     |> maybe_filter_tags(tags)
     |> maybe_filter_owners(owner_ids)
     |> maybe_filter_search(search)
+    |> maybe_filter_created(created)
+    |> maybe_filter_updated(updated)
     |> apply_sort(sort)
     |> maybe_paginate(limit, offset)
     |> Repo.all()
     |> Repo.preload([:owner, :actor_user])
+    |> put_created_at()
     |> scrub_deleted_tags(workspace_id)
+  end
+
+  # Populates each doc's virtual created_at with its base's v1 timestamp
+  # (original creation), in one query keyed by the returned base ids.
+  defp put_created_at([]), do: []
+
+  defp put_created_at(docs) when is_list(docs) do
+    base_ids = Enum.map(docs, & &1.base_doc_id)
+
+    created =
+      from(v in Doc, where: v.version_number == 1 and v.base_doc_id in ^base_ids,
+        select: {v.base_doc_id, v.inserted_at}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    Enum.map(docs, fn d -> %{d | created_at: Map.get(created, d.base_doc_id, d.inserted_at)} end)
+  end
+
+  defp put_created_at(doc), do: doc
+
+  @doc """
+  Normalizes a relative-window token like "7d" or "24h" to its canonical
+  string, or nil. Shared by the API and the Docs LiveView so one grammar
+  governs the URL param, the view config, and the query. Windows cap at
+  365 days — a "recently active/created" filter, not an archive query.
+  """
+  def normalize_within(nil), do: nil
+
+  def normalize_within(v) when is_binary(v) do
+    case Regex.run(~r/^(\d{1,4})(h|d)$/, String.trim(v)) do
+      [_, n, unit] ->
+        n = String.to_integer(n)
+        hours = if unit == "d", do: n * 24, else: n
+        if hours >= 1 and hours <= 365 * 24, do: "#{n}#{unit}", else: nil
+
+      _ ->
+        nil
+    end
+  end
+
+  def normalize_within(_), do: nil
+
+  # Created window: reach back to the base's v1 timestamp (original
+  # creation, not last edit — the current row's inserted_at is when the
+  # latest version shipped).
+  defp maybe_filter_created(query, within) do
+    case cutoff_for(within) do
+      nil ->
+        query
+
+      cutoff ->
+        recent =
+          from v in Doc,
+            where: v.version_number == 1 and v.inserted_at >= ^cutoff,
+            select: v.base_doc_id
+
+        from d in query, where: d.base_doc_id in subquery(recent)
+    end
+  end
+
+  # Updated window: the current version's own timestamp is last activity.
+  defp maybe_filter_updated(query, within) do
+    case cutoff_for(within) do
+      nil -> query
+      cutoff -> from d in query, where: d.updated_at >= ^cutoff
+    end
+  end
+
+  defp cutoff_for(within) do
+    case normalize_within(within) do
+      nil ->
+        nil
+
+      token ->
+        [_, n, unit] = Regex.run(~r/^(\d+)(h|d)$/, token)
+        hours = if unit == "d", do: String.to_integer(n) * 24, else: String.to_integer(n)
+        DateTime.add(DateTime.utc_now(), -hours * 3600, :second)
+    end
   end
 
   # Soft-deleted tags stay on doc rows (so restoring a tag brings every
@@ -106,12 +190,20 @@ defmodule Aveline.Docs do
     do: from(d in query, limit: ^limit, offset: ^offset)
 
   # Sort modes:
-  #   :recent → updated_at desc
-  #   :kudos  → kudos count desc, then updated_at desc
-  #   :views  → view count desc, then updated_at desc
+  #   :recent  → updated_at desc (last activity)
+  #   :created → original creation desc (v1 timestamp)
+  #   :kudos   → kudos count desc, then updated_at desc
+  #   :views   → view count desc, then updated_at desc
   # Pins are a home-page concept; they don't influence list ordering.
   defp apply_sort(query, :recent),
     do: from(d in query, order_by: [desc: d.updated_at])
+
+  defp apply_sort(query, :created) do
+    from d in query,
+      join: v1 in Doc,
+      on: v1.base_doc_id == d.base_doc_id and v1.version_number == 1,
+      order_by: [desc: v1.inserted_at]
+  end
 
   defp apply_sort(query, :kudos), do: count_join_sort(query, "doc_kudos")
   defp apply_sort(query, :views), do: count_join_sort(query, "doc_views")

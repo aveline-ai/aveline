@@ -20,7 +20,11 @@ defmodule AvelineWeb.Api.DocController do
     ws = conn.assigns.current_workspace
 
     items =
-      Docs.list_current(ws.id, tags: parse_tag_list(params["tag"] || params["tags"]))
+      Docs.list_current(ws.id,
+        tags: parse_tag_list(params["tag"] || params["tags"]),
+        created: params["created"],
+        updated: params["updated"]
+      )
 
     Envelope.ok(conn, %{docs: Enum.map(items, &Views.doc_summary/1)})
   end

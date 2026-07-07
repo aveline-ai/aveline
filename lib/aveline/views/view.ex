@@ -7,7 +7,9 @@ defmodule Aveline.Views.View do
 
   `config`:
     * `"tags"`     — filter tag slugs (may be empty: all docs)
-    * `"group_by"` — a tag scope (renders kanban columns) or nil (list)
+    * `"group_by"` — a tag scope (renders section headers) or nil (list)
+    * `"created"`  — relative window on creation ("7d", "24h") or nil
+    * `"updated"`  — relative window on last update or nil
     * `"sort"`     — "recent" | "title" (optional; default recent)
     * `"icon"`     — optional emoji for future collapsed-sidebar tiles
   """
@@ -84,6 +86,8 @@ defmodule Aveline.Views.View do
     config = get_field(changeset, :config) || %{}
     tags = Map.get(config, "tags", [])
     group_by = Map.get(config, "group_by")
+    created = Aveline.Docs.normalize_within(Map.get(config, "created"))
+    updated = Aveline.Docs.normalize_within(Map.get(config, "updated"))
     sort = Map.get(config, "sort")
     icon = Map.get(config, "icon")
 
@@ -93,6 +97,12 @@ defmodule Aveline.Views.View do
 
       not (is_nil(group_by) or (is_binary(group_by) and group_by != "")) ->
         add_error(changeset, :config, "group_by must be a tag scope or null")
+
+      not (is_nil(Map.get(config, "created")) or created != nil) ->
+        add_error(changeset, :config, "created must be a window like \"7d\" or \"24h\" (max 365d)")
+
+      not (is_nil(Map.get(config, "updated")) or updated != nil) ->
+        add_error(changeset, :config, "updated must be a window like \"7d\" or \"24h\" (max 365d)")
 
       not (is_nil(sort) or sort in @sorts) ->
         add_error(changeset, :config, "sort must be one of #{Enum.join(@sorts, ", ")}")
@@ -104,6 +114,8 @@ defmodule Aveline.Views.View do
         clean =
           %{"tags" => tags}
           |> then(fn c -> if group_by, do: Map.put(c, "group_by", group_by), else: c end)
+          |> then(fn c -> if created, do: Map.put(c, "created", created), else: c end)
+          |> then(fn c -> if updated, do: Map.put(c, "updated", updated), else: c end)
           |> then(fn c -> if sort, do: Map.put(c, "sort", sort), else: c end)
           |> then(fn c -> if icon, do: Map.put(c, "icon", icon), else: c end)
 
