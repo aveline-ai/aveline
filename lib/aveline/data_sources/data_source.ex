@@ -18,7 +18,7 @@ defmodule Aveline.DataSources.DataSource do
   alias Aveline.Slug
   alias Aveline.Workspaces.Workspace
 
-  @adapters ~w(postgres mysql)
+  @adapters ~w(postgres mysql redshift)
   @placeholder "<password>"
 
   schema "data_sources" do

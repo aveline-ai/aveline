@@ -4,13 +4,19 @@ defmodule Aveline.DataSources.Runner do
   returns `{:ok, %{"columns" => [...], "rows" => [[...]]}}` or
   `{:error, reason_string}`. Results only ever live in memory.
 
-  Safety posture (both adapters):
-    * the session is forced read-only before the user query runs
-    * one statement per call (both drivers reject multi-statement)
+  Safety posture (all adapters):
+    * one statement per call (the drivers reject multi-statement)
     * #{5} second query timeout, #{5} second connect timeout
     * rows capped at 1000 (result carries `"truncated" => true`)
     * a fresh connection per call, closed in `after` — no pooled
       credentials lingering; the 60s cache keeps call volume low
+    * TLS honored from the template's sslmode/ssl params
+
+  Write-protection is deliberately NOT enforced here: the connection
+  user's grants are the contract (use a read-only user), same posture
+  as Metabase/Grafana. A session-level guard only ever governed our
+  own dials, and its per-engine dialect tax blocked protocol cousins
+  like Redshift.
 
   Errors come back as strings, not raises: a chart with a broken query
   is a state on the block, never a failed doc read.
@@ -26,7 +32,12 @@ defmodule Aveline.DataSources.Runner do
   @task_timeout_ms 12_000
 
   def run(%{adapter: adapter, password: password} = ds, sql) when is_binary(password) do
-    url = Aveline.DataSources.dial_url(ds)
+    # Ecto's URL parser doesn't care about the scheme, but normalize
+    # protocol-cousin schemes anyway so nothing downstream trips.
+    url =
+      ds
+      |> Aveline.DataSources.dial_url()
+      |> String.replace_prefix("redshift://", "postgres://")
 
     # The drivers LINK the connection process to its starter, and a
     # failed connect (backoff_type: :stop) kills it — so the dial runs
@@ -37,6 +48,8 @@ defmodule Aveline.DataSources.Runner do
       Task.Supervisor.async_nolink(Aveline.TaskSupervisor, fn ->
         case adapter do
           "postgres" -> run_postgres(url, sql)
+          # Redshift speaks the Postgres wire protocol.
+          "redshift" -> run_postgres(url, sql)
           "mysql" -> run_mysql(url, sql)
           _ -> {:error, "unsupported adapter"}
         end
@@ -84,11 +97,7 @@ defmodule Aveline.DataSources.Runner do
         connect_timeout: @connect_timeout_ms,
         pool_size: 1,
         # No reconnect loops: fail the one call, the block shows it.
-        backoff_type: :stop,
-        # Force every statement in this session read-only.
-        after_connect: fn conn ->
-          Postgrex.query!(conn, "SET default_transaction_read_only = on", [])
-        end
+        backoff_type: :stop
       )
 
     case Postgrex.start_link(opts) do
@@ -132,10 +141,7 @@ defmodule Aveline.DataSources.Runner do
         timeout: @query_timeout_ms,
         connect_timeout: @connect_timeout_ms,
         pool_size: 1,
-        backoff_type: :stop,
-        after_connect: fn conn ->
-          MyXQL.query!(conn, "SET SESSION TRANSACTION READ ONLY")
-        end
+        backoff_type: :stop
       )
 
     case MyXQL.start_link(opts) do

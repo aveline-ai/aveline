@@ -36,6 +36,11 @@ defmodule Aveline.DataSourcesTest do
       {:ok, my} = DataSources.create(ws.id, "my", "mysql://u:<password>@h:3306/db", "x", user.id)
       assert my.adapter == "mysql"
 
+      {:ok, rs} =
+        DataSources.create(ws.id, "rs", "redshift://u:<password>@c.redshift.amazonaws.com:5439/db", "x", user.id)
+
+      assert rs.adapter == "redshift"
+
       assert {:error, :invalid_data_source_url, msg} =
                DataSources.create(ws.id, "bad", "http://u:<password>@h/db", "x", user.id)
 
@@ -431,16 +436,13 @@ defmodule Aveline.DataSourcesTest do
       assert source["url"] =~ "<password>"
     end
 
-    test "row cap truncates and flags; writes are refused" do
+    test "row cap truncates and flags" do
       %{user: user, ws: ws} = setup_ws()
       ds = create_self!(ws, user)
 
       assert {:ok, result} = Runner.run(ds, "select generate_series(1, 2000) as n")
       assert length(result["rows"]) == Runner.row_cap()
       assert result["truncated"] == true
-
-      assert {:error, msg} = Runner.run(ds, "CREATE TABLE pwned (id int)")
-      assert msg =~ "read-only"
     end
 
     test "unreachable hosts are error states, not raises (the prod regression)" do

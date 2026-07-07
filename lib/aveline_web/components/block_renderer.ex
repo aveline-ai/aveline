@@ -348,6 +348,7 @@ defmodule AvelineWeb.BlockRenderer do
 
   # sql-formatter dialect id from the source adapter echo.
   defp sql_dialect(%{"adapter" => "postgres"}), do: "postgresql"
+  defp sql_dialect(%{"adapter" => "redshift"}), do: "redshift"
   defp sql_dialect(%{"adapter" => "mysql"}), do: "mysql"
   defp sql_dialect(_), do: "sql"
 

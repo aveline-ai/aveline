@@ -222,6 +222,12 @@ defmodule Aveline.DataSources do
           %URI{scheme: "mysql", host: h} when is_binary(h) and h != "" ->
             {:ok, "mysql"}
 
+          # Postgres wire protocol, Redshift dialect. Dialed with the
+          # postgres driver; stored distinctly for honest display and
+          # dialect-aware formatting.
+          %URI{scheme: "redshift", host: h} when is_binary(h) and h != "" ->
+            {:ok, "redshift"}
+
           %URI{scheme: nil} ->
             {:error, "template must include a scheme: postgres://... or mysql://..."}
 
@@ -229,7 +235,7 @@ defmodule Aveline.DataSources do
             {:error, "template must include a host"}
 
           %URI{scheme: s} ->
-            {:error, "unsupported scheme #{inspect(s)}; expected postgres:// or mysql://"}
+            {:error, "unsupported scheme #{inspect(s)}; expected postgres://, mysql://, or redshift://"}
         end
     end
   end

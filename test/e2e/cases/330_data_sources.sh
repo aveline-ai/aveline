@@ -1,8 +1,9 @@
 # shellcheck shell=bash
 # Data sources + chart blocks — connect a database (the e2e DB itself),
 # chart it from a doc, and verify: the password never leaks, the
-# template renders verbatim, writes are refused, edits follow the
-# template-requires-password rule, and failures are block states.
+# template renders verbatim, edits follow the template-requires-password
+# rule, and failures are block states. Write-protection is the
+# connection user's grants, not ours — deliberately untested here.
 
 e2e_db_template() {
   echo "postgres://${PGUSER:-postgres}:<password>@${PGHOST:-localhost}/${E2E_DB_NAME:-aveline_e2e}"
@@ -79,24 +80,6 @@ test_chart_unknown_source_rejected() {
   expect_err "data_source_not_found" 2 "unknown source → data_source_not_found"
 }
 
-test_chart_write_query_is_error_state() {
-  local ws; ws="$(mk_workspace ds-write)"
-  mk_source "$ws" selfdb
-
-  run_cli -w "$ws" create-doc --title "Evil dash $(us e)" \
-    --blocks "[$(block_chart selfdb "DELETE FROM docs" '{"type": "table"}')]"
-  expect_ok "doc with a write query still creates (validity is SQL-agnostic)"
-  local dash; dash="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
-
-  run_cli -w "$ws" get-doc "$dash"
-  expect_ok "doc still reads"
-  if jq -e '.doc.blocks[0].result.error | test("read-only")' <<<"$LAST_OUT_TEXT" >/dev/null 2>&1; then
-    pass "write refused by read-only session, surfaced as block state"
-  else
-    fail "expected a read-only error state, got: $(jq -c '.doc.blocks[0].result' <<<"$LAST_OUT_TEXT")"
-  fi
-}
-
 test_edit_rules() {
   local ws; ws="$(mk_workspace ds-edit)"
   mk_source "$ws" selfdb
@@ -137,11 +120,6 @@ test_query_data_source_adhoc() {
   run_cli -w "$ws" query-data-source selfdb \
     --query "select table_name from information_schema.tables where table_schema = 'public' limit 3"
   expect_ok "information_schema readable"
-
-  # Writes refused, surfaced as query_failed (an error, not a state —
-  # ad-hoc callers want the exit code).
-  run_cli -w "$ws" query-data-source selfdb --query "DELETE FROM docs"
-  expect_err "query_failed" 2 "write refused via query verb"
 
   run_cli -w "$ws" query-data-source ghost --query "select 1"
   expect_err "not_found" 4 "unknown source → not_found"
