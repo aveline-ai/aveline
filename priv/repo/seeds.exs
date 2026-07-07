@@ -917,6 +917,47 @@ if is_nil(Docs.get_current_by_slug(workspace.id, "metrics-dashboard")) do
     })
 end
 
+# ===== Tickets (for grouping / sub-grouping demos) =====
+# Real tickets tagged status:* + ticket:* — the tickets view groups by
+# status and sub-groups by ticket type, so the two-level layout has
+# something to show.
+
+ticket_specs = [
+  {"Sprite flicker on scanline 240", "ppu", "bug", "backlog"},
+  {"Audio pops when a channel restarts", "apu", "bug", "todo"},
+  {"Save-state slots in the UI", "ui", "feature", "todo"},
+  {"Mapper 4 IRQ timing off by a cycle", "mappers", "bug", "in-progress"},
+  {"Fast-forward hotkey", "ui", "feature", "in-progress"},
+  {"Controller remapping screen", "ui", "feature", "backlog"},
+  {"Palette emphasis bits ignored", "ppu", "bug", "done"},
+  {"Cartridge header parser", "core", "feature", "done"}
+]
+
+Enum.each(ticket_specs, fn {title, topic, type, status} ->
+  slug = title |> String.downcase() |> String.replace(~r/[^a-z0-9]+/, "-") |> String.trim("-")
+
+  if is_nil(Docs.get_current_by_slug(workspace.id, slug)) do
+    # Topic tags are created on the fly; ensure they exist.
+    if is_nil(Tags.get(workspace.id, topic)) do
+      {:ok, _} = Tags.create(workspace.id, topic, "#{topic} work.", alice.id)
+    end
+
+    {:ok, _} =
+      Docs.create_doc(%{
+        workspace_id: workspace.id,
+        owner_id: Enum.random([alice, bob, carol]).id,
+        actor_user_id: alice.id,
+        actor_type: "agent",
+        slug: slug,
+        title: title,
+        summary: "#{type} in #{topic}.",
+        tags: ["ticket", "ticket:#{type}", "status:#{status}", topic],
+        blocks: [para.([t.(title)])],
+        intent: "seed a ticket for grouping demos"
+      })
+  end
+end)
+
 # ===== Views =====
 # The kanban-feature view: what the old board doc used to be, as a
 # first-class view. Pinned so it shows in the sidebar.
@@ -932,6 +973,19 @@ if is_nil(Aveline.Views.get_current_by_name(workspace.id, "kanban-feature")) do
     )
 
   {:ok, _} = Aveline.Views.set_pinned(seeded_view, true)
+end
+
+if is_nil(Aveline.Views.get_current_by_name(workspace.id, "tickets")) do
+  {:ok, tv} =
+    Aveline.Views.create(
+      workspace.id,
+      "tickets",
+      "All work, grouped by status and sub-grouped by ticket type. Move a card by retagging.",
+      %{"tags" => ["ticket"], "group_by" => "status", "sub_group_by" => "ticket"},
+      alice.id
+    )
+
+  {:ok, _} = Aveline.Views.set_pinned(tv, true)
 end
 
 # An UNPINNED view: reachable from the title switcher but absent from
