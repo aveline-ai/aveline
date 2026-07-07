@@ -36,6 +36,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
            selected_tags: [],
            selected_authors: [],
            group_by: nil,
+           sub_group_by: nil,
            edited_within: nil,
            views: Aveline.Views.list_for_workspace(ws.id),
            current_view: nil,
@@ -87,35 +88,42 @@ defmodule AvelineWeb.WorkspaceShowLive do
       # entirely from the URL. The saved view is never mutated from
       # here — screens deviate, agents save.
       pristine? =
-        not Enum.any?(~w(tag author group sort q edited), &Map.has_key?(params, &1))
+        not Enum.any?(~w(tag author group subgroup sort q edited), &Map.has_key?(params, &1))
 
-      {selected_tags, group_by, sort, selected_authors, search, edited_within} =
+      {selected_tags, group_by, sub_group_by, sort, selected_authors, search, edited_within} =
         if pristine? do
           {Map.get(config, "tags", []), Map.get(config, "group_by"),
+           parse_group(Map.get(config, "sub_group_by"), ws.id),
            parse_sort(Map.get(config, "sort")), [], "",
            Aveline.Docs.normalize_within(Map.get(config, "edited"))}
         else
           {parse_tags(params["tag"]),
            parse_group(params["group"], ws.id),
+           parse_group(params["subgroup"], ws.id),
            parse_sort(params["sort"]),
            parse_authors(params["author"], socket.assigns.workspace_authors),
            params["q"] || "",
            Aveline.Docs.normalize_within(params["edited"])}
         end
 
+      # A sub-group only makes sense once a group is chosen, and it must
+      # differ from the group scope.
+      sub_group_by = if group_by && sub_group_by != group_by, do: sub_group_by, else: nil
+
       modified? =
         current_view != nil and
           (Enum.sort(selected_tags) != Enum.sort(Map.get(config, "tags", [])) or
              group_by != Map.get(config, "group_by") or
+             sub_group_by != parse_group(Map.get(config, "sub_group_by"), ws.id) or
              sort != parse_sort(Map.get(config, "sort")) or
              edited_within != Aveline.Docs.normalize_within(Map.get(config, "edited")) or
              selected_authors != [] or search != "")
 
-      handle_docs_params(socket, current_view, selected_tags, group_by, sort, selected_authors, search, edited_within, modified?)
+      handle_docs_params(socket, current_view, selected_tags, group_by, sub_group_by, sort, selected_authors, search, edited_within, modified?)
     end
   end
 
-  defp handle_docs_params(socket, current_view, selected_tags, group_by, sort, selected_authors, search, edited_within, modified?) do
+  defp handle_docs_params(socket, current_view, selected_tags, group_by, sub_group_by, sort, selected_authors, search, edited_within, modified?) do
     ws = socket.assigns.workspace
     page_size = socket.assigns.page_size
     owner_ids = author_ids(selected_authors, socket.assigns.workspace_authors)
@@ -155,10 +163,11 @@ defmodule AvelineWeb.WorkspaceShowLive do
        selected_tags: selected_tags,
        selected_authors: selected_authors,
        group_by: group_by,
+       sub_group_by: sub_group_by,
        edited_within: edited_within,
        current_view: current_view,
        modified?: modified?,
-       kanban: group_by && kanban_columns(ws.id, group_by, items),
+       sections: group_by && grouped_sections(ws.id, group_by, sub_group_by, items),
        sort: sort,
        search: search,
        items: items,
@@ -183,17 +192,47 @@ defmodule AvelineWeb.WorkspaceShowLive do
   # Columns for the grouped (kanban) rendering: the scope's members in
   # tag order, each with its docs; docs carrying no tag from the scope
   # land in an unassigned column. Colors come from @tag_colors.
-  defp kanban_columns(workspace_id, scope, items) do
+  # Builds the grouped-list sections: one per scope member that has docs
+  # (in tag order) plus a trailing unassigned section, each with a count.
+  # With a sub-group scope, each section's docs are further split the
+  # same way into `subs`.
+  defp grouped_sections(workspace_id, scope, sub_scope, items) do
+    items
+    |> split_by_scope(workspace_id, scope)
+    |> Enum.map(fn {key, docs} ->
+      %{
+        key: key,
+        label: if(key, do: Tags.value_of(key), else: "no #{scope}"),
+        color: key,
+        count: length(docs),
+        docs: docs,
+        subs: sub_scope && subsections(workspace_id, sub_scope, docs)
+      }
+    end)
+  end
+
+  defp subsections(workspace_id, sub_scope, docs) do
+    docs
+    |> split_by_scope(workspace_id, sub_scope)
+    |> Enum.map(fn {key, ds} ->
+      %{
+        key: key,
+        label: if(key, do: Tags.value_of(key), else: "no #{sub_scope}"),
+        color: key,
+        count: length(ds),
+        docs: ds
+      }
+    end)
+  end
+
+  # {member_or_nil, docs} in member order then unassigned, empties dropped.
+  defp split_by_scope(items, workspace_id, scope) do
     members = Tags.list_scope_members(workspace_id, scope)
+    grouped = Enum.group_by(items, fn i -> Enum.find(members, &(&1 in i.tags)) end)
 
-    grouped =
-      Enum.group_by(items, fn i -> Enum.find(members, &(&1 in i.tags)) end)
-
-    %{
-      scope: scope,
-      columns: Enum.map(members, fn m -> {m, Map.get(grouped, m, [])} end),
-      unassigned: Map.get(grouped, nil, [])
-    }
+    (Enum.map(members, fn m -> {m, Map.get(grouped, m, [])} end) ++
+       [{nil, Map.get(grouped, nil, [])}])
+    |> Enum.reject(fn {_k, docs} -> docs == [] end)
   end
 
   # slug => custom color for every live tag that has one.
@@ -270,13 +309,19 @@ defmodule AvelineWeb.WorkspaceShowLive do
 
   def handle_event("set_group", %{"group" => group}, socket) do
     group = if group in [nil, "", "none"], do: nil, else: group
-    {:noreply, push_patch(socket, to: build_path(socket, %{group: group}))}
+    # Clearing or changing the group invalidates any sub-group.
+    {:noreply, push_patch(socket, to: build_path(socket, %{group: group, subgroup: nil}))}
+  end
+
+  def handle_event("set_subgroup", %{"group" => group}, socket) do
+    group = if group in [nil, "", "none"], do: nil, else: group
+    {:noreply, push_patch(socket, to: build_path(socket, %{subgroup: group}))}
   end
 
   def handle_event("clear_filters", _params, socket) do
     {:noreply,
      push_patch(socket,
-       to: build_path(socket, %{tag: [], author: [], group: nil, edited: nil, q: nil})
+       to: build_path(socket, %{tag: [], author: [], group: nil, subgroup: nil, edited: nil, q: nil})
      )}
   end
 
@@ -328,7 +373,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
     {:noreply,
      assign(socket,
        items: items,
-       kanban: socket.assigns.group_by && kanban_columns(ws.id, socket.assigns.group_by, items),
+       sections: socket.assigns.group_by && grouped_sections(ws.id, socket.assigns.group_by, socket.assigns.sub_group_by, items),
        view_counts: DocViews.counts_by_base(base_ids),
        kudos_counts: Kudos.counts_by_base(base_ids),
        chip_counts: items |> Enum.flat_map(& &1.tags) |> Enum.frequencies(),
@@ -348,6 +393,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
       tag: socket.assigns.selected_tags,
       author: socket.assigns.selected_authors,
       group: socket.assigns.group_by,
+      subgroup: socket.assigns.sub_group_by,
       edited: socket.assigns.edited_within,
       sort: sort_param(socket.assigns.sort),
       q: nz(socket.assigns.search)
@@ -466,6 +512,17 @@ defmodule AvelineWeb.WorkspaceShowLive do
 
     {plain, grouped}
   end
+
+  defp dot_style(tag_colors, key) do
+    case key && Map.get(tag_colors, key) do
+      nil -> nil
+      c -> "background: " <> c
+    end
+  end
+
+  defp group_label(nil, _sub), do: "Group"
+  defp group_label(group, nil), do: "Group · " <> group
+  defp group_label(group, sub), do: "Group · " <> group <> " › " <> sub
 
   defp sort_label(:recent), do: "Recent"
   defp sort_label(:kudos), do: "Kudos"
@@ -606,13 +663,14 @@ defmodule AvelineWeb.WorkspaceShowLive do
 
         <.fdd
           id="fdd-group"
-          label={if @group_by, do: "Group · " <> @group_by, else: "Group"}
+          label={group_label(@group_by, @sub_group_by)}
           count={0}
         >
+          <div class="fdd-section">Group by</div>
           <button
             type="button"
             class="fdd-item"
-            phx-click={JS.hide(to: "#fdd-group-menu") |> JS.push("set_group", value: %{group: "none"})}
+            phx-click={JS.push("set_group", value: %{group: "none"})}
           >
             <span class={"fdd-check fdd-radio " <> if is_nil(@group_by), do: "on", else: ""}></span>
             <span class="fdd-item-label">None</span>
@@ -621,11 +679,32 @@ defmodule AvelineWeb.WorkspaceShowLive do
             :for={scope <- workspace_scopes(@workspace_tags)}
             type="button"
             class="fdd-item"
-            phx-click={JS.hide(to: "#fdd-group-menu") |> JS.push("set_group", value: %{group: scope})}
+            phx-click={JS.push("set_group", value: %{group: scope})}
           >
             <span class={"fdd-check fdd-radio " <> if @group_by == scope, do: "on", else: ""}></span>
             <span class="fdd-item-label">{scope}</span>
           </button>
+
+          <%= if @group_by do %>
+            <div class="fdd-section">Then by</div>
+            <button
+              type="button"
+              class="fdd-item"
+              phx-click={JS.push("set_subgroup", value: %{group: "none"})}
+            >
+              <span class={"fdd-check fdd-radio " <> if is_nil(@sub_group_by), do: "on", else: ""}></span>
+              <span class="fdd-item-label">None</span>
+            </button>
+            <button
+              :for={scope <- Enum.reject(workspace_scopes(@workspace_tags), &(&1 == @group_by))}
+              type="button"
+              class="fdd-item"
+              phx-click={JS.push("set_subgroup", value: %{group: scope})}
+            >
+              <span class={"fdd-check fdd-radio " <> if @sub_group_by == scope, do: "on", else: ""}></span>
+              <span class="fdd-item-label">{scope}</span>
+            </button>
+          <% end %>
         </.fdd>
 
         <.date_fdd id="fdd-edited" name="Edited" event="set_edited" current={@edited_within} />
@@ -657,40 +736,47 @@ defmodule AvelineWeb.WorkspaceShowLive do
       <%= if @shown_items == [] do %>
         <div class="empty">No docs match the current filter.</div>
       <% else %>
-        <%= if @group_by && @kanban do %>
+        <%= if @group_by && @sections do %>
           <div class="grouped-list">
-            <%= for {col, docs} <- @kanban.columns, docs != [] do %>
-              <div class="group-head">
-                <span
-                  class="group-dot"
-                  style={
-                    if c = Map.get(@tag_colors, col) do
-                      "background: " <> c
-                    end
-                  }
-                >
-                </span>
-                <span class="group-head-name">{Tags.value_of(col)}</span>
-                <span class="group-head-count">{length(docs)}</span>
+            <div :for={{sec, si} <- Enum.with_index(@sections)} class="group-block" id={"grp-#{si}"}>
+              <button
+                type="button"
+                class="group-head"
+                phx-click={
+                  JS.toggle(to: "#grp-#{si}-body")
+                  |> JS.toggle_class("group-collapsed", to: "#grp-#{si}")
+                }
+              >
+                <svg class="group-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+                <span class="group-dot" style={dot_style(@tag_colors, sec.color)}></span>
+                <span class="group-head-name">{sec.label}</span>
+                <span class="group-head-count">{sec.count}</span>
+              </button>
+              <div id={"grp-#{si}-body"} class="group-body">
+                <%= if sec.subs do %>
+                  <div :for={sub <- sec.subs} class="subgroup">
+                    <div class="subgroup-head">
+                      <span class="group-dot group-dot-sm" style={dot_style(@tag_colors, sub.color)}></span>
+                      <span class="subgroup-head-name">{sub.label}</span>
+                      <span class="group-head-count">{sub.count}</span>
+                    </div>
+                    <ul class="card-list">
+                      <li :for={i <- sub.docs}>
+                        <.doc_card i={i} ws={@workspace} view_counts={@view_counts} kudos_counts={@kudos_counts} tag_colors={@tag_colors} />
+                      </li>
+                    </ul>
+                  </div>
+                <% else %>
+                  <ul class="card-list">
+                    <li :for={i <- sec.docs}>
+                      <.doc_card i={i} ws={@workspace} view_counts={@view_counts} kudos_counts={@kudos_counts} tag_colors={@tag_colors} />
+                    </li>
+                  </ul>
+                <% end %>
               </div>
-              <ul class="card-list">
-                <li :for={i <- docs}>
-                  <.doc_card i={i} ws={@workspace} view_counts={@view_counts} kudos_counts={@kudos_counts} tag_colors={@tag_colors} />
-                </li>
-              </ul>
-            <% end %>
-            <%= if @kanban.unassigned != [] do %>
-              <div class="group-head">
-                <span class="group-dot"></span>
-                <span class="group-head-name">no {@group_by}</span>
-                <span class="group-head-count">{length(@kanban.unassigned)}</span>
-              </div>
-              <ul class="card-list">
-                <li :for={i <- @kanban.unassigned}>
-                  <.doc_card i={i} ws={@workspace} view_counts={@view_counts} kudos_counts={@kudos_counts} tag_colors={@tag_colors} />
-                </li>
-              </ul>
-            <% end %>
+            </div>
           </div>
           <%= if @has_more? do %>
             <div class="load-more-wrap">

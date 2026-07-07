@@ -93,6 +93,25 @@ defmodule Aveline.ViewsTest do
              Views.create(ws.id, "bad", "Bad window.", %{"edited" => "soon"}, user.id)
   end
 
+  test "sub_group_by needs a different group_by scope" do
+    %{user: user, ws: ws} = setup_ws()
+
+    {:ok, v} =
+      Views.create(ws.id, "work", "Tickets by status then type.",
+        %{"tags" => ["ticket"], "group_by" => "status", "sub_group_by" => "ticket"}, user.id)
+
+    assert v.config["sub_group_by"] == "ticket"
+
+    # sub without group → error
+    assert {:error, %Ecto.Changeset{}} =
+             Views.create(ws.id, "bad1", "No group.", %{"sub_group_by" => "ticket"}, user.id)
+
+    # sub == group → error
+    assert {:error, %Ecto.Changeset{}} =
+             Views.create(ws.id, "bad2", "Same scope.",
+               %{"group_by" => "status", "sub_group_by" => "status"}, user.id)
+  end
+
   test "safe_map shape" do
     %{user: user, ws: ws} = setup_ws()
     {:ok, view} = Views.create(ws.id, "tickets", "All open work.", %{"tags" => ["ticket"]}, user.id)

@@ -7,8 +7,9 @@ defmodule Aveline.Views.View do
 
   `config`:
     * `"tags"`     — filter tag slugs (may be empty: all docs)
-    * `"group_by"` — a tag scope (renders section headers) or nil (list)
-    * `"edited"`   — relative window on last edit ("7d", "24h") or nil
+    * `"group_by"`     — a tag scope (renders section headers) or nil
+    * `"sub_group_by"` — a second scope for subsections (only with group_by)
+    * `"edited"`       — relative window on last edit ("7d", "24h") or nil
     * `"sort"`     — "recent" | "title" (optional; default recent)
     * `"icon"`     — optional emoji for future collapsed-sidebar tiles
   """
@@ -85,6 +86,7 @@ defmodule Aveline.Views.View do
     config = get_field(changeset, :config) || %{}
     tags = Map.get(config, "tags", [])
     group_by = Map.get(config, "group_by")
+    sub_group_by = Map.get(config, "sub_group_by")
     edited = Aveline.Docs.normalize_within(Map.get(config, "edited"))
     sort = Map.get(config, "sort")
     icon = Map.get(config, "icon")
@@ -95,6 +97,12 @@ defmodule Aveline.Views.View do
 
       not (is_nil(group_by) or (is_binary(group_by) and group_by != "")) ->
         add_error(changeset, :config, "group_by must be a tag scope or null")
+
+      not (is_nil(sub_group_by) or (is_binary(sub_group_by) and sub_group_by != "")) ->
+        add_error(changeset, :config, "sub_group_by must be a tag scope or null")
+
+      sub_group_by != nil and (is_nil(group_by) or sub_group_by == group_by) ->
+        add_error(changeset, :config, "sub_group_by needs a different group_by scope")
 
       not (is_nil(Map.get(config, "edited")) or edited != nil) ->
         add_error(changeset, :config, "edited must be a window like \"7d\" or \"24h\" (max 365d)")
@@ -109,6 +117,7 @@ defmodule Aveline.Views.View do
         clean =
           %{"tags" => tags}
           |> then(fn c -> if group_by, do: Map.put(c, "group_by", group_by), else: c end)
+          |> then(fn c -> if sub_group_by, do: Map.put(c, "sub_group_by", sub_group_by), else: c end)
           |> then(fn c -> if edited, do: Map.put(c, "edited", edited), else: c end)
           |> then(fn c -> if sort, do: Map.put(c, "sort", sort), else: c end)
           |> then(fn c -> if icon, do: Map.put(c, "icon", icon), else: c end)

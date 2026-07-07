@@ -94,6 +94,18 @@ defmodule AvelineWeb.DocsViewsLiveTest do
     assert html =~ "Ticket one"
   end
 
+  test "sub-grouping renders subsections inside sections", %{conn: conn, ws: ws, owner: owner} do
+    # Give a ticket a type so a ticket:* subsection appears under its status.
+    Fixtures.doc_fixture(ws, owner, slug: "bug-one", title: "A bug", tags: ["ticket", "status:todo", "ticket:bug"])
+
+    {:ok, _lv, html} = live(conn, "/w/#{ws.slug}/docs?group=status&subgroup=ticket")
+
+    assert html =~ "group-block"
+    assert html =~ "subgroup"
+    assert html =~ "group-head-name"
+    assert html =~ "subgroup-head-name"
+  end
+
   test "unknown view redirects to docs with a flash", %{conn: conn, ws: ws} do
     assert {:error, {:live_redirect, %{to: to}}} = live(conn, "/w/#{ws.slug}/v/ghost")
     assert to == "/w/#{ws.slug}/docs"
