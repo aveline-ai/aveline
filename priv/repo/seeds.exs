@@ -983,6 +983,18 @@ if is_nil(Docs.get_current_by_slug(workspace.id, "catalog-dashboard")) do
           "SELECT day, docs, docs_ma3 FROM activity_trend ORDER BY day",
           %{"type" => "combo", "x" => "day", "series" => [%{"y" => "docs", "type" => "bar"}, %{"y" => "docs_ma3", "type" => "line"}]}
         ),
+        heading.(2, "Docs per day with a fitted regression line"),
+        para.([
+          t.("The "),
+          b.("fit", ["code"]),
+          t.(" series is the least-squares line, computed in SQL: "),
+          b.("regr_slope(y, x) OVER () * x + regr_intercept(y, x) OVER ()", ["code"]),
+          t.(". Plotted as a line over the actual bars. The source dialect can't do this; the engine can.")
+        ]),
+        wchart.(
+          "SELECT day, docs, regr_slope(docs, epoch(day::timestamp)) OVER () * epoch(day::timestamp) + regr_intercept(docs, epoch(day::timestamp)) OVER () AS fit FROM activity_per_day ORDER BY day",
+          %{"type" => "combo", "x" => "day", "series" => [%{"y" => "docs", "type" => "bar"}, %{"y" => "fit", "type" => "line"}]}
+        ),
         heading.(2, "Ad-hoc: regression slope over the catalog (table)"),
         wchart.(
           "SELECT round(regr_slope(docs, epoch(day::timestamp)) * 86400, 4) AS docs_per_day_trend FROM activity_per_day",
