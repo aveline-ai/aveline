@@ -1,0 +1,46 @@
+# Self-hosted deployment: app + Postgres, configured via .env.
+# Start with: docker compose up -d --build
+services:
+  app:
+    build:
+      context: .
+      args:
+        # Host-only, non-secure session cookie: works on localhost and on
+        # the Tailscale hostname (still HTTPS + WireGuard in transit).
+        SESSION_COOKIE_DOMAIN: ""
+        SESSION_COOKIE_SECURE: "false"
+    restart: unless-stopped
+    # Run pending migrations before serving; a no-op when there are none.
+    command: ["sh", "-c", "/app/bin/migrate && /app/bin/server"]
+    env_file: .env
+    environment:
+      ERL_INETRC: /app/erl_inetrc
+    volumes:
+      - ./erl_inetrc:/app/erl_inetrc:ro
+    ports:
+      # Uncommon host port to avoid clashing with other projects' defaults;
+      # the app still listens on 4000 inside the container.
+      - "127.0.0.1:7151:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aveline
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: aveline
+    ports:
+      # localhost-only, for GUI clients like TablePlus
+      - "127.0.0.1:7152:5432"
+    volumes:
+      # Bind mount (plain folder, gitignored) rather than a named volume:
+      # docker prune/down -v cannot delete a bind-mount source directory.
+      - ./pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aveline"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

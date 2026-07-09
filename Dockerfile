@@ -51,6 +51,13 @@ RUN mix archive.install github hexpm/hex branch latest --force && \
 # set build ENV
 ENV MIX_ENV="prod"
 
+# Session cookie overrides for self-hosted builds (see config/prod.exs).
+# Defaults preserve the Fly/app.aveline.ai behavior.
+ARG SESSION_COOKIE_DOMAIN=".aveline.ai"
+ARG SESSION_COOKIE_SECURE="true"
+ENV SESSION_COOKIE_DOMAIN=$SESSION_COOKIE_DOMAIN
+ENV SESSION_COOKIE_SECURE=$SESSION_COOKIE_SECURE
+
 # install mix dependencies
 COPY mix.exs mix.lock ./
 RUN mix deps.get --only $MIX_ENV

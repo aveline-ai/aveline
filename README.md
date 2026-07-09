@@ -50,6 +50,24 @@ fly deploy
 
 App is at `https://app.aveline.ai`.
 
+## Self-hosting (docker compose)
+
+Run the whole thing (app + Postgres) on your own machine — handy for keeping
+data next to a database on a private network (e.g. reachable to coworkers over
+Tailscale). All the Fly-specific behavior (IPv6 networking, the `.aveline.ai`
+session cookie, the fixed WebSocket origin) is opt-out here via env/build args,
+so the Fly deploy is unaffected.
+
+```sh
+cp .env.docker.example .env      # then fill in the secrets it lists
+docker compose up -d --build
+```
+
+The app is at `http://localhost:7151` (Postgres at `127.0.0.1:7152`). Set
+`PHX_HOST` and `CHECK_ORIGIN` in `.env` to your Tailscale hostname to reach it
+from other machines. Migrations run automatically on boot; `pgdata/` holds the
+database (gitignored, a plain bind-mount folder).
+
 ## License
 
 AGPL-3.0. See [LICENSE](./LICENSE).

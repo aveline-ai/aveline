@@ -41,3 +41,6 @@ npm-debug.log
 # Ignore bruno for now
 bruno/
 .DS_Store
+
+# Local postgres data (bind mount from compose.yaml)
+pgdata/

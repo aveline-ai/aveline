@@ -52,6 +52,15 @@ if config_env() == :prod do
 
   config :aveline, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
+  # Allowed WebSocket origins. CHECK_ORIGIN is a comma-separated list for
+  # deployments served from a host other than the compiled client_base_url
+  # (e.g. self-hosted behind Tailscale); defaults to client_base_url.
+  check_origin =
+    case System.get_env("CHECK_ORIGIN") do
+      nil -> [Aveline.Config.client_base_url!()]
+      origins -> String.split(origins, ",", trim: true)
+    end
+
   config :aveline, AvelineWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [
@@ -59,5 +68,5 @@ if config_env() == :prod do
       port: port
     ],
     secret_key_base: secret_key_base,
-    check_origin: [Aveline.Config.client_base_url!()]
+    check_origin: check_origin
 end

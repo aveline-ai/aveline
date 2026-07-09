@@ -1,0 +1,4 @@
+%% Resolve hostnames through the OS (glibc) instead of Erlang's built-in
+%% DNS client. Docker Desktop generates a resolv.conf without a nameserver
+%% line, which glibc handles but inet_res does not (every lookup nxdomains).
+{lookup, [file, native]}.
