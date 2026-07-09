@@ -41,6 +41,8 @@ defmodule Aveline.Blocks.Block do
   @types ~w(heading paragraph code list table doc_link chart)
 
   @uuid_re ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  # Chart query_ref is a catalog query name (same charset as Query.name).
+  @query_name_re ~r/^[a-z][a-z0-9_]{0,39}$/
 
   @doc "Returns the list of supported block types."
   def types, do: @types
@@ -240,24 +242,37 @@ defmodule Aveline.Blocks.Block do
     {:error, "doc_link requires doc_id (target base_doc_id) or doc (target slug, resolved server-side)"}
   end
 
-  # chart — a live SQL query against a workspace data source. The
-  # computed `result` / `source` echoes are not fields here, so pasted
-  # echoes are stripped on rewrite.
-  defp validate_type_fields("chart", %{"data_source_id" => ds_id, "query" => query} = block)
-       when is_binary(ds_id) and is_binary(query) do
+  # chart — a view over a named catalog query. `query_ref` is the query
+  # name (resolved/verified in the Docs write path); the query owns the
+  # SQL and the data source. The computed `result`/`source`/`query_sql`
+  # echoes are not fields here, so pasted echoes are stripped on rewrite.
+  defp validate_type_fields("chart", %{"query_ref" => ref} = block) when is_binary(ref) do
     viz = Map.get(block, "viz", %{"type" => "table"})
 
     cond do
-      not Regex.match?(@uuid_re, ds_id) ->
+      not Regex.match?(@query_name_re, ref) ->
         {:error,
-         "chart.data_source_id must be a UUID (the source's base id); or pass source: <name> and the server resolves it"}
+         "chart.query_ref must be a catalog query name (lowercase letter, then letters/digits/underscores)"}
 
-      String.trim(query) == "" ->
-        {:error, "chart.query cannot be blank"}
+      true ->
+        case validate_and_clean_viz(viz) do
+          {:ok, clean_viz} -> {:ok, %{"query_ref" => String.downcase(ref), "viz" => clean_viz}}
+          err -> err
+        end
+    end
+  end
 
-      String.length(query) > 10_000 ->
-        {:error, "chart.query too long (10k max)"}
+  defp validate_type_fields("chart", _) do
+    {:error,
+     "chart requires query_ref (a catalog query name; create the query first, then chart it) and optional viz"}
+  end
 
+  # ===== Helpers (placed after all validate_type_fields clauses so the
+  # compiler doesn't complain about non-contiguous clause grouping) =====
+
+  # Shared chart viz validation + normalization (drops unknown keys).
+  defp validate_and_clean_viz(viz) do
+    cond do
       not is_map(viz) or viz["type"] not in ["table", "line", "bar", "combo"] ->
         {:error, "chart.viz.type must be \"table\", \"line\", \"bar\", or \"combo\""}
 
@@ -270,7 +285,7 @@ defmodule Aveline.Blocks.Block do
          "chart.viz combo needs x and series: 1-4 of {y: column, type: line | bar, axis?: left | right}"}
 
       true ->
-        clean_viz =
+        clean =
           case viz["type"] do
             "table" ->
               %{"type" => "table"}
@@ -290,22 +305,9 @@ defmodule Aveline.Blocks.Block do
               %{"type" => t, "x" => viz["x"], "y" => viz["y"]}
           end
 
-        {:ok,
-         %{
-           "data_source_id" => String.downcase(ds_id),
-           "query" => query,
-           "viz" => clean_viz
-         }}
+        {:ok, clean}
     end
   end
-
-  defp validate_type_fields("chart", _) do
-    {:error,
-     "chart requires data_source_id (source base id, or source: <name> resolved server-side), query (SQL), and optional viz"}
-  end
-
-  # ===== Helpers (placed after all validate_type_fields clauses so the
-  # compiler doesn't complain about non-contiguous clause grouping) =====
 
   defp valid_combo_series?(%{"x" => x, "series" => series}) when is_binary(x) and x != "" do
     is_list(series) and length(series) in 1..4 and

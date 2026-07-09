@@ -29,46 +29,39 @@ defmodule Aveline.ChartAsyncTest do
 
   describe "enrich_blocks run_charts: false" do
     test "live charts come back pending with the source echoed", %{ws: ws, user: user} do
-      doc =
-        Fixtures.doc_fixture(ws, user, blocks: [%{"type" => "chart", "source" => "self", "query" => "select 1 as one"}])
+      Fixtures.query_fixture(ws, user, "ones", "select 1 as one", source: "self")
+      doc = Fixtures.doc_fixture(ws, user, blocks: [Fixtures.chart_block("ones")])
 
-      assert [%{"result" => %{"pending" => true}, "source" => %{"name" => "self"}}] =
+      assert [%{"result" => %{"pending" => true}, "source" => %{"name" => "self"}, "query_sql" => "select 1 as one"}] =
                Docs.enrich_blocks(doc.blocks, ws.id, run_charts: false)
     end
 
-    test "deleted sources still resolve to errors immediately (nothing to run)", %{
-      ws: ws,
-      user: user
-    } do
-      {:ok, doomed} =
-        DataSources.create(ws.id, "doomed", self_template(), self_password(), user.id)
+    test "a missing query resolves to an error immediately (nothing to run)", %{ws: ws, user: user} do
+      Fixtures.query_fixture(ws, user, "gone", "select 1", source: "self")
+      doc = Fixtures.doc_fixture(ws, user, blocks: [Fixtures.chart_block("gone")])
+      # Delete the query out from under the chart.
+      q = Aveline.DataSources.Queries.get_current_by_name(ws.id, "gone")
+      {:ok, _} = Aveline.DataSources.Queries.delete(q, user.id)
 
-      doc =
-        Fixtures.doc_fixture(ws, user, blocks: [%{"type" => "chart", "source" => "doomed", "query" => "select 1"}])
-
-      {:ok, _} = DataSources.delete(doomed, user.id)
-
-      assert [%{"result" => %{"error" => "data source was deleted" <> _}}] =
+      assert [%{"result" => %{"error" => "catalog query" <> _}}] =
                Docs.enrich_blocks(doc.blocks, ws.id, run_charts: false)
     end
   end
 
-  describe "run_chart_query/3" do
-    test "runs through the cache and returns the result map", %{ws: ws, ds: ds} do
-      assert %{"columns" => ["one"], "rows" => [[1]]} =
-               Docs.run_chart_query(ws.id, ds.base_data_source_id, "select 1 as one")
+  describe "run_chart/2" do
+    test "runs a raw-query chart through the cache and returns the result map", %{ws: ws, user: user} do
+      Fixtures.query_fixture(ws, user, "one", "select 1 as one", source: "self")
+      assert %{"columns" => ["one"], "rows" => [[1]]} = Docs.run_chart(ws.id, Fixtures.chart_block("one"))
     end
 
-    test "bad SQL is an error state, not a raise", %{ws: ws, ds: ds} do
-      assert %{"error" => msg} =
-               Docs.run_chart_query(ws.id, ds.base_data_source_id, "select nope from nowhere")
-
+    test "bad SQL is an error state, not a raise", %{ws: ws, user: user} do
+      Fixtures.query_fixture(ws, user, "boom", "select nope from nowhere", source: "self")
+      assert %{"error" => msg} = Docs.run_chart(ws.id, Fixtures.chart_block("boom"))
       assert msg =~ "nowhere"
     end
 
-    test "unknown source is an error state", %{ws: ws} do
-      assert %{"error" => "data source not found"} =
-               Docs.run_chart_query(ws.id, Ecto.UUID.generate(), "select 1")
+    test "unknown query is an error state", %{ws: ws} do
+      assert %{"error" => "catalog query" <> _} = Docs.run_chart(ws.id, Fixtures.chart_block("nonexistent"))
     end
   end
 

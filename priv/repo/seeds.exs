@@ -871,9 +871,21 @@ if is_nil(Aveline.DataSources.get_current_by_name(workspace.id, "aveline-self"))
     Aveline.DataSources.create(workspace.id, "aveline-self", self_template, self_password, alice.id)
 end
 
-chart = fn query, viz ->
-  %{"type" => "chart", "source" => "aveline-self", "query" => query, "viz" => viz}
+# Every chart references a NAMED query. `mk_query` creates one (raw if
+# `source` given, derived otherwise) and `chart` returns a block for it.
+mk_query = fn name, source, sql ->
+  if is_nil(Aveline.DataSources.Queries.get_current_by_name(workspace.id, name)) do
+    attrs = %{name: name, sql: sql} |> then(fn a -> if source, do: Map.put(a, :source, source), else: a end)
+    {:ok, _} = Aveline.DataSources.Queries.create(workspace.id, attrs, alice.id)
+  end
 end
+
+chart = fn name, viz -> %{"type" => "chart", "query_ref" => name, "viz" => viz} end
+
+mk_query.("versions_per_day", "aveline-self", "SELECT inserted_at::date AS day, count(*) AS versions FROM docs GROUP BY 1 ORDER BY 1")
+mk_query.("versions_by_actor", "aveline-self", "SELECT actor_type, count(*) AS versions FROM docs GROUP BY 1 ORDER BY 2 DESC")
+mk_query.("most_versioned_docs", "aveline-self", "SELECT title, max(version_number) AS versions FROM docs WHERE NOT superseded GROUP BY title ORDER BY 2 DESC LIMIT 5")
+mk_query.("broken_showcase", "aveline-self", "SELECT nope FROM does_not_exist")
 
 if is_nil(Docs.get_current_by_slug(workspace.id, "metrics-dashboard")) do
   {:ok, _dash} =
@@ -889,30 +901,18 @@ if is_nil(Docs.get_current_by_slug(workspace.id, "metrics-dashboard")) do
       intent: "seed a chart-block showcase against the dev DB itself",
       blocks: [
         para.([
-          t.("Every chart below runs a live read-only query against this workspace's own database through the "),
+          t.("Every chart below is a view over a named query on the "),
           b.("aveline-self", ["code"]),
-          t.(" data source. Edit the SQL with ordinary apply-ops.")
+          t.(" data source. See them all on that source's page.")
         ]),
         heading.(2, "Doc versions per day"),
-        chart.(
-          "SELECT inserted_at::date AS day, count(*) AS versions FROM docs GROUP BY 1 ORDER BY 1",
-          %{"type" => "line", "x" => "day", "y" => "versions"}
-        ),
+        chart.("versions_per_day", %{"type" => "line", "x" => "day", "y" => "versions"}),
         heading.(2, "Versions by actor type"),
-        chart.(
-          "SELECT actor_type, count(*) AS versions FROM docs GROUP BY 1 ORDER BY 2 DESC",
-          %{"type" => "bar", "x" => "actor_type", "y" => "versions"}
-        ),
+        chart.("versions_by_actor", %{"type" => "bar", "x" => "actor_type", "y" => "versions"}),
         heading.(2, "Most-versioned docs (table)"),
-        chart.(
-          "SELECT title, max(version_number) AS versions FROM docs WHERE NOT superseded GROUP BY title ORDER BY 2 DESC LIMIT 5",
-          %{"type" => "table"}
-        ),
+        chart.("most_versioned_docs", %{"type" => "table"}),
         heading.(2, "A broken query (error state showcase)"),
-        chart.(
-          "SELECT nope FROM does_not_exist",
-          %{"type" => "table"}
-        )
+        chart.("broken_showcase", %{"type" => "table"})
       ]
     })
 end
@@ -947,9 +947,12 @@ Enum.each(catalog_specs, fn {name, source, sql} ->
   end
 end)
 
-wchart = fn query, viz ->
-  %{"type" => "chart", "source" => "workspace", "query" => query, "viz" => viz}
-end
+# Each chart is a view over a named derived query (named-only charts).
+mk_query.("docs_vs_comments", nil, "SELECT day, docs, comments FROM activity_per_day ORDER BY day")
+mk_query.("docs_ma3", nil, "SELECT day, docs, docs_ma3 FROM activity_trend ORDER BY day")
+mk_query.("docs_with_fit", nil, "SELECT day, docs, regr_slope(docs, epoch(day::timestamp)) OVER () * epoch(day::timestamp) + regr_intercept(docs, epoch(day::timestamp)) OVER () AS fit FROM activity_per_day ORDER BY day")
+mk_query.("docs_forecast", nil, "WITH pts AS (SELECT day, docs FROM activity_per_day), model AS (SELECT regr_slope(docs, epoch(day::timestamp)) AS m, regr_intercept(docs, epoch(day::timestamp)) AS b FROM pts), axis AS (SELECT unnest(generate_series((SELECT min(day) FROM pts), (SELECT max(day) FROM pts) + INTERVAL 7 DAY, INTERVAL 1 DAY))::date AS day) SELECT a.day, p.docs AS actual, round(m.m * epoch(a.day::timestamp) + m.b, 2) AS forecast FROM axis a CROSS JOIN model m LEFT JOIN pts p ON p.day = a.day ORDER BY a.day")
+mk_query.("docs_trend_slope", nil, "SELECT round(regr_slope(docs, epoch(day::timestamp)) * 86400, 4) AS docs_per_day_trend FROM activity_per_day")
 
 if is_nil(Docs.get_current_by_slug(workspace.id, "catalog-dashboard")) do
   {:ok, _dash} =
@@ -974,15 +977,9 @@ if is_nil(Docs.get_current_by_slug(workspace.id, "catalog-dashboard")) do
           t.(" chains on top with a moving average and a regression slope the source can't express.")
         ]),
         heading.(2, "Docs vs comments per day (cross-query join)"),
-        wchart.(
-          "SELECT day, docs, comments FROM activity_per_day ORDER BY day",
-          %{"type" => "combo", "x" => "day", "series" => [%{"y" => "docs", "type" => "line"}, %{"y" => "comments", "type" => "bar"}]}
-        ),
+        chart.("docs_vs_comments", %{"type" => "combo", "x" => "day", "series" => [%{"y" => "docs", "type" => "line"}, %{"y" => "comments", "type" => "bar"}]}),
         heading.(2, "Docs per day with 3-day moving average (chained derived query)"),
-        wchart.(
-          "SELECT day, docs, docs_ma3 FROM activity_trend ORDER BY day",
-          %{"type" => "combo", "x" => "day", "series" => [%{"y" => "docs", "type" => "bar"}, %{"y" => "docs_ma3", "type" => "line"}]}
-        ),
+        chart.("docs_ma3", %{"type" => "combo", "x" => "day", "series" => [%{"y" => "docs", "type" => "bar"}, %{"y" => "docs_ma3", "type" => "line"}]}),
         heading.(2, "Docs per day with a fitted regression line"),
         para.([
           t.("The "),
@@ -991,10 +988,7 @@ if is_nil(Docs.get_current_by_slug(workspace.id, "catalog-dashboard")) do
           b.("regr_slope(y, x) OVER () * x + regr_intercept(y, x) OVER ()", ["code"]),
           t.(". Plotted as a line over the actual bars. The source dialect can't do this; the engine can.")
         ]),
-        wchart.(
-          "SELECT day, docs, regr_slope(docs, epoch(day::timestamp)) OVER () * epoch(day::timestamp) + regr_intercept(docs, epoch(day::timestamp)) OVER () AS fit FROM activity_per_day ORDER BY day",
-          %{"type" => "combo", "x" => "day", "series" => [%{"y" => "docs", "type" => "bar"}, %{"y" => "fit", "type" => "line"}]}
-        ),
+        chart.("docs_with_fit", %{"type" => "combo", "x" => "day", "series" => [%{"y" => "docs", "type" => "bar"}, %{"y" => "fit", "type" => "line"}]}),
         heading.(2, "7-day forecast (regression extended past the data)"),
         para.([
           t.("The fit line evaluated at future dates the data doesn't have: "),
@@ -1005,15 +999,9 @@ if is_nil(Docs.get_current_by_slug(workspace.id, "catalog-dashboard")) do
           b.("forecast", ["code"]),
           t.(" runs 7 days past it. (Linear extrapolation of a steep toy trend dives negative fast — that's the math, not a bug.)")
         ]),
-        wchart.(
-          "WITH pts AS (SELECT day, docs FROM activity_per_day), model AS (SELECT regr_slope(docs, epoch(day::timestamp)) AS m, regr_intercept(docs, epoch(day::timestamp)) AS b FROM pts), axis AS (SELECT unnest(generate_series((SELECT min(day) FROM pts), (SELECT max(day) FROM pts) + INTERVAL 7 DAY, INTERVAL 1 DAY))::date AS day) SELECT a.day, p.docs AS actual, round(m.m * epoch(a.day::timestamp) + m.b, 2) AS forecast FROM axis a CROSS JOIN model m LEFT JOIN pts p ON p.day = a.day ORDER BY a.day",
-          %{"type" => "combo", "x" => "day", "series" => [%{"y" => "actual", "type" => "bar"}, %{"y" => "forecast", "type" => "line"}]}
-        ),
+        chart.("docs_forecast", %{"type" => "combo", "x" => "day", "series" => [%{"y" => "actual", "type" => "bar"}, %{"y" => "forecast", "type" => "line"}]}),
         heading.(2, "Ad-hoc: regression slope over the catalog (table)"),
-        wchart.(
-          "SELECT round(regr_slope(docs, epoch(day::timestamp)) * 86400, 4) AS docs_per_day_trend FROM activity_per_day",
-          %{"type" => "table"}
-        )
+        chart.("docs_trend_slope", %{"type" => "table"})
       ]
     })
 end

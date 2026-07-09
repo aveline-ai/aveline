@@ -28,10 +28,14 @@ defmodule AvelineWeb.DocChartAsyncLiveTest do
     %{conn: conn, ws: ws, owner: owner}
   end
 
-  defp chart(query), do: %{"type" => "chart", "source" => "self", "query" => query}
+  # Create a named raw query on `self` and return a chart block for it.
+  defp chart(ws, owner, name, sql) do
+    Fixtures.query_fixture(ws, owner, name, sql, source: "self")
+    Fixtures.chart_block(name)
+  end
 
   test "doc mounts with a placeholder and the chart streams in", %{conn: conn, ws: ws, owner: owner} do
-    Fixtures.doc_fixture(ws, owner, slug: "metrics", blocks: [chart("select 41 + 1 as answer")])
+    Fixtures.doc_fixture(ws, owner, slug: "metrics", blocks: [chart(ws, owner, "answer_q", "select 41 + 1 as answer")])
 
     {:ok, lv, html} = live(conn, "/w/#{ws.slug}/d/metrics")
 
@@ -47,7 +51,7 @@ defmodule AvelineWeb.DocChartAsyncLiveTest do
   end
 
   test "bad SQL streams in as an error card with a retry", %{conn: conn, ws: ws, owner: owner} do
-    Fixtures.doc_fixture(ws, owner, slug: "broken", blocks: [chart("select nope from nowhere")])
+    Fixtures.doc_fixture(ws, owner, slug: "broken", blocks: [chart(ws, owner, "broken_q", "select nope from nowhere")])
 
     {:ok, lv, html} = live(conn, "/w/#{ws.slug}/d/broken")
     assert html =~ "running query"
@@ -58,8 +62,9 @@ defmodule AvelineWeb.DocChartAsyncLiveTest do
   end
 
   test "charts sharing a query share one run (and one result)", %{conn: conn, ws: ws, owner: owner} do
-    q = "select clock_timestamp()::text as t"
-    Fixtures.doc_fixture(ws, owner, slug: "twins", blocks: [chart(q), chart(q)])
+    Fixtures.query_fixture(ws, owner, "stamp_q", "select clock_timestamp()::text as t", source: "self")
+    twin = Fixtures.chart_block("stamp_q")
+    Fixtures.doc_fixture(ws, owner, slug: "twins", blocks: [twin, twin])
 
     {:ok, lv, _html} = live(conn, "/w/#{ws.slug}/d/twins")
     html = render_async(lv, 30_000)
@@ -74,7 +79,7 @@ defmodule AvelineWeb.DocChartAsyncLiveTest do
   end
 
   test "historical versions idle; a click runs them", %{conn: conn, ws: ws, owner: owner} do
-    doc = Fixtures.doc_fixture(ws, owner, slug: "old", blocks: [chart("select 7 as seven")])
+    doc = Fixtures.doc_fixture(ws, owner, slug: "old", blocks: [chart(ws, owner, "seven_q", "select 7 as seven")])
 
     {:ok, _v2} =
       Docs.replace_blocks(

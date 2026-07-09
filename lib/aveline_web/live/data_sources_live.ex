@@ -48,22 +48,48 @@ defmodule AvelineWeb.DataSourcesLive do
   end
 
   # base_data_source_id => [%{slug, title, charts: n}] — which live docs
-  # chart each source. Derived from block JSON at read time, so it can't
-  # drift; nothing is stored.
+  # chart each source. A chart references a named query; the query maps
+  # to its source (raw → its DB, derived → the workspace catalog).
+  # Derived at read time from block JSON, so it can't drift.
   defp chart_usage(workspace_id) do
+    q_source = query_source_index(workspace_id)
+
     workspace_id
     |> Docs.list_current()
     |> Enum.reduce(%{}, fn doc, acc ->
       doc.blocks
       |> List.wrap()
-      |> Enum.filter(&(is_map(&1) and &1["type"] == "chart" and is_binary(&1["data_source_id"])))
-      |> Enum.frequencies_by(& &1["data_source_id"])
+      |> Enum.flat_map(&chart_source_ids(&1, q_source))
+      |> Enum.frequencies()
       |> Enum.reduce(acc, fn {base_id, count}, inner ->
         entry = %{slug: doc.slug, title: doc.title, charts: count}
         Map.update(inner, base_id, [entry], &[entry | &1])
       end)
     end)
   end
+
+  # query name => the data source base id it charts.
+  defp query_source_index(workspace_id) do
+    ws_source = DataSources.get_current_by_name(workspace_id, "workspace")
+    ws_base = ws_source && ws_source.base_data_source_id
+
+    Queries.list_for_workspace(workspace_id)
+    |> Map.new(fn q -> {q.name, q.data_source_id || ws_base} end)
+  end
+
+  # The source base id(s) a chart block charts (via its query_ref, or a
+  # legacy inline chart's data_source_id).
+  defp chart_source_ids(%{"type" => "chart", "query_ref" => ref}, q_source) do
+    case Map.get(q_source, ref) do
+      nil -> []
+      base -> [base]
+    end
+  end
+
+  defp chart_source_ids(%{"type" => "chart", "data_source_id" => base}, _q) when is_binary(base),
+    do: [base]
+
+  defp chart_source_ids(_block, _q), do: []
 
   # base_data_source_id => query count. Raw queries count against their
   # source; derived queries are the workspace source's catalog.

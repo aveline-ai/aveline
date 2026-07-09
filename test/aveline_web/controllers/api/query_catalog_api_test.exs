@@ -114,13 +114,10 @@ defmodule AvelineWeb.Api.QueryCatalogApiTest do
     assert [[1, 10.0]] = body["rows"]
   end
 
-  @tag if Engine.available?(), do: [], else: [skip: "duckdb not fetched"]
   test "reads return chart config only; run-block returns rows", %{conn: conn, ws: ws, user: user} do
-    doc =
-      doc_fixture(ws, user,
-        slug: "metrics",
-        blocks: [%{"type" => "chart", "source" => "self", "query" => "select 42 as answer"}]
-      )
+    Aveline.DataSources.Queries.create(ws.id, %{name: "answer_q", source: "self", sql: "select 42 as answer"}, user.id)
+
+    doc = doc_fixture(ws, user, slug: "metrics", blocks: [Aveline.Fixtures.chart_block("answer_q")])
 
     block_id = doc.blocks |> List.first() |> Map.fetch!("id")
 

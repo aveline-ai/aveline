@@ -49,6 +49,25 @@ defmodule Aveline.DataSources.Catalog do
     end
   end
 
+  @doc """
+  Drop the cache entries for a catalog SQL's raw leaves, so the next run
+  re-dials the customer databases (the re-run button). The composed
+  result was never cached; only leaves are.
+  """
+  def bust_leaves(workspace_id, sql) do
+    with {:ok, refs} <- Engine.parse(sql),
+         {:ok, plan} <- expand(workspace_id, refs) do
+      Enum.each(plan.leaves, fn leaf ->
+        case DataSources.get_current_by_base(leaf.data_source_id) do
+          nil -> :ok
+          source -> Cache.bust(source.base_data_source_id, leaf.sql)
+        end
+      end)
+    end
+
+    :ok
+  end
+
   # ── resolution ─────────────────────────────────────────────────────
   # DFS from the top-level references. Output: raw leaves + derived
   # queries in bottom-up creation order (post-order).

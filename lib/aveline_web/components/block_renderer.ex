@@ -280,15 +280,10 @@ defmodule AvelineWeb.BlockRenderer do
           class="blk-code"
           data-lang="sql"
           phx-hook="HighlightCode"
-        ><code class="language-sql">{@block["query"]}</code></pre>
+        ><code class="language-sql">{@block["query_sql"] || @block["query"]}</code></pre>
       </div>
       <div class="chart-caption">
-        <span :if={@source && @source["adapter"] == "workspace"} class="chart-source">
-          {catalog_caption(@result)}
-        </span>
-        <span :if={@source && @source["adapter"] != "workspace"} class="chart-source">
-          {@source["name"]} · {@source["adapter"]} · <span class="chart-inline">inline</span>
-        </span>
+        <span class="chart-source">{chart_caption(@block, @source)}</span>
         <span :if={@result["truncated"]} class="chart-truncated">
           truncated to first {Aveline.DataSources.Runner.row_cap()} rows
         </span>
@@ -407,13 +402,21 @@ defmodule AvelineWeb.BlockRenderer do
   defp esc(s), do: Phoenix.HTML.html_escape(s) |> Phoenix.HTML.safe_to_string()
 
   # sql-formatter dialect id from the source adapter echo.
-  # Workspace-source caption: name the catalog queries the chart reads
-  # (surfaced by Catalog.run once it has run). Before the run, or for an
-  # ad-hoc SELECT that names none, fall back to the generic label.
-  defp catalog_caption(%{"catalog_refs" => [_ | _] = refs}),
-    do: "catalog: " <> Enum.join(refs, ", ")
+  # Chart caption: every chart is a view over a named query now, so the
+  # caption always names it. A derived query reads "catalog: name"; a raw
+  # query reads "source · adapter · name". Legacy inline charts (historical
+  # versions) have no named query — labeled "· inline".
+  defp chart_caption(%{"query_ref" => ref}, %{"adapter" => "workspace"}), do: "catalog: #{ref}"
 
-  defp catalog_caption(_), do: "workspace catalog"
+  defp chart_caption(%{"query_ref" => ref}, %{"name" => name, "adapter" => adapter}),
+    do: "#{name} · #{adapter} · #{ref}"
+
+  defp chart_caption(%{"query_ref" => ref}, _source), do: "catalog: #{ref}"
+
+  defp chart_caption(_block, %{"name" => name, "adapter" => adapter}),
+    do: "#{name} · #{adapter} · inline"
+
+  defp chart_caption(_block, _source), do: ""
 
   defp sql_dialect(%{"adapter" => "postgres"}), do: "postgresql"
   defp sql_dialect(%{"adapter" => "redshift"}), do: "redshift"

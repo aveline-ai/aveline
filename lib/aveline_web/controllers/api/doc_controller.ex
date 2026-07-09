@@ -75,9 +75,8 @@ defmodule AvelineWeb.Api.DocController do
     ws = conn.assigns.current_workspace
 
     with %{} = item <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
-         %{"data_source_id" => base_id, "query" => query} <-
-           find_chart(item.blocks, block_id) || {:error, :not_found} do
-      case Docs.run_chart_query(ws.id, base_id, query) do
+         %{"type" => "chart"} = block <- find_chart(item.blocks, block_id) || {:error, :not_found} do
+      case Docs.run_chart(ws.id, block) do
         %{"error" => msg} -> {:error, :query_failed, msg}
         result -> Envelope.ok(conn, result)
       end

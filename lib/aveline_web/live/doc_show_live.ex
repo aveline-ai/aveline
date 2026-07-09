@@ -223,12 +223,15 @@ defmodule AvelineWeb.DocShowLive do
   # reader opts in. Busting the cache key means every chart sharing the
   # query refreshes together: siblings never diverge.
   def handle_event("chart_rerun", %{"block-id" => block_id}, socket) do
+    ws_id = socket.assigns.workspace.id
+
     case find_chart_block(socket.assigns.item.blocks, block_id) do
-      %{"data_source_id" => base_id, "query" => query} ->
-        Aveline.DataSources.Cache.bust(base_id, query)
-        key = {base_id, query}
+      %{} = block ->
+        # Bust the underlying cache so the re-run is fresh; every chart
+        # sharing the query refreshes together (they share the key).
+        Docs.bust_chart(ws_id, block)
+        key = chart_key(block)
         results = Map.put(socket.assigns.chart_results, key, %{"pending" => true})
-        ws_id = socket.assigns.workspace.id
 
         {:noreply,
          socket
@@ -236,9 +239,7 @@ defmodule AvelineWeb.DocShowLive do
            chart_results: results,
            item: apply_chart_results(socket.assigns.item, results)
          )
-         |> start_async({:chart_run, key}, fn ->
-           Docs.run_chart_query(ws_id, base_id, query)
-         end)}
+         |> start_async({:chart_run, key}, fn -> Docs.run_chart(ws_id, block) end)}
 
       _ ->
         {:noreply, socket}
@@ -498,8 +499,9 @@ defmodule AvelineWeb.DocShowLive do
 
   # ── async chart engine ─────────────────────────────────────────────
   # Charts never run in mount: the page renders placeholders instantly,
-  # one start_async fires per distinct {source, sql}, and results stream
-  # in as they land. Keys the doc no longer references are discarded.
+  # one start_async fires per distinct chart key (the referenced query),
+  # and results stream in as they land. Charts sharing a query share one
+  # run. Keys the doc no longer references are discarded.
 
   @impl true
   def handle_async({:chart_run, key}, outcome, socket) do
@@ -523,43 +525,47 @@ defmodule AvelineWeb.DocShowLive do
     end
   end
 
-  # One start_async per runnable {source, sql} not already run or running.
+  # One start_async per runnable chart key not already run or running.
   defp start_chart_runs(socket) do
     ws_id = socket.assigns.workspace.id
     known = socket.assigns.chart_results
 
     socket.assigns.item.blocks
-    |> runnable_chart_keys()
-    |> Enum.reject(&Map.has_key?(known, &1))
-    |> Enum.reduce(socket, fn {base_id, query} = key, sock ->
-      start_async(sock, {:chart_run, key}, fn ->
-        Docs.run_chart_query(ws_id, base_id, query)
-      end)
+    |> runnable_charts()
+    |> Enum.reject(fn block -> Map.has_key?(known, chart_key(block)) end)
+    |> Enum.uniq_by(&chart_key/1)
+    |> Enum.reduce(socket, fn block, sock ->
+      key = chart_key(block)
+      start_async(sock, {:chart_run, key}, fn -> Docs.run_chart(ws_id, block) end)
     end)
   end
 
-  # Charts still awaiting a run. Blocks whose source is missing or
-  # deleted already carry an error result from enrichment: nothing to run.
-  defp runnable_chart_keys(blocks) do
-    for %{"type" => "chart", "data_source_id" => base_id, "query" => query} = b <- blocks || [],
+  # Charts still awaiting a run. Blocks whose query is missing/errored
+  # already carry an error result from enrichment: nothing to run.
+  defp runnable_charts(blocks) do
+    for %{"type" => "chart"} = b <- blocks || [],
+        chart_key(b) != nil,
         match?(%{"pending" => true}, b["result"]),
-        uniq: true,
-        do: {base_id, query}
+        do: b
   end
 
   defp all_chart_keys(blocks) do
-    for %{"type" => "chart", "data_source_id" => base_id, "query" => query} <- blocks || [],
-        uniq: true,
-        do: {base_id, query}
+    for %{"type" => "chart"} = b <- blocks || [], (k = chart_key(b)) != nil, uniq: true, do: k
   end
+
+  # A chart's run/dedup key: the named query it references (current), or
+  # its inline {source, sql} (legacy historical charts).
+  defp chart_key(%{"query_ref" => ref}), do: {:ref, ref}
+  defp chart_key(%{"data_source_id" => base_id, "query" => sql}), do: {:inline, base_id, sql}
+  defp chart_key(_), do: nil
 
   defp apply_chart_results(item, results) do
     %{
       item
       | blocks:
           Enum.map(item.blocks || [], fn
-            %{"type" => "chart", "data_source_id" => base_id, "query" => query} = blk ->
-              case Map.fetch(results, {base_id, query}) do
+            %{"type" => "chart"} = blk ->
+              case Map.fetch(results, chart_key(blk)) do
                 {:ok, result} -> Map.put(blk, "result", result)
                 :error -> blk
               end

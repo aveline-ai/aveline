@@ -178,6 +178,7 @@ defmodule Aveline.DataSourcesTest do
     test "rename alone is fine and never breaks chart blocks" do
       %{user: user, ws: ws} = setup_ws()
       ds = create_self!(ws, user)
+      Fixtures.query_fixture(ws, user, "ones", "select 1 as one", source: "self")
 
       {:ok, doc} =
         Docs.create_doc(%{
@@ -186,14 +187,14 @@ defmodule Aveline.DataSourcesTest do
           actor_user_id: user.id,
           actor_type: "agent",
           title: "Dash",
-          blocks: [%{"type" => "chart", "source" => "self", "query" => "select 1 as one"}],
+          blocks: [Fixtures.chart_block("ones")],
           intent: "test"
         })
 
       {:ok, renamed} = DataSources.edit(ds, %{name: "analytics"}, user.id)
       assert renamed.name == "analytics"
 
-      # The block pinned the base id — still resolves and runs.
+      # The query pinned the source's base id — still resolves and runs.
       assert [%{"result" => %{"rows" => [[1]]}, "source" => %{"name" => "analytics"}}] =
                Docs.enrich_blocks(doc.blocks, ws.id)
     end
@@ -258,8 +259,7 @@ defmodule Aveline.DataSourcesTest do
 
   describe "combo viz" do
     test "block validation: series shape, unknown keys stripped" do
-      uuid = Ecto.UUID.generate()
-      base = %{"type" => "chart", "data_source_id" => uuid, "query" => "select 1"}
+      base = %{"type" => "chart", "query_ref" => "q"}
 
       viz = %{
         "type" => "combo",
@@ -342,50 +342,57 @@ defmodule Aveline.DataSourcesTest do
 
   describe "chart block validation" do
     test "valid chart normalizes; echoes stripped" do
-      uuid = Ecto.UUID.generate()
-
       assert {:ok, out} =
                Block.validate(
                  %{
                    "type" => "chart",
-                   "data_source_id" => uuid,
-                   "query" => "select 1",
+                   "query_ref" => "docs_per_day",
                    "viz" => %{"type" => "line", "x" => "a", "y" => "b", "junk" => true},
                    "result" => %{"rows" => [["stale"]]},
-                   "source" => %{"name" => "forged"}
+                   "source" => %{"name" => "forged"},
+                   "query_sql" => "select stale"
                  },
                  mint_id?: true
                )
 
-      assert out["data_source_id"] == uuid
+      assert out["query_ref"] == "docs_per_day"
       assert out["viz"] == %{"type" => "line", "x" => "a", "y" => "b"}
       refute Map.has_key?(out, "result")
       refute Map.has_key?(out, "source")
+      refute Map.has_key?(out, "query_sql")
+    end
+
+    test "query_ref is required and must be a query name; inline SQL is rejected" do
+      assert {:error, msg} =
+               Block.validate(%{"type" => "chart", "data_source_id" => Ecto.UUID.generate(), "query" => "select 1"}, mint_id?: true)
+
+      assert msg =~ "query_ref"
+
+      assert {:error, msg} =
+               Block.validate(%{"type" => "chart", "query_ref" => "Bad Name"}, mint_id?: true)
+
+      assert msg =~ "query_ref"
     end
 
     test "viz validation" do
-      uuid = Ecto.UUID.generate()
-      base = %{"type" => "chart", "data_source_id" => uuid, "query" => "select 1"}
+      base = %{"type" => "chart", "query_ref" => "q"}
 
       assert {:ok, out} = Block.validate(base, mint_id?: true)
       assert out["viz"] == %{"type" => "table"}
 
-      assert {:error, msg} =
-               Block.validate(Map.put(base, "viz", %{"type" => "pie"}), mint_id?: true)
-
+      assert {:error, msg} = Block.validate(Map.put(base, "viz", %{"type" => "pie"}), mint_id?: true)
       assert msg =~ "viz.type"
 
-      assert {:error, msg} =
-               Block.validate(Map.put(base, "viz", %{"type" => "line"}), mint_id?: true)
-
+      assert {:error, msg} = Block.validate(Map.put(base, "viz", %{"type" => "line"}), mint_id?: true)
       assert msg =~ "needs x and y"
     end
   end
 
   describe "resolution" do
-    test "source name resolves to the base id; unknown and cross-workspace rejected" do
+    test "query_ref resolves; unknown query rejected at write time" do
       %{user: user, ws: ws} = setup_ws()
-      ds = create_self!(ws, user)
+      create_self!(ws, user)
+      Fixtures.query_fixture(ws, user, "ones", "select 1 as one", source: "self")
 
       {:ok, doc} =
         Docs.create_doc(%{
@@ -394,49 +401,30 @@ defmodule Aveline.DataSourcesTest do
           actor_user_id: user.id,
           actor_type: "agent",
           title: "Dash",
-          blocks: [%{"type" => "chart", "source" => "self", "query" => "select 1 as one"}],
+          blocks: [Fixtures.chart_block("ones")],
           intent: "test"
         })
 
-      assert [%{"data_source_id" => id}] = doc.blocks
-      assert id == ds.base_data_source_id
+      assert [%{"query_ref" => "ones"}] = doc.blocks
 
-      assert {:error, :data_source_not_found, _} =
+      assert {:error, :query_not_found, _} =
                Docs.create_doc(%{
                  workspace_id: ws.id,
                  owner_id: user.id,
                  actor_user_id: user.id,
                  actor_type: "agent",
                  title: "Bad",
-                 blocks: [%{"type" => "chart", "source" => "ghost", "query" => "select 1"}],
-                 intent: "test"
-               })
-
-      other = Fixtures.workspace_fixture(user)
-
-      assert {:error, :data_source_not_found, _} =
-               Docs.create_doc(%{
-                 workspace_id: other.id,
-                 owner_id: user.id,
-                 actor_user_id: user.id,
-                 actor_type: "agent",
-                 title: "Cross",
-                 blocks: [
-                   %{
-                     "type" => "chart",
-                     "data_source_id" => ds.base_data_source_id,
-                     "query" => "select 1"
-                   }
-                 ],
+                 blocks: [Fixtures.chart_block("ghost_query")],
                  intent: "test"
                })
     end
   end
 
   describe "runner + enrichment" do
-    test "runs a real query and echoes columns/rows" do
+    test "runs a real query and echoes columns/rows + source + sql" do
       %{user: user, ws: ws} = setup_ws()
       create_self!(ws, user)
+      Fixtures.query_fixture(ws, user, "series", "select generate_series(1, 3) as n", source: "self")
 
       {:ok, doc} =
         Docs.create_doc(%{
@@ -445,17 +433,17 @@ defmodule Aveline.DataSourcesTest do
           actor_user_id: user.id,
           actor_type: "agent",
           title: "Dash",
-          blocks: [
-            %{"type" => "chart", "source" => "self", "query" => "select generate_series(1, 3) as n"}
-          ],
+          blocks: [Fixtures.chart_block("series")],
           intent: "test"
         })
 
-      assert [%{"result" => result, "source" => source}] = Docs.enrich_blocks(doc.blocks, ws.id)
+      assert [%{"result" => result, "source" => source, "query_sql" => sql}] =
+               Docs.enrich_blocks(doc.blocks, ws.id)
+
       assert result["columns"] == ["n"]
       assert result["rows"] == [[1], [2], [3]]
       assert source["credential"] == "live"
-      assert source["url"] =~ "<password>"
+      assert sql =~ "generate_series"
     end
 
     test "row cap truncates and flags" do
@@ -487,6 +475,8 @@ defmodule Aveline.DataSourcesTest do
           user.id
         )
 
+      Fixtures.query_fixture(ws, user, "dead", "select 1", source: "ghost")
+
       {:ok, doc} =
         Docs.create_doc(%{
           workspace_id: ws.id,
@@ -494,7 +484,7 @@ defmodule Aveline.DataSourcesTest do
           actor_user_id: user.id,
           actor_type: "agent",
           title: "Dead host dash",
-          blocks: [%{"type" => "chart", "source" => "ghost", "query" => "select 1"}],
+          blocks: [Fixtures.chart_block("dead")],
           intent: "test"
         })
 
@@ -504,9 +494,10 @@ defmodule Aveline.DataSourcesTest do
       assert ghost.adapter == "postgres"
     end
 
-    test "bad SQL and deleted sources are error states, not raises" do
+    test "bad SQL is an error state, not a raise" do
       %{user: user, ws: ws} = setup_ws()
-      ds = create_self!(ws, user)
+      create_self!(ws, user)
+      Fixtures.query_fixture(ws, user, "broken", "select nope from nowhere", source: "self")
 
       {:ok, doc} =
         Docs.create_doc(%{
@@ -515,23 +506,12 @@ defmodule Aveline.DataSourcesTest do
           actor_user_id: user.id,
           actor_type: "agent",
           title: "Dash",
-          blocks: [%{"type" => "chart", "source" => "self", "query" => "select nope from nowhere"}],
+          blocks: [Fixtures.chart_block("broken")],
           intent: "test"
         })
 
       assert [%{"result" => %{"error" => msg}}] = Docs.enrich_blocks(doc.blocks, ws.id)
       assert msg =~ "nowhere"
-
-      {:ok, _} = DataSources.delete(ds, user.id)
-
-      assert [%{"result" => %{"error" => msg2}, "source" => source}] =
-               Docs.enrich_blocks(doc.blocks, ws.id)
-
-      assert msg2 =~ "deleted"
-      assert source["deleted"] == true
-      assert source["credential"] == "redacted"
-      # The template survives the scrub — audit still shows where it pointed.
-      assert source["url"] =~ "<password>"
     end
   end
 end

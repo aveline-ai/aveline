@@ -18,8 +18,14 @@ defmodule Aveline.Broadcasts do
 
   def publish_doc_event(event, %{base_doc_id: base, workspace_id: ws_id} = doc)
       when event in [:doc_created, :doc_updated, :doc_deleted, :doc_restored] do
-    PubSub.broadcast(@pubsub, doc_topic(base), {event, doc})
-    PubSub.broadcast(@pubsub, workspace_docs_topic(ws_id), {event, doc})
+    # No-op when PubSub isn't running (e.g. a data migration or any
+    # non-web context driving Docs): a doc write shouldn't fail because
+    # the live-update bus is down. Live viewers, when present, are served.
+    if Process.whereis(@pubsub) do
+      PubSub.broadcast(@pubsub, doc_topic(base), {event, doc})
+      PubSub.broadcast(@pubsub, workspace_docs_topic(ws_id), {event, doc})
+    end
+
     :ok
   end
 end

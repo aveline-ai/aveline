@@ -77,16 +77,28 @@ defmodule AvelineWeb.DataSourceShowLive do
     end)
   end
 
-  # Which live docs chart this source, and how many charts each.
+  # Which live docs chart this source, and how many charts each. Charts
+  # reference named queries; map each query to its source.
   defp charting_docs(workspace_id, source_base_id) do
+    ws_source = DataSources.get_current_by_name(workspace_id, "workspace")
+    ws_base = ws_source && ws_source.base_data_source_id
+
+    q_source =
+      Queries.list_for_workspace(workspace_id)
+      |> Map.new(fn q -> {q.name, q.data_source_id || ws_base} end)
+
+    charts_for = fn block ->
+      case block do
+        %{"type" => "chart", "query_ref" => ref} -> Map.get(q_source, ref) == source_base_id
+        %{"type" => "chart", "data_source_id" => b} -> b == source_base_id
+        _ -> false
+      end
+    end
+
     workspace_id
     |> Docs.list_current()
     |> Enum.flat_map(fn doc ->
-      count =
-        doc.blocks
-        |> List.wrap()
-        |> Enum.count(&(is_map(&1) and &1["type"] == "chart" and &1["data_source_id"] == source_base_id))
-
+      count = doc.blocks |> List.wrap() |> Enum.count(charts_for)
       if count > 0, do: [%{slug: doc.slug, title: doc.title, charts: count}], else: []
     end)
     |> Enum.sort_by(& &1.slug)
