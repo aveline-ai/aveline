@@ -208,6 +208,14 @@ defmodule Aveline.DataSources do
   end
 
   @doc """
+  The engine/dialect label shown to users. The workspace source's
+  internal adapter is \"workspace\", but the engine it actually runs is
+  DuckDB — so it reads consistently alongside postgres/mysql/redshift.
+  """
+  def dialect_label("workspace"), do: "duckdb"
+  def dialect_label(adapter) when is_binary(adapter), do: adapter
+
+  @doc """
   The one shape read surfaces may see. `url` is the TEMPLATE — the
   `<password>` placeholder renders as its own mask; the secret never
   appears anywhere.

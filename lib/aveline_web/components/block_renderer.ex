@@ -402,16 +402,16 @@ defmodule AvelineWeb.BlockRenderer do
   defp esc(s), do: Phoenix.HTML.html_escape(s) |> Phoenix.HTML.safe_to_string()
 
   # sql-formatter dialect id from the source adapter echo.
-  # Chart caption: every chart is a view over a named query now, so the
-  # caption always names it. A derived query reads "catalog: name"; a raw
-  # query reads "source · adapter · name". Legacy inline charts (historical
-  # versions) have no named query — labeled "· inline".
-  defp chart_caption(%{"query_ref" => ref}, %{"adapter" => "workspace"}), do: "catalog: #{ref}"
+  # Chart caption: <where from> · <engine> · <query name>, uniform across
+  # chart kinds. A raw query reads "source · dialect · name"; a derived
+  # query has no single source, so "derived · duckdb · name". Legacy
+  # inline charts (historical versions) read "source · dialect · inline".
+  defp chart_caption(%{"query_ref" => ref}, %{"adapter" => "workspace"}), do: "derived · duckdb · #{ref}"
 
   defp chart_caption(%{"query_ref" => ref}, %{"name" => name, "adapter" => adapter}),
     do: "#{name} · #{adapter} · #{ref}"
 
-  defp chart_caption(%{"query_ref" => ref}, _source), do: "catalog: #{ref}"
+  defp chart_caption(%{"query_ref" => ref}, _source), do: "derived · duckdb · #{ref}"
 
   defp chart_caption(_block, %{"name" => name, "adapter" => adapter}),
     do: "#{name} · #{adapter} · inline"

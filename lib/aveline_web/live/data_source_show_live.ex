@@ -111,10 +111,11 @@ defmodule AvelineWeb.DataSourceShowLive do
       <.link navigate={~p"/w/#{@workspace.slug}/data-sources"} class="ds-back">← Data sources</.link>
 
       <div class="ds-detail-head">
-        <h1 class="page-title">{if @workspace?, do: "workspace catalog", else: @source.name}</h1>
+        <h1 class="page-title">{@source.name}</h1>
         <span class={["ds-adapter", "ds-adapter-" <> @source.adapter]}>
-          {if @workspace?, do: "built-in", else: @source.adapter}
+          {DataSources.dialect_label(@source.adapter)}
         </span>
+        <span :if={@workspace?} class="ds-builtin-badge">built-in</span>
       </div>
       <p class="page-subtitle">
         <%= if @workspace? do %>

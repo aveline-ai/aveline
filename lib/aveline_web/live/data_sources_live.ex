@@ -146,10 +146,11 @@ defmodule AvelineWeb.DataSourcesLive do
             class={["ds-row", "ds-row-link", ds.deleted_at && "ds-row-deleted"]}
           >
             <div class="ds-row-main">
-              <span class="ds-name">{if ds.adapter == "workspace", do: "workspace catalog", else: ds.name}</span>
+              <span class="ds-name">{ds.name}</span>
               <span class={["ds-adapter", "ds-adapter-" <> ds.adapter]}>
-                {if ds.adapter == "workspace", do: "built-in", else: ds.adapter}
+                {DataSources.dialect_label(ds.adapter)}
               </span>
+              <span :if={ds.adapter == "workspace"} class="ds-builtin-badge">built-in</span>
               <span :if={ds.deleted_at} class="ds-deleted-badge">deleted · password destroyed</span>
             </div>
             <div class="ds-row-meta">

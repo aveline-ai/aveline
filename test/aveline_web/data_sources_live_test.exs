@@ -36,11 +36,9 @@ defmodule AvelineWeb.DataSourcesLiveTest do
     assert html =~ "self"
     # one raw query built on `self`
     assert html =~ "1 query"
-    # the built-in catalog row, presented as such (not "workspace · workspace")
-    assert html =~ "workspace catalog"
+    # the built-in catalog row shows its engine (duckdb), not "workspace"
+    assert html =~ "duckdb"
     assert html =~ "built-in"
-    # its one derived query
-    assert html =~ "1 query"
   end
 
   test "clicking a source opens its detail page with lineage", %{conn: conn, ws: ws} do
