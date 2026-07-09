@@ -995,6 +995,20 @@ if is_nil(Docs.get_current_by_slug(workspace.id, "catalog-dashboard")) do
           "SELECT day, docs, regr_slope(docs, epoch(day::timestamp)) OVER () * epoch(day::timestamp) + regr_intercept(docs, epoch(day::timestamp)) OVER () AS fit FROM activity_per_day ORDER BY day",
           %{"type" => "combo", "x" => "day", "series" => [%{"y" => "docs", "type" => "bar"}, %{"y" => "fit", "type" => "line"}]}
         ),
+        heading.(2, "7-day forecast (regression extended past the data)"),
+        para.([
+          t.("The fit line evaluated at future dates the data doesn't have: "),
+          b.("generate_series", ["code"]),
+          t.(" fabricates the next 7 days, and the regression formula projects onto them. "),
+          b.("actual", ["code"]),
+          t.(" stops at the last real day; "),
+          b.("forecast", ["code"]),
+          t.(" runs 7 days past it. (Linear extrapolation of a steep toy trend dives negative fast — that's the math, not a bug.)")
+        ]),
+        wchart.(
+          "WITH pts AS (SELECT day, docs FROM activity_per_day), model AS (SELECT regr_slope(docs, epoch(day::timestamp)) AS m, regr_intercept(docs, epoch(day::timestamp)) AS b FROM pts), axis AS (SELECT unnest(generate_series((SELECT min(day) FROM pts), (SELECT max(day) FROM pts) + INTERVAL 7 DAY, INTERVAL 1 DAY))::date AS day) SELECT a.day, p.docs AS actual, round(m.m * epoch(a.day::timestamp) + m.b, 2) AS forecast FROM axis a CROSS JOIN model m LEFT JOIN pts p ON p.day = a.day ORDER BY a.day",
+          %{"type" => "combo", "x" => "day", "series" => [%{"y" => "actual", "type" => "bar"}, %{"y" => "forecast", "type" => "line"}]}
+        ),
         heading.(2, "Ad-hoc: regression slope over the catalog (table)"),
         wchart.(
           "SELECT round(regr_slope(docs, epoch(day::timestamp)) * 86400, 4) AS docs_per_day_trend FROM activity_per_day",
