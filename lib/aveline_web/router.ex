@@ -75,6 +75,7 @@ defmodule AvelineWeb.Router do
     pipe_through :api_auth
 
     get "/me", MeController, :show
+    get "/contract", ContractController, :show
     get "/workspaces", WorkspaceController, :index
     post "/workspaces", WorkspaceController, :create
     get "/workspaces/:slug", WorkspaceController, :show
