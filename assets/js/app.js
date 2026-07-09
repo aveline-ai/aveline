@@ -151,6 +151,15 @@ const Hooks = {
       const xi = spec.columns.indexOf(spec.viz.x)
       const xs = spec.rows.map((r) => r[xi])
 
+      // A date/timestamp x-axis gets a real TIME axis, not a category
+      // one — so gaps (a missing day) render at their true width and a
+      // straight trend stays straight. Detection: every non-null x looks
+      // like an ISO date/timestamp. Otherwise x stays categorical.
+      const isDate = (v) =>
+        typeof v === "string" && /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2})?/.test(v)
+      const present = xs.filter((v) => v !== null && v !== undefined)
+      const temporal = present.length > 0 && present.every(isDate)
+
       // Normalize: line/bar are sugar for a one-series combo.
       const seriesSpecs =
         spec.viz.type === "combo"
@@ -161,7 +170,9 @@ const Hooks = {
 
       const series = seriesSpecs.map((s) => {
         const yi = spec.columns.indexOf(s.y)
-        const ys = spec.rows.map((r) => r[yi])
+        // A time axis needs [x, y] pairs; a category axis pairs y with
+        // xAxis.data positionally.
+        const ys = spec.rows.map((r) => (temporal ? [r[xi], r[yi]] : r[yi]))
         const base = { name: s.y, data: ys, yAxisIndex: s.axis === "right" ? 1 : 0 }
         return s.type === "line"
           ? {
@@ -199,8 +210,11 @@ const Hooks = {
           textStyle: { color: text, fontSize: 12 },
         },
         xAxis: {
-          type: "category",
-          data: xs,
+          // Time axis for dates (true spacing across gaps); category
+          // otherwise. A category axis carries its labels in `data`; a
+          // time axis reads them from the series' [x, y] pairs.
+          type: temporal ? "time" : "category",
+          data: temporal ? undefined : xs,
           axisLine: { lineStyle: { color: border } },
           axisTick: { show: false },
           axisLabel: { color: muted, fontSize: 10.5 },
