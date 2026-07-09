@@ -63,6 +63,10 @@ defmodule Aveline.Workspaces do
         # All ordinary data — teams reshape it through their agents.
         creator = Map.get(attrs, "created_by_id") || Map.get(attrs, :created_by_id)
 
+        # The built-in workspace source (the query catalog's virtual
+        # database) exists from the first breath, creator or not.
+        {:ok, _} = Aveline.DataSources.ensure_workspace_source(ws.id)
+
         if creator do
           Enum.each(Aveline.Workspaces.Template.tags(), fn {slug, description, color, sort_key} ->
             {:ok, _} =

@@ -416,6 +416,15 @@ defmodule Aveline.Docs do
   """
   def run_chart_query(workspace_id, base_id, query) do
     case Aveline.DataSources.get_latest_by_base(base_id) do
+      # The workspace source composes catalog queries in the sandboxed
+      # engine. Its LEAVES go through the cache; the composed result is
+      # never cached (recomputed per run, cheap, nothing persisted).
+      %{workspace_id: ^workspace_id, deleted_at: nil, adapter: "workspace"} ->
+        case Aveline.DataSources.Catalog.run(workspace_id, query) do
+          {:ok, result} -> result
+          {:error, msg} -> %{"error" => msg}
+        end
+
       %{workspace_id: ^workspace_id, deleted_at: nil} = ds ->
         case Aveline.DataSources.Cache.run(ds, query) do
           {:ok, result} -> result

@@ -44,3 +44,4 @@ bruno/
 
 # Local postgres data (bind mount from compose.yaml)
 pgdata/
+/priv/duckdb/

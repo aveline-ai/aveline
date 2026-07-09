@@ -283,9 +283,20 @@ defmodule AvelineWeb.BlockRenderer do
         ><code class="language-sql">{@block["query"]}</code></pre>
       </div>
       <div class="chart-caption">
-        <span :if={@source} class="chart-source">{@source["name"]} · {@source["adapter"]}</span>
+        <span :if={@source && @source["adapter"] == "workspace"} class="chart-source">
+          workspace catalog
+        </span>
+        <span :if={@source && @source["adapter"] != "workspace"} class="chart-source">
+          {@source["name"]} · {@source["adapter"]}
+        </span>
         <span :if={@result["truncated"]} class="chart-truncated">
           truncated to first {Aveline.DataSources.Runner.row_cap()} rows
+        </span>
+        <span :if={@result["truncated_inputs"]} class="chart-truncated">
+          ⚠ input truncated at {Aveline.DataSources.Runner.row_cap()} rows: {Enum.join(
+            @result["truncated_inputs"],
+            ", "
+          )} — stats over partial data
         </span>
         <button
           :if={@rendered not in [:pending, :idle]}
@@ -401,6 +412,9 @@ defmodule AvelineWeb.BlockRenderer do
   defp sql_dialect(%{"adapter" => "postgres"}), do: "postgresql"
   defp sql_dialect(%{"adapter" => "redshift"}), do: "redshift"
   defp sql_dialect(%{"adapter" => "mysql"}), do: "mysql"
+  # The workspace source speaks the analytics dialect (DuckDB); the
+  # sql-formatter's closest supported profile is postgresql.
+  defp sql_dialect(%{"adapter" => "workspace"}), do: "postgresql"
   defp sql_dialect(_), do: "sql"
 
   # Client-only pane switch: show one pane, hide the other, move the

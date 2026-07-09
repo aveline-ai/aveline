@@ -72,6 +72,11 @@ defmodule Aveline.DataSources do
     |> Repo.one()
   end
 
+  def create(_workspace_id, "workspace", _template, _password, _user_id) do
+    {:error, :reserved_name,
+     "\"workspace\" is the built-in catalog source's name — pick another"}
+  end
+
   def create(workspace_id, name, template, password, created_by_id)
       when is_binary(password) do
     case validate_template(template) do
@@ -102,6 +107,11 @@ defmodule Aveline.DataSources do
   password or name changes are fine alone. Mints v+1 on the same base
   id and scrubs the superseded row's secret in the same transaction.
   """
+  def edit(%DataSource{adapter: "workspace"}, _changes, _user_id) do
+    {:error, :workspace_source_immutable,
+     "the workspace source is built in — it can't be renamed or repointed"}
+  end
+
   def edit(%DataSource{} = current, changes, user_id) when is_map(changes) do
     template = Map.get(changes, :url, current.url_template)
     template_changed? = template != current.url_template
@@ -158,6 +168,11 @@ defmodule Aveline.DataSources do
   (constraint-enforced pairing). The template stays for audit; the
   password is gone for good. No restore — connect a new source.
   """
+  def delete(%DataSource{adapter: "workspace"}, _user_id) do
+    {:error, :workspace_source_immutable,
+     "the workspace source is built in — it can't be deleted"}
+  end
+
   def delete(%DataSource{} = ds, user_id) do
     ds
     |> Ecto.Changeset.change(
@@ -169,10 +184,49 @@ defmodule Aveline.DataSources do
   end
 
   @doc """
+  Seed the built-in workspace source (adapter "workspace") — the
+  virtual source whose tables are the query catalog. Called at
+  workspace creation; the query_catalog migration backfilled existing
+  workspaces. Credential-less by design and CHECK-exempted.
+  """
+  def ensure_workspace_source(workspace_id) do
+    case get_current_by_name(workspace_id, "workspace") do
+      nil ->
+        %DataSource{}
+        |> DataSource.insert_changeset(%{
+          workspace_id: workspace_id,
+          base_data_source_id: Ecto.UUID.generate(),
+          name: "workspace",
+          adapter: "workspace",
+          url_template: "workspace://catalog"
+        })
+        |> Repo.insert()
+
+      ds ->
+        {:ok, ds}
+    end
+  end
+
+  @doc """
   The one shape read surfaces may see. `url` is the TEMPLATE — the
   `<password>` placeholder renders as its own mask; the secret never
   appears anywhere.
   """
+  def safe_map(%DataSource{adapter: "workspace"} = ds) do
+    %{
+      "name" => ds.name,
+      "adapter" => ds.adapter,
+      "url" => ds.url_template,
+      "version_number" => ds.version_number,
+      # "redacted" is the wire signal for deleted; the built-in source
+      # never had a credential to lose.
+      "credential" => "none",
+      "built_in" => true,
+      "deleted" => not is_nil(ds.deleted_at),
+      "created_at" => DateTime.to_iso8601(ds.inserted_at)
+    }
+  end
+
   def safe_map(%DataSource{} = ds) do
     %{
       "name" => ds.name,

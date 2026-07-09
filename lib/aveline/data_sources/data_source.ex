@@ -18,7 +18,11 @@ defmodule Aveline.DataSources.DataSource do
   alias Aveline.Slug
   alias Aveline.Workspaces.Workspace
 
-  @adapters ~w(postgres mysql redshift)
+  # "workspace" is the built-in virtual source whose tables are the
+  # query catalog — one per workspace, seeded, credential-less,
+  # immutable. Never creatable through the template path (no scheme
+  # maps to it).
+  @adapters ~w(postgres mysql redshift workspace)
   @placeholder "<password>"
 
   schema "data_sources" do

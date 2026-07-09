@@ -31,6 +31,11 @@ defmodule Aveline.DataSources.Runner do
   # Hard ceiling on one run: connect + query + margin.
   @task_timeout_ms 12_000
 
+  # The workspace source has no dialable database — its runs belong to
+  # Catalog.run/2. Reaching here means a caller skipped the dispatch.
+  def run(%{adapter: "workspace"}, _sql),
+    do: {:error, "the workspace source runs through the catalog engine, not the query runner"}
+
   def run(%{adapter: adapter, password: password} = ds, sql) when is_binary(password) do
     # Ecto's URL parser doesn't care about the scheme, but normalize
     # protocol-cousin schemes anyway so nothing downstream trips.
