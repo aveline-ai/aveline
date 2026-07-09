@@ -387,30 +387,63 @@ defmodule Aveline.Docs do
       their latest metadata plus `"deleted" => true`)
     * inline spans whose `"link"` carries a `"doc_id"` gain the same
       echo under `"link" => %{"target" => ...}`
+    * chart blocks gain `"source"` and `"result"` echoes. Pass
+      `run_charts: false` to skip executing the queries: charts then get
+      `"result" => %{"pending" => true}` (source echo and
+      missing/deleted-source errors still resolve) so a caller can run
+      them async — the doc LiveView does this and streams results in.
   """
-  def enrich_blocks(blocks, workspace_id) when is_list(blocks) do
+  def enrich_blocks(blocks, workspace_id, opts \\ [])
+
+  def enrich_blocks(blocks, workspace_id, opts) when is_list(blocks) do
+    run? = Keyword.get(opts, :run_charts, true)
+
     blocks
     |> enrich_doc_links(workspace_id)
     |> Enum.map(fn
-      %{"type" => "chart"} = b -> Map.merge(b, chart_echo(b, workspace_id))
+      %{"type" => "chart"} = b -> Map.merge(b, chart_echo(b, workspace_id, run?))
       b -> b
     end)
   end
 
-  def enrich_blocks(blocks, _workspace_id), do: blocks
+  def enrich_blocks(blocks, _workspace_id, _opts), do: blocks
 
-  # Runs the chart's query (through the 60s cache) and echoes the
-  # outcome. A doc read never fails because a data source is down,
+  @doc """
+  Run one chart's query through the 60s cache and return its `"result"`
+  map — the async chart engine's entry point (doc LiveView `start_async`).
+  Never raises: down sources, deleted sources, and bad SQL all come back
+  as `%{"error" => msg}` states.
+  """
+  def run_chart_query(workspace_id, base_id, query) do
+    case Aveline.DataSources.get_latest_by_base(base_id) do
+      %{workspace_id: ^workspace_id, deleted_at: nil} = ds ->
+        case Aveline.DataSources.Cache.run(ds, query) do
+          {:ok, result} -> result
+          {:error, msg} -> %{"error" => msg}
+        end
+
+      %{workspace_id: ^workspace_id} ->
+        %{"error" => "data source was deleted (credential destroyed); connect a new one and update this block"}
+
+      _ ->
+        %{"error" => "data source not found"}
+    end
+  end
+
+  # Echoes the chart's source and (when run? — the API read path) its
+  # query outcome. A doc read never fails because a data source is down,
   # deleted, or the SQL is wrong — those are all states on the block.
-  defp chart_echo(%{"data_source_id" => base_id, "query" => query}, workspace_id) do
+  defp chart_echo(%{"data_source_id" => base_id, "query" => query}, workspace_id, run?) do
     case Aveline.DataSources.get_latest_by_base(base_id) do
       %{workspace_id: ^workspace_id, deleted_at: nil} = ds ->
         source = Aveline.DataSources.safe_map(ds)
 
-        case Aveline.DataSources.Cache.run(ds, query) do
-          {:ok, result} -> %{"source" => source, "result" => result}
-          {:error, msg} -> %{"source" => source, "result" => %{"error" => msg}}
-        end
+        result =
+          if run?,
+            do: run_chart_query(workspace_id, base_id, query),
+            else: %{"pending" => true}
+
+        %{"source" => source, "result" => result}
 
       %{workspace_id: ^workspace_id} = ds ->
         %{
@@ -424,7 +457,7 @@ defmodule Aveline.Docs do
     end
   end
 
-  defp chart_echo(_block, _ws), do: %{"result" => %{"error" => "invalid chart block"}}
+  defp chart_echo(_block, _ws, _run?), do: %{"result" => %{"error" => "invalid chart block"}}
 
   defp enrich_doc_links(blocks, workspace_id) when is_list(blocks) do
     block_ids =

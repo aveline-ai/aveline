@@ -58,7 +58,16 @@ defmodule AvelineWeb.DocShowLive do
                   {current_doc, false}
               end
 
-            showing = %{showing | blocks: Docs.enrich_blocks(showing.blocks || [], ws.id)}
+            # Charts render as placeholders and run async after mount —
+            # a doc read never blocks on a customer database. Historical
+            # versions never auto-run (their SQL may be obsolete); their
+            # charts idle until manually run.
+            showing = %{
+              showing
+              | blocks: Docs.enrich_blocks(showing.blocks || [], ws.id, run_charts: false)
+            }
+
+            showing = if is_historical, do: idle_charts(showing), else: showing
 
             # Comment view — single 3-state toggle:
             #   :open → open + non-deleted (default, working view)
@@ -75,41 +84,52 @@ defmodule AvelineWeb.DocShowLive do
                 )
               end
 
-            {:ok,
-             assign(socket,
-               page_title: "Aveline · #{current_doc.title}",
-               current_user: user,
-               workspace: ws,
-               sidebar_workspaces: Workspaces.list_for_user(user.id),
-           sidebar_views: Aveline.Views.list_pinned(ws.id),
-               total_count: length(all_items),
-               topbar_title: current_doc.title,
-               # `current_doc` is always the latest (for nav, switcher,
-               # comments). `item` is what we actually render — either
-               # current or a historical version.
-               current_doc: current_doc,
-               tag_colors: tag_colors,
-               item: showing,
-               historical?: is_historical,
-               messages: messages,
-               versions: versions,
-               commenting_on_block_id: nil,
-               # base_comment_id of the comment currently in inline-edit
-               # mode (nil if no one is editing). One at a time.
-               editing_comment_id: nil,
-               # base_comment_id of the thread whose reply form is open.
-               # Reply composer is collapsed-by-default so threads stay
-               # compact; user clicks Reply to expand it.
-               replying_to_thread_id: nil,
-               # Comment view (:open | :all | :hide).
-               comment_view: comment_view,
-               # Resolved threads collapse their middle replies by default;
-               # this set tracks which threads the reader has expanded.
-               expanded_threads: MapSet.new(),
-               kudos_count: Kudos.count_for_base(current_doc.base_doc_id),
-               kudos_given?: user && Kudos.given_by?(current_doc.base_doc_id, user.id),
-               view_count: DocViews.count_for_base(current_doc.base_doc_id)
-             )}
+            socket =
+              assign(socket,
+                page_title: "Aveline · #{current_doc.title}",
+                current_user: user,
+                workspace: ws,
+                sidebar_workspaces: Workspaces.list_for_user(user.id),
+                sidebar_views: Aveline.Views.list_pinned(ws.id),
+                total_count: length(all_items),
+                topbar_title: current_doc.title,
+                # `current_doc` is always the latest (for nav, switcher,
+                # comments). `item` is what we actually render — either
+                # current or a historical version.
+                current_doc: current_doc,
+                tag_colors: tag_colors,
+                item: showing,
+                historical?: is_historical,
+                messages: messages,
+                versions: versions,
+                # Completed chart runs: {source_base_id, sql} => result map.
+                # Merged into the rendered blocks; keyed by query so charts
+                # sharing a query share one run and never diverge.
+                chart_results: %{},
+                commenting_on_block_id: nil,
+                # base_comment_id of the comment currently in inline-edit
+                # mode (nil if no one is editing). One at a time.
+                editing_comment_id: nil,
+                # base_comment_id of the thread whose reply form is open.
+                # Reply composer is collapsed-by-default so threads stay
+                # compact; user clicks Reply to expand it.
+                replying_to_thread_id: nil,
+                # Comment view (:open | :all | :hide).
+                comment_view: comment_view,
+                # Resolved threads collapse their middle replies by default;
+                # this set tracks which threads the reader has expanded.
+                expanded_threads: MapSet.new(),
+                kudos_count: Kudos.count_for_base(current_doc.base_doc_id),
+                kudos_given?: user && Kudos.given_by?(current_doc.base_doc_id, user.id),
+                view_count: DocViews.count_for_base(current_doc.base_doc_id)
+              )
+
+            socket =
+              if connected?(socket) and not is_historical,
+                do: start_chart_runs(socket),
+                else: socket
+
+            {:ok, socket}
         end
 
       :not_found ->
@@ -195,6 +215,33 @@ defmodule AvelineWeb.DocShowLive do
   def handle_event(event, _params, %{assigns: %{historical?: true}} = socket)
       when event in @comment_write_events do
     {:noreply, socket}
+  end
+
+  # Run (or re-run) one chart. Deliberately NOT gated on historical? —
+  # historical charts idle instead of auto-running, and this is how a
+  # reader opts in. Busting the cache key means every chart sharing the
+  # query refreshes together: siblings never diverge.
+  def handle_event("chart_rerun", %{"block-id" => block_id}, socket) do
+    case find_chart_block(socket.assigns.item.blocks, block_id) do
+      %{"data_source_id" => base_id, "query" => query} ->
+        Aveline.DataSources.Cache.bust(base_id, query)
+        key = {base_id, query}
+        results = Map.put(socket.assigns.chart_results, key, %{"pending" => true})
+        ws_id = socket.assigns.workspace.id
+
+        {:noreply,
+         socket
+         |> assign(
+           chart_results: results,
+           item: apply_chart_results(socket.assigns.item, results)
+         )
+         |> start_async({:chart_run, key}, fn ->
+           Docs.run_chart_query(ws_id, base_id, query)
+         end)}
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("post_comment", params, socket) do
@@ -410,30 +457,140 @@ defmodule AvelineWeb.DocShowLive do
       versions = Docs.list_versions(new_current.base_doc_id)
       # If we're viewing a specific historical version, don't replace the
       # rendered `item` — just refresh the live state + history list.
-      item =
-        if socket.assigns.historical? do
-          socket.assigns.item
-        else
-          %{
-            new_current
-            | blocks:
-                Docs.enrich_blocks(new_current.blocks || [], new_current.workspace_id)
-          }
-        end
+      if socket.assigns.historical? do
+        {:noreply,
+         assign(socket,
+           current_doc: new_current,
+           topbar_title: new_current.title,
+           versions: versions
+         )}
+      else
+        item = %{
+          new_current
+          | blocks:
+              Docs.enrich_blocks(new_current.blocks || [], new_current.workspace_id,
+                run_charts: false
+              )
+        }
 
-      {:noreply,
-       assign(socket,
-         current_doc: new_current,
-         item: item,
-         topbar_title: new_current.title,
-         versions: versions
-       )}
+        # Keep results for queries the new version still references,
+        # drop the rest, and fire runs for anything newly added.
+        live_keys = MapSet.new(all_chart_keys(item.blocks))
+
+        results =
+          Map.filter(socket.assigns.chart_results, fn {k, _} -> MapSet.member?(live_keys, k) end)
+
+        socket =
+          assign(socket,
+            current_doc: new_current,
+            item: apply_chart_results(item, results),
+            chart_results: results,
+            topbar_title: new_current.title,
+            versions: versions
+          )
+
+        {:noreply, if(connected?(socket), do: start_chart_runs(socket), else: socket)}
+      end
     else
       {:noreply, socket}
     end
   end
 
   def handle_info(_other, socket), do: {:noreply, socket}
+
+  # ── async chart engine ─────────────────────────────────────────────
+  # Charts never run in mount: the page renders placeholders instantly,
+  # one start_async fires per distinct {source, sql}, and results stream
+  # in as they land. Keys the doc no longer references are discarded.
+
+  @impl true
+  def handle_async({:chart_run, key}, outcome, socket) do
+    result =
+      case outcome do
+        {:ok, result} -> result
+        {:exit, _reason} -> %{"error" => "chart run crashed"}
+      end
+
+    if key in all_chart_keys(socket.assigns.item.blocks) do
+      results = Map.put(socket.assigns.chart_results, key, result)
+
+      {:noreply,
+       assign(socket,
+         chart_results: results,
+         item: apply_chart_results(socket.assigns.item, results)
+       )}
+    else
+      # The doc was edited out from under the run; stale result, drop it.
+      {:noreply, socket}
+    end
+  end
+
+  # One start_async per runnable {source, sql} not already run or running.
+  defp start_chart_runs(socket) do
+    ws_id = socket.assigns.workspace.id
+    known = socket.assigns.chart_results
+
+    socket.assigns.item.blocks
+    |> runnable_chart_keys()
+    |> Enum.reject(&Map.has_key?(known, &1))
+    |> Enum.reduce(socket, fn {base_id, query} = key, sock ->
+      start_async(sock, {:chart_run, key}, fn ->
+        Docs.run_chart_query(ws_id, base_id, query)
+      end)
+    end)
+  end
+
+  # Charts still awaiting a run. Blocks whose source is missing or
+  # deleted already carry an error result from enrichment: nothing to run.
+  defp runnable_chart_keys(blocks) do
+    for %{"type" => "chart", "data_source_id" => base_id, "query" => query} = b <- blocks || [],
+        match?(%{"pending" => true}, b["result"]),
+        uniq: true,
+        do: {base_id, query}
+  end
+
+  defp all_chart_keys(blocks) do
+    for %{"type" => "chart", "data_source_id" => base_id, "query" => query} <- blocks || [],
+        uniq: true,
+        do: {base_id, query}
+  end
+
+  defp apply_chart_results(item, results) do
+    %{
+      item
+      | blocks:
+          Enum.map(item.blocks || [], fn
+            %{"type" => "chart", "data_source_id" => base_id, "query" => query} = blk ->
+              case Map.fetch(results, {base_id, query}) do
+                {:ok, result} -> Map.put(blk, "result", result)
+                :error -> blk
+              end
+
+            blk ->
+              blk
+          end)
+    }
+  end
+
+  # Historical versions never auto-run; pending placeholders become idle
+  # ones (a Run control instead of a spinner).
+  defp idle_charts(item) do
+    %{
+      item
+      | blocks:
+          Enum.map(item.blocks || [], fn
+            %{"type" => "chart", "result" => %{"pending" => true}} = blk ->
+              Map.put(blk, "result", %{"idle" => true})
+
+            blk ->
+              blk
+          end)
+    }
+  end
+
+  defp find_chart_block(blocks, id) do
+    Enum.find(blocks || [], &(&1["type"] == "chart" and &1["id"] == id))
+  end
 
   defp message_actor(%{actor_user: %Ecto.Association.NotLoaded{}}), do: nil
   defp message_actor(%{actor_user: a}), do: a

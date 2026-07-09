@@ -163,17 +163,22 @@ defmodule AvelineWeb.BlockRenderer do
   end
 
   # chart — a live SQL query against a workspace data source. `result`
-  # and `source` are read-time echoes merged in by Docs.enrich_blocks;
-  # rendering never queries anything.
+  # and `source` are read-time echoes; rendering never queries anything.
+  # Results arrive async (doc LiveView streams them in), so a chart has
+  # run states: pending (spinner), idle (historical versions: manual Run),
+  # error, or data.
   def block(%{block: %{"type" => "chart"}} = assigns) do
     result = assigns.block["result"] || %{"error" => "no result"}
     viz = assigns.block["viz"] || %{"type" => "table"}
     source = assigns.block["source"]
 
     rendered =
-      if viz["type"] == "table",
-        do: {:table, result},
-        else: AvelineWeb.ChartRenderer.spec(result, viz)
+      cond do
+        result["pending"] -> :pending
+        result["idle"] -> :idle
+        viz["type"] == "table" -> {:table, result}
+        true -> AvelineWeb.ChartRenderer.spec(result, viz)
+      end
 
     assigns = assign(assigns, rendered: rendered, source: source, result: result)
 
@@ -195,6 +200,22 @@ defmodule AvelineWeb.BlockRenderer do
       </div>
       <div id={@block["id"] <> "-pane-viz"}>
         <%= case @rendered do %>
+          <% :pending -> %>
+            <div class="chart-placeholder">
+              <span class="chart-spinner"></span> running query…
+            </div>
+          <% :idle -> %>
+            <div class="chart-placeholder">
+              <button
+                type="button"
+                class="chart-run-btn"
+                phx-click="chart_rerun"
+                phx-value-block-id={@block["id"]}
+              >
+                ▶ Run query
+              </button>
+              <span class="chart-idle-note">historical version: charts don't auto-run</span>
+            </div>
           <% {:ok, spec} -> %>
             <div
               id={@block["id"] <> "-echart"}
@@ -220,9 +241,29 @@ defmodule AvelineWeb.BlockRenderer do
               </table>
             </div>
           <% {:table, %{"error" => msg}} -> %>
-            <div class="chart-error">{msg}</div>
+            <div class="chart-error">
+              {msg}
+              <button
+                type="button"
+                class="chart-run-btn"
+                phx-click="chart_rerun"
+                phx-value-block-id={@block["id"]}
+              >
+                try again
+              </button>
+            </div>
           <% {:error, msg} -> %>
-            <div class="chart-error">{msg}</div>
+            <div class="chart-error">
+              {msg}
+              <button
+                type="button"
+                class="chart-run-btn"
+                phx-click="chart_rerun"
+                phx-value-block-id={@block["id"]}
+              >
+                try again
+              </button>
+            </div>
           <% _ -> %>
             <div class="chart-error">nothing to render</div>
         <% end %>
@@ -246,6 +287,16 @@ defmodule AvelineWeb.BlockRenderer do
         <span :if={@result["truncated"]} class="chart-truncated">
           truncated to first {Aveline.DataSources.Runner.row_cap()} rows
         </span>
+        <button
+          :if={@rendered not in [:pending, :idle]}
+          type="button"
+          class="chart-refresh"
+          title="re-run this query (refreshes every chart sharing it)"
+          phx-click="chart_rerun"
+          phx-value-block-id={@block["id"]}
+        >
+          ↻ refresh
+        </button>
       </div>
     </div>
     """
