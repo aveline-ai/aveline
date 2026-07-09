@@ -917,6 +917,81 @@ if is_nil(Docs.get_current_by_slug(workspace.id, "metrics-dashboard")) do
     })
 end
 
+# ===== Query catalog + workspace-source charts =====
+# The catalog layer: named queries built on aveline-self, composed in
+# the DuckDB engine through the built-in `workspace` source. Charts here
+# point at `workspace` and speak the analytics dialect (regressions,
+# window functions) over the catalog — things the raw source can't do in
+# one query. Idempotent: skip any query that already exists.
+
+catalog_specs = [
+  # raw leaves over the dev DB
+  {"docs_per_day", "aveline-self",
+   "SELECT inserted_at::date AS day, count(*) AS n FROM docs WHERE NOT superseded GROUP BY 1 ORDER BY 1"},
+  {"comments_per_day", "aveline-self",
+   "SELECT inserted_at::date AS day, count(*) AS n FROM doc_comments GROUP BY 1 ORDER BY 1"},
+  # derived: a cross-query join (docs vs comments per day) — neither
+  # leaf can answer this alone; the engine joins them.
+  {"activity_per_day", nil,
+   "SELECT d.day, d.n AS docs, coalesce(c.n, 0) AS comments FROM docs_per_day d LEFT JOIN comments_per_day c USING (day) ORDER BY d.day"},
+  # derived on derived (a chain): a rolling trend the source dialect
+  # can't express — window over the joined series.
+  {"activity_trend", nil,
+   "SELECT day, docs, avg(docs) OVER (ORDER BY day ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS docs_ma3, regr_slope(docs, epoch(day::timestamp)) OVER () AS slope FROM activity_per_day ORDER BY day"}
+]
+
+Enum.each(catalog_specs, fn {name, source, sql} ->
+  if is_nil(Aveline.DataSources.Queries.get_current_by_name(workspace.id, name)) do
+    attrs = %{name: name, sql: sql} |> then(fn a -> if source, do: Map.put(a, :source, source), else: a end)
+    {:ok, _} = Aveline.DataSources.Queries.create(workspace.id, attrs, alice.id)
+  end
+end)
+
+wchart = fn query, viz ->
+  %{"type" => "chart", "source" => "workspace", "query" => query, "viz" => viz}
+end
+
+if is_nil(Docs.get_current_by_slug(workspace.id, "catalog-dashboard")) do
+  {:ok, _dash} =
+    Docs.create_doc(%{
+      workspace_id: workspace.id,
+      owner_id: alice.id,
+      actor_user_id: alice.id,
+      actor_type: "agent",
+      slug: "catalog-dashboard",
+      title: "Catalog dashboard (workspace source)",
+      summary: "Charts over the query catalog: a cross-query join and a rolling trend + regression, composed in the analytics engine.",
+      tags: ["product"],
+      intent: "seed a workspace-source chart showcase over the query catalog",
+      blocks: [
+        para.([
+          t.("These charts point at the built-in "),
+          b.("workspace", ["code"]),
+          t.(" source. Their SQL is the analytics dialect (DuckDB) over catalog queries — "),
+          b.("activity_per_day", ["code"]),
+          t.(" joins two raw queries, "),
+          b.("activity_trend", ["code"]),
+          t.(" chains on top with a moving average and a regression slope the source can't express.")
+        ]),
+        heading.(2, "Docs vs comments per day (cross-query join)"),
+        wchart.(
+          "SELECT day, docs, comments FROM activity_per_day ORDER BY day",
+          %{"type" => "combo", "x" => "day", "series" => [%{"y" => "docs", "type" => "line"}, %{"y" => "comments", "type" => "bar"}]}
+        ),
+        heading.(2, "Docs per day with 3-day moving average (chained derived query)"),
+        wchart.(
+          "SELECT day, docs, docs_ma3 FROM activity_trend ORDER BY day",
+          %{"type" => "combo", "x" => "day", "series" => [%{"y" => "docs", "type" => "bar"}, %{"y" => "docs_ma3", "type" => "line"}]}
+        ),
+        heading.(2, "Ad-hoc: regression slope over the catalog (table)"),
+        wchart.(
+          "SELECT round(regr_slope(docs, epoch(day::timestamp)) * 86400, 4) AS docs_per_day_trend FROM activity_per_day",
+          %{"type" => "table"}
+        )
+      ]
+    })
+end
+
 # ===== Tickets (for grouping / sub-grouping demos) =====
 # Real tickets tagged status:* + ticket:* — the tickets view groups by
 # status and sub-groups by ticket type, so the two-level layout has
