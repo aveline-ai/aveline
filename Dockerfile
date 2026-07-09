@@ -73,11 +73,6 @@ COPY priv priv
 
 COPY lib lib
 
-# Vendor the analytics engine (DuckDB CLI, one static binary) into
-# priv/ so the release carries it. `mix duckdb.fetch` pins version +
-# checksum; the runner image needs no toolchain, package, or service.
-RUN mix duckdb.fetch
-
 COPY assets assets
 
 # Build & digest static assets (esbuild → priv/static/assets/js/app.js, etc.)
@@ -85,6 +80,13 @@ RUN mix assets.deploy
 
 # Compile the release
 RUN mix compile
+
+# Vendor the analytics engine (DuckDB CLI, one static binary) into
+# priv/ so the release carries it. `mix duckdb.fetch` pins version +
+# checksum; the runner image needs no toolchain, package, or service.
+# After compile so the app's priv dir resolves; before release so it's
+# bundled.
+RUN mix duckdb.fetch
 
 # Package source code for Sentry
 RUN mix sentry.package_source_code
