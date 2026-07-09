@@ -316,6 +316,28 @@ defmodule Aveline.DataSourcesTest do
       assert {:error, msg2} = AvelineWeb.ChartRenderer.spec(bad_rows, viz)
       assert msg2 =~ "numeric"
     end
+
+    test "spec validation: nulls are gaps, not non-numeric (forecast series)" do
+      # `actual` is null past the real data; `forecast` spans all rows —
+      # a valid combo, nulls render as gaps.
+      result = %{
+        "columns" => ["day", "actual", "forecast"],
+        "rows" => [["2026-07-08", 1, -0.37], ["2026-07-09", nil, -4.31], ["2026-07-10", nil, -8.26]]
+      }
+
+      viz = %{
+        "type" => "combo",
+        "x" => "day",
+        "series" => [%{"y" => "actual", "type" => "bar"}, %{"y" => "forecast", "type" => "line"}]
+      }
+
+      assert {:ok, _} = AvelineWeb.ChartRenderer.spec(result, viz)
+
+      # An all-null column is still nothing to plot.
+      all_null = %{result | "rows" => Enum.map(result["rows"], fn [d, _a, f] -> [d, nil, f] end)}
+      assert {:error, msg} = AvelineWeb.ChartRenderer.spec(all_null, viz)
+      assert msg =~ "actual"
+    end
   end
 
   describe "chart block validation" do

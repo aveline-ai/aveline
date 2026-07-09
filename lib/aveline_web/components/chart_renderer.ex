@@ -32,7 +32,7 @@ defmodule AvelineWeb.ChartRenderer do
       true ->
         yi = Enum.find_index(cols, &(&1 == y))
 
-        if Enum.all?(rows, fn row -> row |> Enum.at(yi) |> numeric?() end),
+        if numeric_series?(rows, yi),
           do: {:ok, %{"columns" => cols, "rows" => rows, "viz" => viz}},
           else: {:error, "column #{inspect(y)} must be numeric for line/bar charts"}
     end
@@ -56,7 +56,7 @@ defmodule AvelineWeb.ChartRenderer do
         bad_y =
           Enum.find(ys, fn y ->
             yi = Enum.find_index(cols, &(&1 == y))
-            not Enum.all?(rows, fn row -> row |> Enum.at(yi) |> numeric?() end)
+            not numeric_series?(rows, yi)
           end)
 
         if bad_y,
@@ -66,6 +66,16 @@ defmodule AvelineWeb.ChartRenderer do
   end
 
   def spec(_result, _viz), do: {:error, "nothing to render"}
+
+  # A plottable numeric series: nulls are allowed (ECharts renders them
+  # as gaps — e.g. a forecast column that's null over the actual range),
+  # every non-null value must be numeric, and at least one must be
+  # present (an all-null column is nothing to plot).
+  defp numeric_series?(rows, yi) do
+    vals = Enum.map(rows, &Enum.at(&1, yi))
+    present = Enum.reject(vals, &is_nil/1)
+    present != [] and Enum.all?(present, &numeric?/1)
+  end
 
   defp numeric?(v) when is_number(v), do: true
 
