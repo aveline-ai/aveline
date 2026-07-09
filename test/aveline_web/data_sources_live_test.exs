@@ -52,12 +52,14 @@ defmodule AvelineWeb.DataSourcesLiveTest do
     assert html =~ "docs_view"
   end
 
-  test "the built-in 'derived' source detail shows the catalog", %{conn: conn, ws: ws} do
+  test "the built-in 'derived' source detail shows the catalog + upstream lineage", %{conn: conn, ws: ws} do
     {:ok, _lv, html} = live(conn, ~p"/w/#{ws.slug}/data-sources/derived")
 
     assert html =~ "Catalog queries"
     assert html =~ "docs_view"
-    assert html =~ "derived"
+    # docs_view is built on docs_ct (its upstream) — the "built on" line.
+    assert html =~ "built on"
+    assert html =~ "docs_ct"
   end
 
   test "unknown source redirects back to the list", %{conn: conn, ws: ws} do

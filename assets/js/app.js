@@ -293,6 +293,28 @@ const Hooks = {
     },
   },
 
+  // Always-visible SQL (query catalog cards): pretty-print via
+  // sql-formatter, then Prism-highlight. Same treatment as a chart's SQL
+  // tab, but no tab gating — format on mount. Dialect from data-dialect.
+  SqlFormat: {
+    mounted() {
+      const code = this.el.querySelector("code")
+      if (!code) return
+      const raw = code.textContent
+      loadSqlFormatter()
+        .then(() => {
+          code.textContent = window.sqlFormatter.format(raw, {
+            language: this.el.dataset.dialect || "sql",
+            keywordCase: "upper",
+          })
+          if (window.Prism) window.Prism.highlightElement(code)
+        })
+        .catch(() => {
+          if (window.Prism) window.Prism.highlightElement(code)
+        })
+    },
+  },
+
   // Auth-page split background: warm parchment + matrix cascade.
   // Both hooks size off their parent .auth-pane element, respect
   // prefers-reduced-motion, and pause when the tab isn't visible.

@@ -41,6 +41,7 @@ defmodule AvelineWeb.DataSourceShowLive do
          source: source,
          workspace?: workspace?,
          queries: queries,
+         built_on: built_on_index(queries),
          dependents: dependents_index(ws.id),
          charting_docs: charting_docs(ws.id, source.base_data_source_id)
        )}
@@ -59,8 +60,20 @@ defmodule AvelineWeb.DataSourceShowLive do
     end
   end
 
-  # query name => [derived query names that reference it]. Parsed from
-  # the live catalog, so it can't drift; nothing stored.
+  # query name => the catalog queries it's built on (its upstream refs).
+  # This is what explains a query: what it composes. Raw queries read
+  # their source's tables, not catalog queries, so they have none.
+  defp built_on_index(queries) do
+    Enum.reduce(queries, %{}, fn q, acc ->
+      case q.kind == "derived" && Aveline.DataSources.Engine.parse(q.sql) do
+        {:ok, refs} -> Map.put(acc, q.name, Enum.sort(refs))
+        _ -> acc
+      end
+    end)
+  end
+
+  # query name => [derived query names that reference it] (downstream —
+  # what breaks if you change it). Parsed from the live catalog.
   defp dependents_index(workspace_id) do
     derived = Enum.filter(Queries.list_for_workspace(workspace_id), &(&1.kind == "derived"))
 
@@ -76,6 +89,11 @@ defmodule AvelineWeb.DataSourceShowLive do
       end
     end)
   end
+
+  # sql-formatter's closest supported dialect for a source's engine.
+  defp formatter_dialect("mysql"), do: "mysql"
+  defp formatter_dialect("redshift"), do: "redshift"
+  defp formatter_dialect(_), do: "postgresql"
 
   # Which live docs chart this source, and how many charts each. Charts
   # reference named queries; map each query to its source.
@@ -141,8 +159,18 @@ defmodule AvelineWeb.DataSourceShowLive do
               <span class={["q-kind", "q-kind-" <> q.kind]}>{q.kind}</span>
               <span class="q-ver">v{q.version_number}</span>
             </div>
-            <pre class="q-sql"><code>{q.sql}</code></pre>
-            <div :if={Map.get(@dependents, q.name)} class="q-deps">
+            <div :if={Map.get(@built_on, q.name, []) != []} class="q-deps">
+              built on
+              <span :for={dep <- Map.get(@built_on, q.name)} class="q-dep-chip">{dep}</span>
+            </div>
+            <pre
+              id={"q-sql-" <> q.name}
+              class="q-sql"
+              phx-hook="SqlFormat"
+              phx-update="ignore"
+              data-dialect={formatter_dialect(@source.adapter)}
+            ><code class="language-sql">{q.sql}</code></pre>
+            <div :if={Map.get(@dependents, q.name)} class="q-deps q-deps-feeds">
               feeds
               <span :for={dep <- Enum.sort(Map.get(@dependents, q.name))} class="q-dep-chip">{dep}</span>
             </div>
