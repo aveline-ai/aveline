@@ -63,6 +63,17 @@ defmodule Aveline.DataSources do
   end
 
   @doc """
+  The built-in catalog source (adapter \"workspace\", named \"derived\").
+  Fetched by adapter, not name, so call sites don't hardcode the name.
+  """
+  def workspace_source(workspace_id) do
+    from(ds in base_query(),
+      where: ds.workspace_id == ^workspace_id and ds.adapter == "workspace"
+    )
+    |> Repo.one()
+  end
+
+  @doc """
   Latest version regardless of deletion — for echoing metadata on chart
   blocks whose source was deleted (same spirit as doc_link's dead-target
   echo).
@@ -72,9 +83,9 @@ defmodule Aveline.DataSources do
     |> Repo.one()
   end
 
-  def create(_workspace_id, "workspace", _template, _password, _user_id) do
+  def create(_workspace_id, "derived", _template, _password, _user_id) do
     {:error, :reserved_name,
-     "\"workspace\" is the built-in catalog source's name — pick another"}
+     "\"derived\" is the built-in catalog source's name — pick another"}
   end
 
   def create(workspace_id, name, template, password, created_by_id)
@@ -190,13 +201,13 @@ defmodule Aveline.DataSources do
   workspaces. Credential-less by design and CHECK-exempted.
   """
   def ensure_workspace_source(workspace_id) do
-    case get_current_by_name(workspace_id, "workspace") do
+    case workspace_source(workspace_id) do
       nil ->
         %DataSource{}
         |> DataSource.insert_changeset(%{
           workspace_id: workspace_id,
           base_data_source_id: Ecto.UUID.generate(),
-          name: "workspace",
+          name: "derived",
           adapter: "workspace",
           url_template: "workspace://catalog"
         })

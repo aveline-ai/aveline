@@ -52,8 +52,8 @@ defmodule AvelineWeb.DataSourcesLiveTest do
     assert html =~ "docs_view"
   end
 
-  test "the workspace source detail shows the derived catalog", %{conn: conn, ws: ws} do
-    {:ok, _lv, html} = live(conn, ~p"/w/#{ws.slug}/data-sources/workspace")
+  test "the built-in 'derived' source detail shows the catalog", %{conn: conn, ws: ws} do
+    {:ok, _lv, html} = live(conn, ~p"/w/#{ws.slug}/data-sources/derived")
 
     assert html =~ "Catalog queries"
     assert html =~ "docs_view"

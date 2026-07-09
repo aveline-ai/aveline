@@ -29,19 +29,20 @@ defmodule Aveline.QueryCatalogTest do
   end
 
   describe "workspace source seeding" do
-    test "every workspace gets a built-in, credential-less workspace source", %{ws: ws} do
-      src = DataSources.get_current_by_name(ws.id, "workspace")
+    test "every workspace gets a built-in, credential-less source named 'derived'", %{ws: ws} do
+      src = DataSources.workspace_source(ws.id)
       assert src.adapter == "workspace"
+      assert src.name == "derived"
       assert %{"built_in" => true, "credential" => "none"} = DataSources.safe_map(src)
     end
 
-    test "the workspace source can't be deleted, renamed, or created by a user", %{ws: ws, user: user} do
-      src = DataSources.get_current_by_name(ws.id, "workspace")
+    test "the built-in source can't be deleted, renamed, or shadowed by a user", %{ws: ws, user: user} do
+      src = DataSources.workspace_source(ws.id)
       assert {:error, :workspace_source_immutable, _} = DataSources.delete(src, user.id)
       assert {:error, :workspace_source_immutable, _} = DataSources.edit(src, %{name: "x"}, user.id)
 
       assert {:error, :reserved_name, _} =
-               DataSources.create(ws.id, "workspace", self_template(), self_password(), user.id)
+               DataSources.create(ws.id, "derived", self_template(), self_password(), user.id)
     end
   end
 
@@ -59,9 +60,9 @@ defmodule Aveline.QueryCatalogTest do
                Queries.create(ws.id, %{name: "x", source: "ghost", sql: "select 1"}, user.id)
     end
 
-    test "raw over the workspace source is rejected (that's a derived query)", %{ws: ws, user: user} do
+    test "raw over the built-in source is rejected (that's a derived query)", %{ws: ws, user: user} do
       assert {:error, :invalid_query, msg} =
-               Queries.create(ws.id, %{name: "x", source: "workspace", sql: "select 1"}, user.id)
+               Queries.create(ws.id, %{name: "x", source: "derived", sql: "select 1"}, user.id)
 
       assert msg =~ "derived"
     end

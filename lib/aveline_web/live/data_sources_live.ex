@@ -70,7 +70,7 @@ defmodule AvelineWeb.DataSourcesLive do
 
   # query name => the data source base id it charts.
   defp query_source_index(workspace_id) do
-    ws_source = DataSources.get_current_by_name(workspace_id, "workspace")
+    ws_source = DataSources.workspace_source(workspace_id)
     ws_base = ws_source && ws_source.base_data_source_id
 
     Queries.list_for_workspace(workspace_id)
@@ -94,7 +94,7 @@ defmodule AvelineWeb.DataSourcesLive do
   # base_data_source_id => query count. Raw queries count against their
   # source; derived queries are the workspace source's catalog.
   defp query_counts(workspace_id) do
-    ws_source = DataSources.get_current_by_name(workspace_id, "workspace")
+    ws_source = DataSources.workspace_source(workspace_id)
 
     Queries.list_for_workspace(workspace_id)
     |> Enum.reduce(%{}, fn q, acc ->

@@ -105,7 +105,7 @@ defmodule AvelineWeb.Api.QueryCatalogApiTest do
 
     body =
       conn
-      |> post(~p"/api/workspaces/#{ws.slug}/data-sources/workspace/query", %{
+      |> post(~p"/api/workspaces/#{ws.slug}/data-sources/derived/query", %{
         "query" => "select s.wk, d.amt::double / s.n AS cac FROM s JOIN d USING (wk)"
       })
       |> json_response(200)

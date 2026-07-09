@@ -80,7 +80,7 @@ defmodule AvelineWeb.DataSourceShowLive do
   # Which live docs chart this source, and how many charts each. Charts
   # reference named queries; map each query to its source.
   defp charting_docs(workspace_id, source_base_id) do
-    ws_source = DataSources.get_current_by_name(workspace_id, "workspace")
+    ws_source = DataSources.workspace_source(workspace_id)
     ws_base = ws_source && ws_source.base_data_source_id
 
     q_source =

@@ -528,7 +528,7 @@ defmodule Aveline.Docs do
   end
 
   defp chart_source_echo(workspace_id, %{kind: "derived"}) do
-    case Aveline.DataSources.get_current_by_name(workspace_id, "workspace") do
+    case Aveline.DataSources.workspace_source(workspace_id) do
       nil -> %{}
       ws_source -> %{"source" => Aveline.DataSources.safe_map(ws_source)}
     end
