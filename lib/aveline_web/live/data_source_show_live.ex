@@ -42,6 +42,7 @@ defmodule AvelineWeb.DataSourceShowLive do
          workspace?: workspace?,
          queries: queries,
          built_on: built_on_index(queries),
+         query_labels: query_label_index(ws.id),
          dependents: dependents_index(ws.id),
          charting_docs: charting_docs(ws.id, source.base_data_source_id)
        )}
@@ -58,6 +59,32 @@ defmodule AvelineWeb.DataSourceShowLive do
       :forbidden ->
         {:ok, socket |> put_flash(:error, "Forbidden.") |> push_navigate(to: ~p"/")}
     end
+  end
+
+  # query name => its full provenance label ("source · engine · name"
+  # for raw, "derived · duckdb · name" for derived) — so a dependency
+  # shows where it lives, even when that's a different source.
+  defp query_label_index(workspace_id) do
+    sources =
+      DataSources.list_for_workspace(workspace_id)
+      |> Map.new(&{&1.base_data_source_id, &1})
+
+    Queries.list_for_workspace(workspace_id)
+    |> Map.new(fn q ->
+      label =
+        case q.kind do
+          "raw" ->
+            case Map.get(sources, q.data_source_id) do
+              %{name: n, adapter: a} -> "#{n} · #{DataSources.dialect_label(a)} · #{q.name}"
+              _ -> q.name
+            end
+
+          _ ->
+            "derived · duckdb · #{q.name}"
+        end
+
+      {q.name, label}
+    end)
   end
 
   # query name => the catalog queries it's built on (its upstream refs).
@@ -161,7 +188,9 @@ defmodule AvelineWeb.DataSourceShowLive do
             </div>
             <div :if={Map.get(@built_on, q.name, []) != []} class="q-deps">
               built on
-              <span :for={dep <- Map.get(@built_on, q.name)} class="q-dep-chip">{dep}</span>
+              <span :for={dep <- Map.get(@built_on, q.name)} class="q-dep-chip">
+                {Map.get(@query_labels, dep, dep)}
+              </span>
             </div>
             <pre
               id={"q-sql-" <> q.name}
