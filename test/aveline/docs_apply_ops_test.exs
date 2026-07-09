@@ -36,9 +36,7 @@ defmodule Aveline.DocsApplyOpsTest do
       ops = [%{"op" => "modify_block", "id" => "b_one", "patch" => %{"content" => [%{"text" => "edited"}]}}]
 
       assert {:error, {:disposition_missing, missing}} =
-               Docs.apply_ops(doc, ops, %{actor_user_id: user.id, actor_type: "agent"},
-                 dispositions: []
-               )
+               Docs.apply_ops(doc, ops, %{actor_user_id: user.id, actor_type: "agent"}, dispositions: [])
 
       assert c.id in missing
     end
@@ -49,9 +47,7 @@ defmodule Aveline.DocsApplyOpsTest do
       ops = [%{"op" => "modify_block", "id" => "b_other", "patch" => %{"content" => [%{"text" => "edited"}]}}]
 
       assert {:ok, _new_doc} =
-               Docs.apply_ops(doc, ops, %{actor_user_id: user.id, actor_type: "agent"},
-                 dispositions: []
-               )
+               Docs.apply_ops(doc, ops, %{actor_user_id: user.id, actor_type: "agent"}, dispositions: [])
     end
 
     test "resolve disposition posts an agent reply and marks the parent resolved" do
@@ -97,14 +93,11 @@ defmodule Aveline.DocsApplyOpsTest do
 
       # untouched ops — disposition not required for c.
       ops = [
-        %{"op" => "modify_block", "id" => "b_other",
-          "patch" => %{"content" => [%{"text" => "edited"}]}}
+        %{"op" => "modify_block", "id" => "b_other", "patch" => %{"content" => [%{"text" => "edited"}]}}
       ]
 
       assert {:ok, new_doc} =
-               Docs.apply_ops(doc, ops, %{actor_user_id: user.id, actor_type: "agent"},
-                 dispositions: []
-               )
+               Docs.apply_ops(doc, ops, %{actor_user_id: user.id, actor_type: "agent"}, dispositions: [])
 
       # The original v1 row is now superseded; new v2 row exists, pinned
       # to the new doc-version, with body / block_id / resolved_at all
@@ -126,10 +119,14 @@ defmodule Aveline.DocsApplyOpsTest do
 
       # Ship v2 untouched — auto-forward kicks in.
       {:ok, v2_doc} =
-        Docs.apply_ops(doc, [
-          %{"op" => "modify_block", "id" => "b_other",
-            "patch" => %{"content" => [%{"text" => "edited"}]}}
-        ], %{actor_user_id: user.id, actor_type: "agent"}, dispositions: [])
+        Docs.apply_ops(
+          doc,
+          [
+            %{"op" => "modify_block", "id" => "b_other", "patch" => %{"content" => [%{"text" => "edited"}]}}
+          ],
+          %{actor_user_id: user.id, actor_type: "agent"},
+          dispositions: []
+        )
 
       v1_snapshot = Aveline.Comments.list_for_doc_version(doc.id)
       v2_snapshot = Aveline.Comments.list_for_doc_version(v2_doc.id)
@@ -148,15 +145,12 @@ defmodule Aveline.DocsApplyOpsTest do
       %{user: user, doc: doc, comment: c} = setup_doc_with_comment_on_block("b_one")
 
       # Agent ships v2 with a resolve disposition on c.
-      ops = [%{"op" => "modify_block", "id" => "b_one",
-               "patch" => %{"content" => [%{"text" => "edited"}]}}]
+      ops = [%{"op" => "modify_block", "id" => "b_one", "patch" => %{"content" => [%{"text" => "edited"}]}}]
 
       {:ok, v2_doc} =
         Docs.apply_ops(doc, ops, %{actor_user_id: user.id, actor_type: "agent"},
           dispositions: [
-            %{"comment_id" => c.base_comment_id,
-              "action" => "resolve",
-              "reply" => "Addressed."}
+            %{"comment_id" => c.base_comment_id, "action" => "resolve", "reply" => "Addressed."}
           ]
         )
 

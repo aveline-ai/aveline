@@ -36,7 +36,9 @@ defmodule AvelineWeb.Api.VersionController do
     with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
          {n, ""} <- Integer.parse(to_string(n_raw)),
          %_{} = doc <- Docs.get_version(current.base_doc_id, n) || {:error, :not_found} do
-      doc = %{doc | blocks: Docs.enrich_blocks(doc.blocks || [], ws.id)}
+      # Config only, no chart execution — historical SQL is never fired
+      # at a customer database on read (agents run it via run-block).
+      doc = %{doc | blocks: Docs.enrich_blocks(doc.blocks || [], ws.id, run_charts: false)}
       Envelope.ok(conn, %{doc: Views.doc_full(doc)})
     else
       :error -> {:error, :not_found}

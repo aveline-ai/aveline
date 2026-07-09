@@ -30,9 +30,7 @@ defmodule Aveline.ChartAsyncTest do
   describe "enrich_blocks run_charts: false" do
     test "live charts come back pending with the source echoed", %{ws: ws, user: user} do
       doc =
-        Fixtures.doc_fixture(ws, user,
-          blocks: [%{"type" => "chart", "source" => "self", "query" => "select 1 as one"}]
-        )
+        Fixtures.doc_fixture(ws, user, blocks: [%{"type" => "chart", "source" => "self", "query" => "select 1 as one"}])
 
       assert [%{"result" => %{"pending" => true}, "source" => %{"name" => "self"}}] =
                Docs.enrich_blocks(doc.blocks, ws.id, run_charts: false)
@@ -46,9 +44,7 @@ defmodule Aveline.ChartAsyncTest do
         DataSources.create(ws.id, "doomed", self_template(), self_password(), user.id)
 
       doc =
-        Fixtures.doc_fixture(ws, user,
-          blocks: [%{"type" => "chart", "source" => "doomed", "query" => "select 1"}]
-        )
+        Fixtures.doc_fixture(ws, user, blocks: [%{"type" => "chart", "source" => "doomed", "query" => "select 1"}])
 
       {:ok, _} = DataSources.delete(doomed, user.id)
 

@@ -58,6 +58,16 @@ defmodule Aveline.DataSources.Queries do
     |> Repo.one()
   end
 
+  @doc "The current (non-superseded) soft-deleted query by name — for restore."
+  def get_latest_deleted_by_name(workspace_id, name) when is_binary(name) do
+    from(q in Query,
+      where:
+        q.workspace_id == ^workspace_id and q.name == ^name and
+          not q.superseded and not is_nil(q.deleted_at)
+    )
+    |> Repo.one()
+  end
+
   @doc """
   Create a catalog query. `attrs` carries `:name`, `:sql`, and — for a
   raw query — `:source` (a data source name). No `:source` means
@@ -111,9 +121,7 @@ defmodule Aveline.DataSources.Queries do
 
   defp insert(workspace_id, attrs) do
     %Query{}
-    |> Query.insert_changeset(
-      Map.merge(attrs, %{workspace_id: workspace_id, base_query_id: Ecto.UUID.generate()})
-    )
+    |> Query.insert_changeset(Map.merge(attrs, %{workspace_id: workspace_id, base_query_id: Ecto.UUID.generate()}))
     |> Repo.insert()
     |> normalize_insert()
   end
@@ -291,8 +299,7 @@ defmodule Aveline.DataSources.Queries do
             "circular reference involving: #{involved |> Enum.uniq() |> Enum.join(", ")} — the catalog must stay a DAG"}}
 
         {:depth, d, _memo} when d > @depth_cap ->
-          {:halt,
-           {:error, :invalid_query, "query chains deeper than #{@depth_cap} are not allowed (got #{d})"}}
+          {:halt, {:error, :invalid_query, "query chains deeper than #{@depth_cap} are not allowed (got #{d})"}}
 
         {:depth, _d, _memo} ->
           {:cont, :ok}

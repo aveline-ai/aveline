@@ -120,7 +120,6 @@ defmodule Aveline.Docs do
     scrubbed
   end
 
-
   # Postgres full-text: websearch_to_tsquery handles the user-facing syntax
   # (phrase in quotes, -word to exclude, OR for either). Matches against
   # the `search_text` column via the GIN index.
@@ -457,8 +456,9 @@ defmodule Aveline.Docs do
       %{workspace_id: ^workspace_id} = ds ->
         %{
           "source" => Aveline.DataSources.safe_map(ds),
-          "result" =>
-            %{"error" => "data source was deleted (credential destroyed); connect a new one and update this block"}
+          "result" => %{
+            "error" => "data source was deleted (credential destroyed); connect a new one and update this block"
+          }
         }
 
       _ ->
@@ -801,12 +801,10 @@ defmodule Aveline.Docs do
       is_binary(block["source"]) ->
         case Aveline.DataSources.get_current_by_name(ws_id, block["source"]) do
           nil ->
-            {:error, :data_source_not_found,
-             "data source not found in this workspace: #{block["source"]}"}
+            {:error, :data_source_not_found, "data source not found in this workspace: #{block["source"]}"}
 
           ds ->
-            {:ok,
-             block |> Map.delete("source") |> Map.put("data_source_id", ds.base_data_source_id)}
+            {:ok, block |> Map.delete("source") |> Map.put("data_source_id", ds.base_data_source_id)}
         end
 
       is_binary(block["data_source_id"]) ->
@@ -821,8 +819,7 @@ defmodule Aveline.Docs do
                 {:ok, block}
 
               _ ->
-                {:error, :data_source_not_found,
-                 "data source not found in this workspace: #{block["data_source_id"]}"}
+                {:error, :data_source_not_found, "data source not found in this workspace: #{block["data_source_id"]}"}
             end
         end
 

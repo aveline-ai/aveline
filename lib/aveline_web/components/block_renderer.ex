@@ -313,13 +313,11 @@ defmodule AvelineWeb.BlockRenderer do
     """
   end
 
-
   def block(assigns) do
     ~H"""
     <div class="blk-unknown">Unknown block type: {@block["type"]}</div>
     """
   end
-
 
   attr :id, :string, required: true
 

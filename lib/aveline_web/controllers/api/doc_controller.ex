@@ -39,7 +39,9 @@ defmodule AvelineWeb.Api.DocController do
       item ->
         # Record an agent "read" event — same as the LV connects do.
         DocViews.record(ws.id, item.base_doc_id, user.id, "agent")
-        item = %{item | blocks: Docs.enrich_blocks(item.blocks || [], ws.id)}
+        # Reads return chart CONFIG, not data — a doc read never dials a
+        # customer database. Agents fetch rows explicitly via run-block.
+        item = %{item | blocks: Docs.enrich_blocks(item.blocks || [], ws.id, run_charts: false)}
         Envelope.ok(conn, %{doc: Views.doc_full(item)})
     end
   end
@@ -59,9 +61,31 @@ defmodule AvelineWeb.Api.DocController do
 
       item ->
         DocViews.record(ws.id, item.base_doc_id, user.id, "agent")
-        item = %{item | blocks: Docs.enrich_blocks(item.blocks || [], ws.id)}
+        item = %{item | blocks: Docs.enrich_blocks(item.blocks || [], ws.id, run_charts: false)}
         Envelope.ok(conn, %{doc: Views.doc_full(item)})
     end
+  end
+
+  @doc """
+  Run one chart block and return its rows — the explicit path to chart
+  data now that reads return config only. Same result shape as
+  query-data-source: returned, never stored.
+  """
+  def run_block(conn, %{"doc_slug" => slug, "block_id" => block_id}) do
+    ws = conn.assigns.current_workspace
+
+    with %{} = item <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
+         %{"data_source_id" => base_id, "query" => query} <-
+           find_chart(item.blocks, block_id) || {:error, :not_found} do
+      case Docs.run_chart_query(ws.id, base_id, query) do
+        %{"error" => msg} -> {:error, :query_failed, msg}
+        result -> Envelope.ok(conn, result)
+      end
+    end
+  end
+
+  defp find_chart(blocks, block_id) do
+    Enum.find(blocks || [], &(&1["type"] == "chart" and &1["id"] == block_id))
   end
 
   # ===== Writes =====

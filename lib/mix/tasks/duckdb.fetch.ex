@@ -21,8 +21,7 @@ defmodule Mix.Tasks.Duckdb.Fetch do
   # sha256 per release asset. A nil pin means trust-on-first-use: the
   # task prints the digest so it can be pinned after verification.
   @checksums %{
-    "duckdb_cli-osx-universal.zip" =>
-      "3261e52ea423a97bb766172b584ceae20bb90b2d40552ab24c1b740ace79c972",
+    "duckdb_cli-osx-universal.zip" => "3261e52ea423a97bb766172b584ceae20bb90b2d40552ab24c1b740ace79c972",
     "duckdb_cli-linux-amd64.zip" => nil,
     "duckdb_cli-linux-arm64.zip" => nil
   }

@@ -16,10 +16,16 @@ defmodule AvelineWeb.DocsViewsLiveTest do
     Fixtures.doc_fixture(ws, owner, slug: "plain", title: "Plain doc")
 
     {:ok, view} =
-      Views.create(ws.id, "tickets", "All open work by status.", %{
-        "tags" => ["ticket"],
-        "group_by" => "status"
-      }, owner.id)
+      Views.create(
+        ws.id,
+        "tickets",
+        "All open work by status.",
+        %{
+          "tags" => ["ticket"],
+          "group_by" => "status"
+        },
+        owner.id
+      )
 
     {:ok, _} = Views.set_pinned(view, true)
 

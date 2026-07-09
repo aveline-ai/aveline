@@ -103,6 +103,9 @@ defmodule AvelineWeb.Router do
     get "/docs/:doc_slug/versions", VersionController, :index
     get "/docs/:doc_slug/versions/:version_number", VersionController, :show
 
+    # Run one chart block and get its rows (reads return config only).
+    post "/docs/:doc_slug/blocks/:block_id/run", DocController, :run_block
+
     # Comments
     get "/docs/:doc_slug/comments", CommentController, :index
     post "/docs/:doc_slug/comments", CommentController, :create
@@ -129,6 +132,16 @@ defmodule AvelineWeb.Router do
     put "/data-sources/:name", DataSourceController, :update
     post "/data-sources/:name/query", DataSourceController, :query
     delete "/data-sources/:name", DataSourceController, :delete
+
+    # Query catalog — named, versioned queries built on data sources.
+    # `source` filter on index gives the per-source lineage view.
+    get "/queries", QueryController, :index
+    post "/queries", QueryController, :create
+    get "/queries/:name", QueryController, :show
+    patch "/queries/:name", QueryController, :update
+    put "/queries/:name", QueryController, :update
+    delete "/queries/:name", QueryController, :delete
+    post "/queries/:name/restore", QueryController, :restore
 
     get "/tags", TagController, :index
     post "/tags", TagController, :create

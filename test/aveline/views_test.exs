@@ -15,10 +15,16 @@ defmodule Aveline.ViewsTest do
 
     # Template tags exist (ticket, status scope) — valid kanban view.
     {:ok, view} =
-      Views.create(ws.id, "tickets", "All open work by status.", %{
-        "tags" => ["ticket"],
-        "group_by" => "status"
-      }, user.id)
+      Views.create(
+        ws.id,
+        "tickets",
+        "All open work by status.",
+        %{
+          "tags" => ["ticket"],
+          "group_by" => "status"
+        },
+        user.id
+      )
 
     assert view.config == %{"tags" => ["ticket"], "group_by" => "status"}
     assert view.version_number == 1
@@ -97,8 +103,13 @@ defmodule Aveline.ViewsTest do
     %{user: user, ws: ws} = setup_ws()
 
     {:ok, v} =
-      Views.create(ws.id, "work", "Tickets by status then type.",
-        %{"tags" => ["ticket"], "group_by" => "status", "sub_group_by" => "ticket"}, user.id)
+      Views.create(
+        ws.id,
+        "work",
+        "Tickets by status then type.",
+        %{"tags" => ["ticket"], "group_by" => "status", "sub_group_by" => "ticket"},
+        user.id
+      )
 
     assert v.config["sub_group_by"] == "ticket"
 
@@ -108,8 +119,7 @@ defmodule Aveline.ViewsTest do
 
     # sub == group → error
     assert {:error, %Ecto.Changeset{}} =
-             Views.create(ws.id, "bad2", "Same scope.",
-               %{"group_by" => "status", "sub_group_by" => "status"}, user.id)
+             Views.create(ws.id, "bad2", "Same scope.", %{"group_by" => "status", "sub_group_by" => "status"}, user.id)
   end
 
   test "a partial config edit merges, keeping other keys" do

@@ -152,8 +152,7 @@ defmodule Aveline.QueryCatalogTest do
           ws.id,
           %{
             name: "cac",
-            sql:
-              "select s.week, d.dollars::double / s.n AS cost FROM signups s JOIN spend d USING (week) ORDER BY week"
+            sql: "select s.week, d.dollars::double / s.n AS cost FROM signups s JOIN spend d USING (week) ORDER BY week"
           },
           user.id
         )

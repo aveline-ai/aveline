@@ -39,6 +39,7 @@ defmodule AvelineWeb.DocShowLive do
               |> Aveline.Tags.list_for_workspace()
               |> Enum.reject(&is_nil(&1.color))
               |> Map.new(&{&1.slug, &1.color})
+
             versions = Docs.list_versions(current_doc.base_doc_id)
 
             # Optional time-travel — `:version` param means we're showing a
@@ -467,10 +468,7 @@ defmodule AvelineWeb.DocShowLive do
       else
         item = %{
           new_current
-          | blocks:
-              Docs.enrich_blocks(new_current.blocks || [], new_current.workspace_id,
-                run_charts: false
-              )
+          | blocks: Docs.enrich_blocks(new_current.blocks || [], new_current.workspace_id, run_charts: false)
         }
 
         # Keep results for queries the new version still references,
@@ -595,7 +593,6 @@ defmodule AvelineWeb.DocShowLive do
   defp message_actor(%{actor_user: %Ecto.Association.NotLoaded{}}), do: nil
   defp message_actor(%{actor_user: a}), do: a
   defp message_actor(_), do: nil
-
 
   @impl true
   def render(assigns) do
