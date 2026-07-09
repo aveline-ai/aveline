@@ -4,7 +4,7 @@ defmodule AvelineWeb.Api.QueryController do
   sources. Raw queries name an external `source` and run in its dialect;
   derived queries omit `source` and compose other catalog queries in the
   analytics dialect. Charts and ad-hoc runs consume them through the
-  built-in `workspace` data source.
+  built-in `derived` data source.
 
   Thin adapter over `Aveline.DataSources.Queries`, like every other
   controller — the context owns validation (name rules, reference and

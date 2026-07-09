@@ -95,6 +95,25 @@ defmodule Aveline.DocsReplaceBlocksTest do
       assert c.id in missing
     end
 
+    test "a HUMAN actor may change a commented block with no disposition (migration path)" do
+      # The chart migration rewrites every chart block (inline -> query_ref)
+      # as actor_type: "human" precisely so it need not disposition every
+      # open comment on a chart. Lock that bypass in.
+      %{user: user, doc: doc} = setup_doc_with_comment("b_one")
+
+      desired = [para("b_one", "REWORDED"), para("b_other", "other")]
+
+      assert {:ok, v2} =
+               Docs.replace_blocks(
+                 doc,
+                 desired,
+                 %{actor_user_id: user.id, actor_type: "human"},
+                 dispositions: []
+               )
+
+      assert v2.version_number == doc.version_number + 1
+    end
+
     test "changing an untouched block leaves the comment thread alone" do
       %{user: user, doc: doc} = setup_doc_with_comment("b_one")
 

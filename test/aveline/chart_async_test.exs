@@ -2,7 +2,7 @@ defmodule Aveline.ChartAsyncTest do
   @moduledoc """
   The context half of the async chart engine: enrichment that defers
   execution (`run_charts: false`), the LiveView's run entry point
-  (`run_chart_query/3`), and the cache's single-flight + bust semantics.
+  (`run_chart/2`), and the cache's single-flight + bust semantics.
   """
   use Aveline.DataCase, async: false
 

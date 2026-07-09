@@ -30,12 +30,12 @@ defmodule Aveline.DataSources.Engine do
   `%{"columns" => [...], "rows" => [...], "truncated" => bool}`.
   """
 
+  alias Aveline.DataSources.Engine.Semaphore
   alias Aveline.DataSources.Runner
 
   @timeout_ms 2_000
   @parse_timeout_ms 2_000
   @memory_limit "256MB"
-  @max_concurrent 4
   @dollar_tag "$aveline_sql$"
 
   @doc "Absolute path to the vendored binary, or nil when not fetched."
@@ -129,7 +129,7 @@ defmodule Aveline.DataSources.Engine do
             input = Enum.join(hardening() ++ statements, "\n")
             exec(binary, input, timeout_ms)
           after
-            release()
+            Semaphore.release()
           end
         end
     end
@@ -176,22 +176,22 @@ defmodule Aveline.DataSources.Engine do
     Port.command(port, [input, "\n.exit\n"])
 
     try do
-      collect(port, os_pid, [], System.monotonic_time(:millisecond) + timeout_ms)
+      collect(port, os_pid, [], System.monotonic_time(:millisecond) + timeout_ms, timeout_ms)
     after
       safe_close(port)
     end
   end
 
-  defp collect(port, os_pid, acc, deadline) do
+  defp collect(port, os_pid, acc, deadline, timeout_ms) do
     remaining = deadline - System.monotonic_time(:millisecond)
 
     if remaining <= 0 do
       kill(os_pid)
-      {:error, "transform timed out after #{@timeout_ms}ms and was killed"}
+      {:error, "transform timed out after #{timeout_ms}ms and was killed"}
     else
       receive do
         {^port, {:data, chunk}} ->
-          collect(port, os_pid, [acc | [chunk]], deadline)
+          collect(port, os_pid, [acc | [chunk]], deadline, timeout_ms)
 
         {^port, {:exit_status, 0}} ->
           {:ok, IO.iodata_to_binary(acc)}
@@ -200,7 +200,7 @@ defmodule Aveline.DataSources.Engine do
           {:error, engine_error(IO.iodata_to_binary(acc))}
       after
         min(remaining, 100) ->
-          collect(port, os_pid, acc, deadline)
+          collect(port, os_pid, acc, deadline, timeout_ms)
       end
     end
   end
@@ -366,39 +366,25 @@ defmodule Aveline.DataSources.Engine do
   defp collect_refs(_other, tables, ctes), do: {tables, ctes}
 
   # ── concurrency cap ────────────────────────────────────────────────
-  # An atomics-based semaphore: at most @max_concurrent engine processes
-  # at once; the rest briefly spin-wait (runs are seconds at worst).
+  # A monitored semaphore (Engine.Semaphore): at most @max_concurrent
+  # engine processes at once; the rest briefly spin-wait (runs are
+  # seconds at worst). Slots free on holder death, so a killed LiveView
+  # run can't leak capacity.
 
   defp acquire, do: acquire(System.monotonic_time(:millisecond) + 10_000)
 
   defp acquire(deadline) do
-    ref = semaphore()
+    case Semaphore.acquire() do
+      :ok ->
+        :ok
 
-    if :atomics.add_get(ref, 1, 1) <= @max_concurrent do
-      :ok
-    else
-      :atomics.sub(ref, 1, 1)
-
-      if System.monotonic_time(:millisecond) > deadline do
-        {:error, "analytics engine is saturated; try again shortly"}
-      else
-        Process.sleep(25)
-        acquire(deadline)
-      end
-    end
-  end
-
-  defp release, do: :atomics.sub(semaphore(), 1, 1)
-
-  defp semaphore do
-    case :persistent_term.get({__MODULE__, :sem}, nil) do
-      nil ->
-        ref = :atomics.new(1, signed: true)
-        :persistent_term.put({__MODULE__, :sem}, ref)
-        ref
-
-      ref ->
-        ref
+      :full ->
+        if System.monotonic_time(:millisecond) > deadline do
+          {:error, "analytics engine is saturated; try again shortly"}
+        else
+          Process.sleep(25)
+          acquire(deadline)
+        end
     end
   end
 end

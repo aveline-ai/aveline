@@ -83,9 +83,10 @@ defmodule Aveline.DataSources do
     |> Repo.one()
   end
 
-  def create(_workspace_id, "derived", _template, _password, _user_id) do
+  def create(_workspace_id, name, _template, _password, _user_id)
+      when name in ["derived", "workspace"] do
     {:error, :reserved_name,
-     "\"derived\" is the built-in catalog source's name — pick another"}
+     "#{inspect(name)} is reserved for the built-in catalog source — pick another"}
   end
 
   def create(workspace_id, name, template, password, created_by_id)

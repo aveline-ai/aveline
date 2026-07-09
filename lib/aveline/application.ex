@@ -17,6 +17,7 @@ defmodule Aveline.Application do
       Aveline.Vault,
       Aveline.Repo,
       Aveline.DataSources.Cache,
+      Aveline.DataSources.Engine.Semaphore,
       {Oban, Application.fetch_env!(:aveline, Oban)},
       {DNSCluster, query: Application.get_env(:aveline, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Aveline.PubSub},

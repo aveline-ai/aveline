@@ -526,17 +526,22 @@ defmodule AvelineWeb.DocShowLive do
   end
 
   # One start_async per runnable chart key not already run or running.
+  # Records a pending marker in chart_results as it fires, so a re-entry
+  # (e.g. a :doc_updated right after mount) never double-fires the same
+  # key against a customer database.
   defp start_chart_runs(socket) do
     ws_id = socket.assigns.workspace.id
-    known = socket.assigns.chart_results
 
     socket.assigns.item.blocks
     |> runnable_charts()
-    |> Enum.reject(fn block -> Map.has_key?(known, chart_key(block)) end)
     |> Enum.uniq_by(&chart_key/1)
+    |> Enum.reject(fn block -> Map.has_key?(socket.assigns.chart_results, chart_key(block)) end)
     |> Enum.reduce(socket, fn block, sock ->
       key = chart_key(block)
-      start_async(sock, {:chart_run, key}, fn -> Docs.run_chart(ws_id, block) end)
+
+      sock
+      |> assign(:chart_results, Map.put(sock.assigns.chart_results, key, %{"pending" => true}))
+      |> start_async({:chart_run, key}, fn -> Docs.run_chart(ws_id, block) end)
     end)
   end
 

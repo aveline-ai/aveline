@@ -94,9 +94,19 @@ defmodule Aveline.Repo.Migrations.ChartsReferenceNamedQueries do
       if new_blocks != doc.blocks do
         cleaned = Enum.map(new_blocks, fn b -> Map.drop(b, ["result", "source", "query_sql"]) end)
 
-        Docs.replace_blocks(doc, cleaned, %{actor_user_id: doc.owner_id, actor_type: "agent"},
-          intent: "migrate inline charts to named catalog queries"
-        )
+        # actor_type: "human" so the rewrite does NOT demand comment
+        # dispositions — every chart block changes shape, and the agent
+        # gate would require a disposition for each open comment anchored
+        # to a chart, silently aborting the whole doc (leaving it inline
+        # and then un-saveable). Check the return: a real failure must
+        # abort the migration (and the deploy) loudly, never leave a doc
+        # half-converted.
+        case Docs.replace_blocks(doc, cleaned, %{actor_user_id: doc.owner_id, actor_type: "human"},
+               intent: "migrate inline charts to named catalog queries"
+             ) do
+          {:ok, _} -> :ok
+          other -> raise "chart migration failed for doc #{doc.slug}: #{inspect(other)}"
+        end
       end
     end
   end

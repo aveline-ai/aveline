@@ -522,7 +522,9 @@ defmodule Aveline.Docs do
   # source is the workspace catalog.
   defp chart_source_echo(_workspace_id, %{kind: "raw", data_source_id: base_id}) do
     case Aveline.DataSources.get_latest_by_base(base_id) do
-      nil -> %{}
+      # Source row gone entirely (not just soft-deleted): echo a neutral
+      # placeholder so the caption doesn't mislabel a raw chart "derived".
+      nil -> %{"source" => %{"name" => "(unknown source)", "adapter" => "sql"}}
       ds -> %{"source" => Aveline.DataSources.safe_map(ds)}
     end
   end

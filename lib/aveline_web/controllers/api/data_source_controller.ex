@@ -72,7 +72,7 @@ defmodule AvelineWeb.Api.DataSourceController do
 
       true ->
         with %{} = ds <- DataSources.get_current_by_name(ws.id, name) || {:error, :not_found} do
-          # The workspace source composes catalog queries in the
+          # The built-in "derived" source composes catalog queries in the
           # analytics engine (cross-source joins from the CLI, nothing
           # rendered, nothing saved). Leaves ride the 60s cache — shared
           # building blocks; predictable load on customer databases
