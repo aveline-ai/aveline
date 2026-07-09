@@ -37,8 +37,14 @@ defmodule Aveline.DataSources.Catalog do
       derived = Enum.map(plan.derived, &{&1.name, &1.sql})
 
       case Engine.run(leaf_results, derived, sql) do
-        {:ok, result} -> {:ok, flag_truncated_inputs(result, leaf_results)}
-        {:error, msg} -> {:error, msg}
+        {:ok, result} ->
+          # The catalog queries this SQL directly names — for the chart
+          # caption ("catalog: activity_per_day"). Sorted, deduped.
+          result = Map.put(result, "catalog_refs", Enum.sort(refs))
+          {:ok, flag_truncated_inputs(result, leaf_results)}
+
+        {:error, msg} ->
+          {:error, msg}
       end
     end
   end

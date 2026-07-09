@@ -284,7 +284,7 @@ defmodule AvelineWeb.BlockRenderer do
       </div>
       <div class="chart-caption">
         <span :if={@source && @source["adapter"] == "workspace"} class="chart-source">
-          workspace catalog
+          {catalog_caption(@result)}
         </span>
         <span :if={@source && @source["adapter"] != "workspace"} class="chart-source">
           {@source["name"]} · {@source["adapter"]}
@@ -407,6 +407,14 @@ defmodule AvelineWeb.BlockRenderer do
   defp esc(s), do: Phoenix.HTML.html_escape(s) |> Phoenix.HTML.safe_to_string()
 
   # sql-formatter dialect id from the source adapter echo.
+  # Workspace-source caption: name the catalog queries the chart reads
+  # (surfaced by Catalog.run once it has run). Before the run, or for an
+  # ad-hoc SELECT that names none, fall back to the generic label.
+  defp catalog_caption(%{"catalog_refs" => [_ | _] = refs}),
+    do: "catalog: " <> Enum.join(refs, ", ")
+
+  defp catalog_caption(_), do: "workspace catalog"
+
   defp sql_dialect(%{"adapter" => "postgres"}), do: "postgresql"
   defp sql_dialect(%{"adapter" => "redshift"}), do: "redshift"
   defp sql_dialect(%{"adapter" => "mysql"}), do: "mysql"

@@ -57,6 +57,7 @@ defmodule AvelineWeb.Router do
     live "/w/:slug/activity", ActivityLive, :index
     live "/w/:slug/usage", UsageLive, :index
     live "/w/:slug/data-sources", DataSourcesLive, :index
+    live "/w/:slug/data-sources/:name", DataSourceShowLive, :show
     live "/w/:slug/team", TeamLive, :index
     live "/w/:slug/settings", SettingsLive, :index
   end

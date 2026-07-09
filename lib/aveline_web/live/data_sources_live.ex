@@ -12,6 +12,7 @@ defmodule AvelineWeb.DataSourcesLive do
   use AvelineWeb, :live_view
 
   alias Aveline.DataSources
+  alias Aveline.DataSources.Queries
   alias Aveline.Docs
   alias Aveline.Workspaces
   alias AvelineWeb.LiveSession
@@ -34,7 +35,8 @@ defmodule AvelineWeb.DataSourcesLive do
            nav_active: :data_sources,
            topbar_title: "Data sources",
            sources: sources,
-           usage: chart_usage(ws.id)
+           usage: chart_usage(ws.id),
+           query_counts: query_counts(ws.id)
          )}
 
       :not_found ->
@@ -60,6 +62,18 @@ defmodule AvelineWeb.DataSourcesLive do
         entry = %{slug: doc.slug, title: doc.title, charts: count}
         Map.update(inner, base_id, [entry], &[entry | &1])
       end)
+    end)
+  end
+
+  # base_data_source_id => query count. Raw queries count against their
+  # source; derived queries are the workspace source's catalog.
+  defp query_counts(workspace_id) do
+    ws_source = DataSources.get_current_by_name(workspace_id, "workspace")
+
+    Queries.list_for_workspace(workspace_id)
+    |> Enum.reduce(%{}, fn q, acc ->
+      key = q.data_source_id || (ws_source && ws_source.base_data_source_id)
+      if key, do: Map.update(acc, key, 1, &(&1 + 1)), else: acc
     end)
   end
 
@@ -100,37 +114,40 @@ defmodule AvelineWeb.DataSourcesLive do
         </div>
       <% else %>
         <div class="ds-list">
-          <div :for={ds <- @sources} class={["ds-row", ds.deleted_at && "ds-row-deleted"]}>
+          <.link
+            :for={ds <- @sources}
+            navigate={~p"/w/#{@workspace.slug}/data-sources/#{ds.name}"}
+            class={["ds-row", "ds-row-link", ds.deleted_at && "ds-row-deleted"]}
+          >
             <div class="ds-row-main">
-              <span class="ds-name">{ds.name}</span>
-              <span class={["ds-adapter", "ds-adapter-" <> ds.adapter]}>{ds.adapter}</span>
+              <span class="ds-name">{if ds.adapter == "workspace", do: "workspace catalog", else: ds.name}</span>
+              <span class={["ds-adapter", "ds-adapter-" <> ds.adapter]}>
+                {if ds.adapter == "workspace", do: "built-in", else: ds.adapter}
+              </span>
               <span :if={ds.deleted_at} class="ds-deleted-badge">deleted · password destroyed</span>
             </div>
             <div class="ds-row-meta">
-              <span class="ds-conn">{ds.url_template}</span>
-              <span class="ds-dot">·</span>
-              <span>connected by {(ds.created_by && ds.created_by.username) || "unknown"}</span>
-              <span class="ds-dot">·</span>
-              <span>{Calendar.strftime(ds.inserted_at, "%b %-d, %Y")}</span>
-            </div>
-            <div class="ds-row-usage">
-              <%= case Map.get(@usage, ds.base_data_source_id, []) do %>
-                <% [] -> %>
-                  <span class="ds-unused">no charts yet</span>
-                <% docs -> %>
-                  <span class="ds-used">
-                    {total_charts(docs)} {if total_charts(docs) == 1, do: "chart", else: "charts"} in
-                  </span>
-                  <.link
-                    :for={d <- Enum.sort_by(docs, & &1.slug)}
-                    navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}"}
-                    class="ds-doc-link"
-                  >
-                    {d.title}
-                  </.link>
+              <%= if ds.adapter == "workspace" do %>
+                <span>The query catalog. Its tables are your named queries, composed in the analytics engine.</span>
+              <% else %>
+                <span class="ds-conn">{ds.url_template}</span>
+                <span class="ds-dot">·</span>
+                <span>connected by {(ds.created_by && ds.created_by.username) || "unknown"}</span>
+                <span class="ds-dot">·</span>
+                <span>{Calendar.strftime(ds.inserted_at, "%b %-d, %Y")}</span>
               <% end %>
             </div>
-          </div>
+            <div class="ds-row-usage">
+              <span class="ds-count">
+                {pluralize(Map.get(@query_counts, ds.base_data_source_id, 0), "query", "queries")}
+              </span>
+              <span class="ds-dot">·</span>
+              <span class="ds-count">
+                {pluralize(total_charts(Map.get(@usage, ds.base_data_source_id, [])), "chart", "charts")}
+              </span>
+              <span class="ds-row-arrow" aria-hidden="true">→</span>
+            </div>
+          </.link>
         </div>
       <% end %>
     </div>
@@ -138,4 +155,6 @@ defmodule AvelineWeb.DataSourcesLive do
   end
 
   defp total_charts(docs), do: docs |> Enum.map(& &1.charts) |> Enum.sum()
+
+  defp pluralize(n, singular, plural), do: "#{n} #{if n == 1, do: singular, else: plural}"
 end
