@@ -78,6 +78,57 @@ defmodule AvelineWeb.Api.DocLifecycleTest do
     assert del_body["ok"] == true
   end
 
+  test "edit-doc via --blocks full replace ships a new version", %{conn: conn, ws: ws} do
+    conn
+    |> post(~p"/api/workspaces/#{ws.slug}/docs", %{
+      "title" => "Notes",
+      "blocks" => [%{"type" => "paragraph", "content" => [%{"text" => "typo exmaple"}]}]
+    })
+    |> json_response(200)
+
+    blocks =
+      conn
+      |> get(~p"/api/workspaces/#{ws.slug}/docs/notes")
+      |> json_response(200)
+      |> get_in(["doc", "blocks"])
+
+    # Fix the text but keep the block id -> reconciled as a modify.
+    fixed =
+      blocks
+      |> put_in([Access.at(0), "content"], [%{"text" => "typo example"}])
+
+    edit_body =
+      conn
+      |> patch(~p"/api/workspaces/#{ws.slug}/docs/notes", %{
+        "intent" => "fix typo",
+        "blocks" => fixed
+      })
+      |> json_response(200)
+
+    assert edit_body["ok"] == true
+    assert edit_body["version_number"] == 2
+  end
+
+  test "edit-doc rejects sending both blocks and operations", %{conn: conn, ws: ws} do
+    conn
+    |> post(~p"/api/workspaces/#{ws.slug}/docs", %{
+      "title" => "Both",
+      "blocks" => [%{"type" => "paragraph", "content" => [%{"text" => "x"}]}]
+    })
+    |> json_response(200)
+
+    body =
+      conn
+      |> patch(~p"/api/workspaces/#{ws.slug}/docs/both", %{
+        "blocks" => [%{"type" => "paragraph", "content" => [%{"text" => "y"}]}],
+        "operations" => [%{"op" => "delete_block", "id" => "b_nope"}]
+      })
+      |> json_response(422)
+
+    assert body["ok"] == false
+    assert body["error"]["message"] =~ "not both"
+  end
+
   test "create-doc without a defined tag returns unknown_tags", %{conn: conn, ws: ws} do
     body =
       conn

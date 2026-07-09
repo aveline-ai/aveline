@@ -17,6 +17,7 @@ defmodule Aveline.Docs do
   import Ecto.Query
 
   alias Aveline.Broadcasts
+  alias Aveline.Blocks.Block
   alias Aveline.Blocks.Document
   alias Aveline.Comments.Comment
   alias Aveline.Comments.Disposition
@@ -577,6 +578,92 @@ defmodule Aveline.Docs do
          {:ok, new_blocks} <- run_document_apply(current.blocks || [], ops) do
       insert_version(current, new_blocks, ops, update_attrs, opts)
     end
+  end
+
+  @doc """
+  Ship a new version from a full desired block array (the `--blocks` /
+  Write-vs-Edit path), instead of a surgical ops list.
+
+  The caller sends the whole document as it should end up. We compute the
+  new block array directly from `desired` (ids preserved where given,
+  minted where absent) — the doc stores a full snapshot per version, so
+  there's no op replay to reconstruct. Reconciliation is by stable block
+  id, never a text diff: a block whose id matches a current block is the
+  same block (content updated); an id-less or unknown-id block is new; a
+  current id absent from `desired` is deleted. Deterministic — the same
+  input always yields the same version.
+
+  We still synthesize an ops list from the (current, new) block sets, but
+  only to (a) drive the open-comment disposition gate and (b) leave an
+  audit trail. Only `modify_block` / `delete_block` gate on dispositions,
+  so the synthetic ops carry exactly the coverage the gate needs.
+  """
+  def replace_blocks(%Doc{} = current, desired, update_attrs, opts)
+      when is_list(desired) and is_map(update_attrs) do
+    ws_id = current.workspace_id
+    tags = Map.get(update_attrs, :tags, current.tags) || []
+
+    with :ok <- Tags.ensure_all_exist(ws_id, tags),
+         :ok <- Tags.ensure_no_scope_conflict(tags),
+         {:ok, new_blocks} <- normalize_replacement_blocks(desired, ws_id),
+         :ok <- ensure_unique_block_ids(new_blocks) do
+      ops = diff_ops(current.blocks || [], new_blocks)
+      insert_version(current, new_blocks, ops, update_attrs, opts)
+    end
+  end
+
+  # Resolve doc_link/chart targets and inline links, then validate + mint
+  # ids — one block at a time, halting on the first bad block. Mirrors the
+  # per-op path (resolve THEN validate) so `--blocks` and `--ops` accept
+  # the exact same block shapes.
+  defp normalize_replacement_blocks(desired, ws_id) do
+    Enum.reduce_while(desired, {:ok, []}, fn raw, {:ok, acc} ->
+      with {:ok, block} <- resolve_block_doc_link(stringify_block(raw), ws_id),
+           {:ok, normalized} <- Block.validate(block, mint_id?: true) do
+        {:cont, {:ok, acc ++ [normalized]}}
+      else
+        err -> {:halt, err}
+      end
+    end)
+  end
+
+  defp stringify_block(%{} = block), do: Map.new(block, &stringify_kv/1)
+  defp stringify_block(other), do: other
+
+  defp ensure_unique_block_ids(blocks) do
+    ids = Enum.map(blocks, & &1["id"])
+
+    case ids -- Enum.uniq(ids) do
+      [] -> :ok
+      dupes -> {:error, "duplicate block id(s): #{Enum.join(Enum.uniq(dupes), ", ")}"}
+    end
+  end
+
+  # Derive the audit/gate ops by reconciling current vs new on block id.
+  # New blocks -> append_block, changed kept blocks -> modify_block,
+  # dropped blocks -> delete_block. Reordered-but-identical blocks emit
+  # nothing (moves never gate on dispositions). These ops are stored for
+  # the audit trail and read by `resolve_dispositions`; they are NOT
+  # replayed (new_blocks is authoritative).
+  defp diff_ops(current_blocks, new_blocks) do
+    current_by_id = Map.new(current_blocks, &{&1["id"], &1})
+    new_ids = MapSet.new(new_blocks, & &1["id"])
+
+    deletes =
+      for %{"id" => id} <- current_blocks, not MapSet.member?(new_ids, id) do
+        %{"op" => "delete_block", "id" => id}
+      end
+
+    changes =
+      Enum.flat_map(new_blocks, fn block ->
+        case Map.get(current_by_id, block["id"]) do
+          nil -> [%{"op" => "append_block", "block" => block}]
+          ^block -> []
+          _prev -> [%{"op" => "modify_block", "id" => block["id"], "patch" => Map.delete(block, "id")}]
+        end
+      end)
+
+    deletes ++ changes
   end
 
   # ===== doc_link resolution =====

@@ -110,11 +110,23 @@ defmodule AvelineWeb.Api.DocController do
   end
 
   @doc """
-  Apply an ops batch to an existing doc (i.e. ship a new version).
-  Body:
+  Ship a new version of an existing doc. Two input modes (send one, not
+  both):
+
+    * `blocks` — the whole document as it should end up. The server
+      reconciles against the current blocks by stable id (matching id =
+      same block, content updated; id-less/unknown = new; missing =
+      deleted) and ships the result. The easy path: get-doc, change what
+      you want, send it all back. Symmetric with create-doc.
+    * `operations` — a surgical ops array (append_block, insert_block,
+      modify_block, delete_block, move_block) for touching one block in a
+      large doc without resending it.
+
+  Full body:
       {
-        "intent": "...",
+        "blocks": [...]        // OR
         "operations": [...],
+        "intent": "...",
         "actor": "human" | "agent",
         "comment_dispositions": [
           {"comment_id": "...", "action": "resolve",  "reply": "..."},
@@ -126,15 +138,18 @@ defmodule AvelineWeb.Api.DocController do
         "tags": [...]
       }
 
-  Returns the new version's id + number so the agent can verify it
-  shipped.
+  Editing a block that carries an open comment requires a disposition for
+  that thread, in either mode. Returns the new version's id + number so
+  the agent can verify it shipped.
   """
   def update(conn, %{"doc_slug" => slug} = params) do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
+    blocks = params["blocks"]
+    ops = params["operations"]
 
-    with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found} do
-      ops = params["operations"] || []
+    with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
+         :ok <- validate_edit_mode(blocks, ops) do
       intent = params["intent"]
       resolves = params["resolves_comment_ids"] || []
       dispositions = params["comment_dispositions"] || []
@@ -148,12 +163,22 @@ defmodule AvelineWeb.Api.DocController do
         |> maybe_put(:summary, params["summary"])
         |> maybe_put(:tags, params["tags"])
 
-      with {:ok, item} <-
-             Docs.apply_ops(current, ops, update_attrs,
-               intent: intent,
-               resolves_comment_ids: resolves,
-               dispositions: dispositions
-             ) do
+      result =
+        if is_list(blocks) do
+          Docs.replace_blocks(current, blocks, update_attrs,
+            intent: intent,
+            resolves_comment_ids: resolves,
+            dispositions: dispositions
+          )
+        else
+          Docs.apply_ops(current, ops || [], update_attrs,
+            intent: intent,
+            resolves_comment_ids: resolves,
+            dispositions: dispositions
+          )
+        end
+
+      with {:ok, item} <- result do
         Envelope.ok(conn, %{
           slug: item.slug,
           doc_id: item.base_doc_id,
@@ -163,6 +188,14 @@ defmodule AvelineWeb.Api.DocController do
       end
     end
   end
+
+  # Exactly one of blocks / operations. Both is ambiguous (which wins?);
+  # neither is a no-op edit — reject both so the agent gets a clear error
+  # instead of a silent surprise.
+  defp validate_edit_mode(blocks, ops) when is_list(blocks) and is_list(ops),
+    do: {:error, :bad_request, "send either blocks (full replace) or operations (surgical), not both"}
+
+  defp validate_edit_mode(_, _), do: :ok
 
   def delete(conn, %{"doc_slug" => slug}) do
     ws = conn.assigns.current_workspace
