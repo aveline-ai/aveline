@@ -1141,6 +1141,9 @@
         font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
         color: var(--text-secondary); white-space: pre; line-height: 1.5;
       }
+      /* Hidden until the SqlFormat hook formats it, so the raw one-liner
+         never flashes. Reserves height to limit layout jump. */
+      .q-sql.q-sql-loading { visibility: hidden; }
       .q-deps { margin-top: 8px; font-size: 11.5px; color: var(--text-muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
       .q-deps-feeds { opacity: 0.75; }
       .q-dep-chip {

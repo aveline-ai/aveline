@@ -295,11 +295,14 @@ const Hooks = {
 
   // Always-visible SQL (query catalog cards): pretty-print via
   // sql-formatter, then Prism-highlight. Same treatment as a chart's SQL
-  // tab, but no tab gating — format on mount. Dialect from data-dialect.
+  // tab, but no tab gating — format on mount. The block renders hidden
+  // (.q-sql-loading) and is revealed only AFTER formatting, so the raw
+  // one-liner never paints (the flash the chart SQL tab also guards).
   SqlFormat: {
     mounted() {
       const code = this.el.querySelector("code")
-      if (!code) return
+      const reveal = () => this.el.classList.remove("q-sql-loading")
+      if (!code) return reveal()
       const raw = code.textContent
       loadSqlFormatter()
         .then(() => {
@@ -312,6 +315,7 @@ const Hooks = {
         .catch(() => {
           if (window.Prism) window.Prism.highlightElement(code)
         })
+        .finally(reveal)
     },
   },
 

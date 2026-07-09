@@ -165,7 +165,7 @@ defmodule AvelineWeb.DataSourceShowLive do
             </div>
             <pre
               id={"q-sql-" <> q.name}
-              class="q-sql"
+              class="q-sql q-sql-loading"
               phx-hook="SqlFormat"
               phx-update="ignore"
               data-dialect={formatter_dialect(@source.adapter)}
