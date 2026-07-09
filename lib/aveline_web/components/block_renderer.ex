@@ -287,7 +287,7 @@ defmodule AvelineWeb.BlockRenderer do
           {catalog_caption(@result)}
         </span>
         <span :if={@source && @source["adapter"] != "workspace"} class="chart-source">
-          {@source["name"]} · {@source["adapter"]}
+          {@source["name"]} · {@source["adapter"]} · <span class="chart-inline">inline</span>
         </span>
         <span :if={@result["truncated"]} class="chart-truncated">
           truncated to first {Aveline.DataSources.Runner.row_cap()} rows
