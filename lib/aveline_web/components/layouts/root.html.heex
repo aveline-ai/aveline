@@ -1086,17 +1086,78 @@
         border: 1px solid var(--border-strong, var(--border)); color: var(--text-secondary);
       }
       .ds-deleted-badge { font-size: 11px; color: var(--attn, var(--text-muted)); }
+      .ds-builtin-badge { font-size: 10.5px; color: var(--text-muted); font-style: italic; }
       .ds-row-meta {
         display: flex; gap: 6px; font-size: 12px; color: var(--text-muted);
         flex-wrap: wrap;
       }
       .ds-conn { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; }
       .ds-dot { opacity: 0.5; }
-      .ds-row-usage { display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+      .ds-row-usage { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 12px; }
       .ds-unused { color: var(--text-muted); font-style: italic; }
       .ds-used { color: var(--text-secondary); }
+      .ds-count { color: var(--text-secondary); }
       .ds-doc-link { color: var(--accent); text-decoration: none; }
       .ds-doc-link:hover { text-decoration: underline; }
+
+      /* clickable source rows + the arrow affordance */
+      a.ds-row-link { text-decoration: none; cursor: pointer; }
+      a.ds-row-link:hover { background: var(--bg-card); }
+      a.ds-row-link:hover .ds-name { color: var(--accent); }
+      .ds-row-arrow { margin-left: auto; color: var(--text-muted); }
+
+      /* data source detail page */
+      .ds-back {
+        display: inline-block; margin-bottom: 14px; font-size: 12.5px;
+        color: var(--text-muted); text-decoration: none;
+      }
+      .ds-back:hover { color: var(--text-secondary); }
+      .ds-detail-head { display: flex; align-items: center; gap: 10px; }
+      .ds-section-title {
+        font-size: 12px; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.05em; color: var(--text-muted);
+        margin: 26px 0 10px;
+      }
+      .q-list { display: flex; flex-direction: column; gap: 10px; }
+      .q-row {
+        border: 1px solid var(--border); border-radius: var(--radius);
+        padding: 12px 14px; background: var(--bg-card);
+      }
+      .q-row-main { display: flex; align-items: baseline; gap: 10px; }
+      .q-name {
+        font-size: 13.5px; font-weight: 600; color: var(--text);
+        font-family: 'JetBrains Mono', monospace;
+      }
+      .q-kind {
+        font-size: 10px; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.05em; padding: 1px 6px; border-radius: 999px;
+        border: 1px solid var(--border-strong, var(--border)); color: var(--text-secondary);
+      }
+      .q-kind-derived { color: var(--accent); border-color: var(--accent); }
+      .q-ver { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+      .q-sql {
+        margin: 8px 0 0; padding: 8px 10px; border-radius: var(--radius-sm);
+        background: var(--bg-input); overflow-x: auto;
+        font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+        color: var(--text-secondary); white-space: pre; line-height: 1.5;
+      }
+      /* Hidden until the SqlFormat hook formats it, so the raw one-liner
+         never flashes. Reserves height to limit layout jump. */
+      .q-sql.q-sql-loading { visibility: hidden; }
+      .q-deps { margin-top: 8px; font-size: 11.5px; color: var(--text-muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+      .q-deps-feeds { opacity: 0.75; }
+      .q-dep-chip {
+        font-family: 'JetBrains Mono', monospace; font-size: 11px;
+        padding: 0 6px; border-radius: 4px; background: var(--bg-input); color: var(--text-secondary);
+      }
+      .ds-doc-list { display: flex; flex-direction: column; }
+      .ds-doc-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 11px 4px; border-bottom: 1px solid var(--border);
+        text-decoration: none; color: var(--text);
+      }
+      .ds-doc-row:last-child { border-bottom: none; }
+      .ds-doc-row:hover span:first-child { color: var(--accent); }
 
       /* chart block — Contex SVG or result table + caption. Errors are
          states on the block, styled quiet, never page-breaking. */
@@ -1125,10 +1186,40 @@
         border-radius: var(--radius); font-size: 12.5px; color: var(--text-secondary);
         font-family: 'JetBrains Mono', monospace;
       }
+      /* async run states — placeholder box matches the plot's height so
+         the page doesn't jump when results stream in. */
+      .blocks .chart-placeholder {
+        display: flex; align-items: center; justify-content: center; gap: 10px;
+        height: 280px; border: 1px dashed var(--border);
+        border-radius: var(--radius); font-size: 12.5px; color: var(--text-muted);
+      }
+      .blocks .chart-spinner {
+        width: 12px; height: 12px; border-radius: 50%;
+        border: 2px solid var(--border-strong, var(--border));
+        border-top-color: var(--text-muted);
+        animation: chart-spin 0.8s linear infinite;
+      }
+      @keyframes chart-spin { to { transform: rotate(360deg); } }
+      .blocks .chart-run-btn {
+        font: inherit; font-size: 12px; font-weight: 600;
+        color: var(--text-secondary); background: var(--bg-card);
+        border: 1px solid var(--border); border-radius: var(--radius);
+        padding: 4px 12px; cursor: pointer;
+      }
+      .blocks .chart-run-btn:hover { color: var(--text); border-color: var(--border-strong); }
+      .blocks .chart-idle-note { font-size: 11px; color: var(--text-muted); }
+      .blocks .chart-refresh {
+        font: inherit; font-size: 11px; color: var(--text-muted);
+        background: none; border: none; padding: 0; cursor: pointer;
+        margin-left: auto;
+      }
+      .blocks .chart-refresh:hover { color: var(--text-secondary); }
       .blocks .chart-caption {
         display: flex; gap: 12px; margin-top: 4px;
         font-size: 11px; color: var(--text-muted);
       }
+      /* "inline" tag: this chart's SQL is anonymous, not a named query. */
+      .blocks .chart-inline { font-style: italic; opacity: 0.8; }
       .blocks .blk-unknown {
         padding: 10px 14px; border: 1px dashed var(--danger);
         border-radius: var(--radius); font-size: 13px; color: var(--danger);

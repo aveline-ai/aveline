@@ -70,7 +70,9 @@ defmodule AvelineWeb.Api.TeamController do
   # Distinguish UUID (use as-is) from username (look up).
   defp resolve_user_ref(ref) when is_binary(ref) do
     case Ecto.UUID.cast(ref) do
-      {:ok, uuid} -> {:ok, uuid}
+      {:ok, uuid} ->
+        {:ok, uuid}
+
       :error ->
         case Aveline.Accounts.get_user_by_username(ref) do
           nil -> {:error, :not_member}

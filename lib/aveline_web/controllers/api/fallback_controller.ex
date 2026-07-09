@@ -30,9 +30,7 @@ defmodule AvelineWeb.Api.FallbackController do
   def call(conn, {:error, %Ecto.Changeset{} = cs}) do
     {code, field, message} = changeset_summary(cs)
 
-    err(conn, 422, code, message,
-      %{errors: changeset_errors(cs)} |> maybe_add(:field, field)
-    )
+    err(conn, 422, code, message, %{errors: changeset_errors(cs)} |> maybe_add(:field, field))
   end
 
   # ===== Tag-specific =====
@@ -45,60 +43,53 @@ defmodule AvelineWeb.Api.FallbackController do
 
   def call(conn, {:error, {:unknown_tags, slugs}}),
     do:
-      err(conn, 422, "unknown_tags",
-        "One or more tags aren't defined in this workspace yet. Create them first.",
-        %{unknown_tags: slugs}
-      )
+      err(conn, 422, "unknown_tags", "One or more tags aren't defined in this workspace yet. Create them first.", %{
+        unknown_tags: slugs
+      })
 
   # ===== Comment dispositions =====
 
   def call(conn, {:error, {:disposition_missing, missing}}),
     do:
-      err(conn, 422, "disposition_missing",
+      err(
+        conn,
+        422,
+        "disposition_missing",
         "Open comments anchored to touched blocks must be dispositioned (resolve / reanchor / leave).",
         %{missing: missing}
       )
 
   def call(conn, {:error, {:duplicate_dispositions, ids}}),
-    do:
-      err(conn, 422, "duplicate_dispositions",
-        "A comment was dispositioned more than once.",
-        %{duplicate_ids: ids}
-      )
+    do: err(conn, 422, "duplicate_dispositions", "A comment was dispositioned more than once.", %{duplicate_ids: ids})
 
   def call(conn, {:error, {:leave_on_deleted_block, comment_id}}),
     do:
-      err(conn, 422, "leave_on_deleted_block",
+      err(
+        conn,
+        422,
+        "leave_on_deleted_block",
         "A comment whose block was deleted cannot be left open. Resolve it (with a reply) or reanchor it.",
         %{comment_id: comment_id}
       )
 
   def call(conn, {:error, {:reanchor_target_missing, comment_id, block_id}}),
     do:
-      err(conn, 422, "reanchor_target_missing",
-        "Reanchor target block does not exist in the new version's blocks.",
-        %{comment_id: comment_id, new_block_id: block_id}
-      )
+      err(conn, 422, "reanchor_target_missing", "Reanchor target block does not exist in the new version's blocks.", %{
+        comment_id: comment_id,
+        new_block_id: block_id
+      })
 
   def call(conn, {:error, {:invalid_action, action}}),
     do:
-      err(conn, 422, "invalid_disposition_action",
-        "Disposition action must be one of: resolve, reanchor, leave.",
-        %{got: action}
-      )
+      err(conn, 422, "invalid_disposition_action", "Disposition action must be one of: resolve, reanchor, leave.", %{
+        got: action
+      })
 
   def call(conn, {:error, {:missing_field, field}}),
-    do:
-      err(conn, 422, "validation_failed", "Missing required field: #{field}.",
-        %{field: field}
-      )
+    do: err(conn, 422, "validation_failed", "Missing required field: #{field}.", %{field: field})
 
   def call(conn, {:error, {:comment_not_found, id}}),
-    do:
-      err(conn, 422, "comment_not_found",
-        "Dispositioned comment no longer exists.",
-        %{comment_id: id}
-      )
+    do: err(conn, 422, "comment_not_found", "Dispositioned comment no longer exists.", %{comment_id: id})
 
   def call(conn, {:error, :invalid_disposition}),
     do: err(conn, 422, "validation_failed", "Disposition entry must be an object.")
@@ -110,32 +101,47 @@ defmodule AvelineWeb.Api.FallbackController do
 
   def call(conn, {:error, :not_user_deleted}),
     do:
-      err(conn, 422, "not_user_deleted",
+      err(
+        conn,
+        422,
+        "not_user_deleted",
         "Doc was not user-deleted (it's the current live version or was superseded by a new version)."
       )
 
   def call(conn, {:error, :orientation_undeletable}),
     do:
-      err(conn, 422, "orientation_undeletable",
+      err(
+        conn,
+        422,
+        "orientation_undeletable",
         "The workspace orientation doc can't be deleted — every workspace keeps one. Edit it instead."
       )
 
   def call(conn, {:error, :pin_limit_reached}),
     do:
-      err(conn, 422, "pin_limit_reached",
+      err(
+        conn,
+        422,
+        "pin_limit_reached",
         "All #{Aveline.Docs.pin_limit()} home-page pin slots are taken. Unpin one first — pins are the curated front page, keep them scarce."
       )
 
   def call(conn, {:error, {:pin_slot_taken, slot, occupant}}),
     do:
-      err(conn, 422, "pin_slot_taken",
+      err(
+        conn,
+        422,
+        "pin_slot_taken",
         "Pin slot #{slot} is held by \"#{occupant}\". Unpin or re-slot it first — slots never displace silently.",
         %{slot: slot, occupant: occupant}
       )
 
   def call(conn, {:error, {:tag_scope_conflict, scope, tags}}),
     do:
-      err(conn, 422, "tag_scope_conflict",
+      err(
+        conn,
+        422,
+        "tag_scope_conflict",
         "A doc can carry at most one tag per scope — the set has #{Enum.join(tags, " and ")}. Scoped tags (#{scope}:*) are mutually exclusive options.",
         %{scope: scope, tags: tags}
       )
@@ -177,10 +183,7 @@ defmodule AvelineWeb.Api.FallbackController do
     do: err(conn, 500, "internal_error", "Unexpected error.")
 
   def call(conn, {:error, %{__struct__: _} = struct}),
-    do:
-      err(conn, 500, "internal_error", "Unexpected error.",
-        %{kind: inspect(struct.__struct__)}
-      )
+    do: err(conn, 500, "internal_error", "Unexpected error.", %{kind: inspect(struct.__struct__)})
 
   def call(conn, _other),
     do: err(conn, 500, "internal_error", "Unexpected error.")
@@ -227,5 +230,4 @@ defmodule AvelineWeb.Api.FallbackController do
 
   defp maybe_add(map, _key, nil), do: map
   defp maybe_add(map, key, value), do: Map.put(map, key, value)
-
 end

@@ -63,6 +63,17 @@ defmodule Aveline.DataSources do
   end
 
   @doc """
+  The built-in catalog source (adapter \"workspace\", named \"derived\").
+  Fetched by adapter, not name, so call sites don't hardcode the name.
+  """
+  def workspace_source(workspace_id) do
+    from(ds in base_query(),
+      where: ds.workspace_id == ^workspace_id and ds.adapter == "workspace"
+    )
+    |> Repo.one()
+  end
+
+  @doc """
   Latest version regardless of deletion — for echoing metadata on chart
   blocks whose source was deleted (same spirit as doc_link's dead-target
   echo).
@@ -70,6 +81,12 @@ defmodule Aveline.DataSources do
   def get_latest_by_base(base_id) when is_binary(base_id) do
     from(ds in DataSource, where: ds.base_data_source_id == ^base_id and not ds.superseded)
     |> Repo.one()
+  end
+
+  def create(_workspace_id, name, _template, _password, _user_id)
+      when name in ["derived", "workspace"] do
+    {:error, :reserved_name,
+     "#{inspect(name)} is reserved for the built-in catalog source — pick another"}
   end
 
   def create(workspace_id, name, template, password, created_by_id)
@@ -102,6 +119,11 @@ defmodule Aveline.DataSources do
   password or name changes are fine alone. Mints v+1 on the same base
   id and scrubs the superseded row's secret in the same transaction.
   """
+  def edit(%DataSource{adapter: "workspace"}, _changes, _user_id) do
+    {:error, :workspace_source_immutable,
+     "the workspace source is built in — it can't be renamed or repointed"}
+  end
+
   def edit(%DataSource{} = current, changes, user_id) when is_map(changes) do
     template = Map.get(changes, :url, current.url_template)
     template_changed? = template != current.url_template
@@ -158,6 +180,11 @@ defmodule Aveline.DataSources do
   (constraint-enforced pairing). The template stays for audit; the
   password is gone for good. No restore — connect a new source.
   """
+  def delete(%DataSource{adapter: "workspace"}, _user_id) do
+    {:error, :workspace_source_immutable,
+     "the workspace source is built in — it can't be deleted"}
+  end
+
   def delete(%DataSource{} = ds, user_id) do
     ds
     |> Ecto.Changeset.change(
@@ -169,10 +196,57 @@ defmodule Aveline.DataSources do
   end
 
   @doc """
+  Seed the built-in workspace source (adapter "workspace") — the
+  virtual source whose tables are the query catalog. Called at
+  workspace creation; the query_catalog migration backfilled existing
+  workspaces. Credential-less by design and CHECK-exempted.
+  """
+  def ensure_workspace_source(workspace_id) do
+    case workspace_source(workspace_id) do
+      nil ->
+        %DataSource{}
+        |> DataSource.insert_changeset(%{
+          workspace_id: workspace_id,
+          base_data_source_id: Ecto.UUID.generate(),
+          name: "derived",
+          adapter: "workspace",
+          url_template: "workspace://catalog"
+        })
+        |> Repo.insert()
+
+      ds ->
+        {:ok, ds}
+    end
+  end
+
+  @doc """
+  The engine/dialect label shown to users. The workspace source's
+  internal adapter is \"workspace\", but the engine it actually runs is
+  DuckDB — so it reads consistently alongside postgres/mysql/redshift.
+  """
+  def dialect_label("workspace"), do: "duckdb"
+  def dialect_label(adapter) when is_binary(adapter), do: adapter
+
+  @doc """
   The one shape read surfaces may see. `url` is the TEMPLATE — the
   `<password>` placeholder renders as its own mask; the secret never
   appears anywhere.
   """
+  def safe_map(%DataSource{adapter: "workspace"} = ds) do
+    %{
+      "name" => ds.name,
+      "adapter" => ds.adapter,
+      "url" => ds.url_template,
+      "version_number" => ds.version_number,
+      # "redacted" is the wire signal for deleted; the built-in source
+      # never had a credential to lose.
+      "credential" => "none",
+      "built_in" => true,
+      "deleted" => not is_nil(ds.deleted_at),
+      "created_at" => DateTime.to_iso8601(ds.inserted_at)
+    }
+  end
+
   def safe_map(%DataSource{} = ds) do
     %{
       "name" => ds.name,

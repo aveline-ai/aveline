@@ -120,7 +120,6 @@ defmodule Aveline.Docs do
     scrubbed
   end
 
-
   # Postgres full-text: websearch_to_tsquery handles the user-facing syntax
   # (phrase in quotes, -word to exclude, OR for either). Matches against
   # the `search_text` column via the GIN index.
@@ -387,36 +386,129 @@ defmodule Aveline.Docs do
       their latest metadata plus `"deleted" => true`)
     * inline spans whose `"link"` carries a `"doc_id"` gain the same
       echo under `"link" => %{"target" => ...}`
+    * chart blocks gain `"source"` and `"result"` echoes. Pass
+      `run_charts: false` to skip executing the queries: charts then get
+      `"result" => %{"pending" => true}` (source echo and
+      missing/deleted-source errors still resolve) so a caller can run
+      them async — the doc LiveView does this and streams results in.
   """
-  def enrich_blocks(blocks, workspace_id) when is_list(blocks) do
+  def enrich_blocks(blocks, workspace_id, opts \\ [])
+
+  def enrich_blocks(blocks, workspace_id, opts) when is_list(blocks) do
+    run? = Keyword.get(opts, :run_charts, true)
+
     blocks
     |> enrich_doc_links(workspace_id)
     |> Enum.map(fn
-      %{"type" => "chart"} = b -> Map.merge(b, chart_echo(b, workspace_id))
+      %{"type" => "chart"} = b -> Map.merge(b, chart_echo(b, workspace_id, run?))
       b -> b
     end)
   end
 
-  def enrich_blocks(blocks, _workspace_id), do: blocks
+  def enrich_blocks(blocks, _workspace_id, _opts), do: blocks
 
-  # Runs the chart's query (through the 60s cache) and echoes the
-  # outcome. A doc read never fails because a data source is down,
-  # deleted, or the SQL is wrong — those are all states on the block.
-  defp chart_echo(%{"data_source_id" => base_id, "query" => query}, workspace_id) do
+  @doc """
+  Run a chart block and return its `"result"` map — the async chart
+  engine's entry point (doc LiveView `start_async`, run-block API).
+  Dispatches on the block shape: a `query_ref` chart (current) resolves
+  its catalog query; a legacy inline chart (historical versions) runs
+  its stored SQL. Never raises: missing queries, down/deleted sources,
+  and bad SQL all come back as `%{"error" => msg}` states.
+  """
+  def run_chart(workspace_id, %{"query_ref" => ref}) do
+    case Aveline.DataSources.Queries.get_current_by_name(workspace_id, ref) do
+      nil ->
+        %{"error" => "catalog query #{inspect(ref)} not found — it may have been renamed or deleted"}
+
+      %{kind: "derived", name: name} ->
+        # Compose the derived query in the engine; its leaves are cached.
+        run_catalog(workspace_id, ~s(SELECT * FROM "#{name}"))
+
+      %{kind: "raw", data_source_id: base_id, sql: sql} ->
+        run_source(workspace_id, base_id, sql)
+    end
+  end
+
+  # Legacy inline chart (historical doc versions only).
+  def run_chart(workspace_id, %{"data_source_id" => base_id, "query" => sql}) do
+    run_source(workspace_id, base_id, sql)
+  end
+
+  def run_chart(_workspace_id, _block), do: %{"error" => "invalid chart block"}
+
+  @doc "Bust a chart's cached inputs so its next run re-dials the source."
+  def bust_chart(workspace_id, %{"query_ref" => ref}) do
+    case Aveline.DataSources.Queries.get_current_by_name(workspace_id, ref) do
+      %{kind: "raw", data_source_id: base_id, sql: sql} ->
+        Aveline.DataSources.Cache.bust(base_id, sql)
+
+      %{kind: "derived", name: name} ->
+        Aveline.DataSources.Catalog.bust_leaves(workspace_id, ~s(SELECT * FROM "#{name}"))
+
+      _ ->
+        :ok
+    end
+  end
+
+  def bust_chart(_workspace_id, %{"data_source_id" => base_id, "query" => sql}),
+    do: Aveline.DataSources.Cache.bust(base_id, sql)
+
+  def bust_chart(_workspace_id, _block), do: :ok
+
+  defp run_catalog(workspace_id, sql) do
+    case Aveline.DataSources.Catalog.run(workspace_id, sql) do
+      {:ok, result} -> result
+      {:error, msg} -> %{"error" => msg}
+    end
+  end
+
+  defp run_source(workspace_id, base_id, sql) do
+    case Aveline.DataSources.get_latest_by_base(base_id) do
+      %{workspace_id: ^workspace_id, deleted_at: nil, adapter: "workspace"} ->
+        run_catalog(workspace_id, sql)
+
+      %{workspace_id: ^workspace_id, deleted_at: nil} = ds ->
+        case Aveline.DataSources.Cache.run(ds, sql) do
+          {:ok, result} -> result
+          {:error, msg} -> %{"error" => msg}
+        end
+
+      %{workspace_id: ^workspace_id} ->
+        %{"error" => "data source was deleted (credential destroyed); connect a new one and update this block"}
+
+      _ ->
+        %{"error" => "data source not found"}
+    end
+  end
+
+  # Echoes a chart's `source`, `query_sql` (for the SQL tab), and — when
+  # run? (the API read path) — its result. A doc read never fails because
+  # a query is missing, a source is down, or SQL is wrong; those are all
+  # states on the block.
+  defp chart_echo(%{"query_ref" => ref} = block, workspace_id, run?) do
+    case Aveline.DataSources.Queries.get_current_by_name(workspace_id, ref) do
+      nil ->
+        %{"result" => %{"error" => "catalog query #{inspect(ref)} not found"}}
+
+      query ->
+        result = if run?, do: run_chart(workspace_id, block), else: %{"pending" => true}
+        Map.merge(chart_source_echo(workspace_id, query), %{"query_sql" => query.sql, "result" => result})
+    end
+  end
+
+  # Legacy inline chart echo (historical versions).
+  defp chart_echo(%{"data_source_id" => base_id, "query" => sql} = block, workspace_id, run?) do
     case Aveline.DataSources.get_latest_by_base(base_id) do
       %{workspace_id: ^workspace_id, deleted_at: nil} = ds ->
-        source = Aveline.DataSources.safe_map(ds)
-
-        case Aveline.DataSources.Cache.run(ds, query) do
-          {:ok, result} -> %{"source" => source, "result" => result}
-          {:error, msg} -> %{"source" => source, "result" => %{"error" => msg}}
-        end
+        result = if run?, do: run_chart(workspace_id, block), else: %{"pending" => true}
+        %{"source" => Aveline.DataSources.safe_map(ds), "query_sql" => sql, "result" => result}
 
       %{workspace_id: ^workspace_id} = ds ->
         %{
           "source" => Aveline.DataSources.safe_map(ds),
-          "result" =>
-            %{"error" => "data source was deleted (credential destroyed); connect a new one and update this block"}
+          "result" => %{
+            "error" => "data source was deleted (credential destroyed); connect a new one and update this block"
+          }
         }
 
       _ ->
@@ -424,7 +516,25 @@ defmodule Aveline.Docs do
     end
   end
 
-  defp chart_echo(_block, _ws), do: %{"result" => %{"error" => "invalid chart block"}}
+  defp chart_echo(_block, _ws, _run?), do: %{"result" => %{"error" => "invalid chart block"}}
+
+  # A raw query's source is its external database; a derived query's
+  # source is the workspace catalog.
+  defp chart_source_echo(_workspace_id, %{kind: "raw", data_source_id: base_id}) do
+    case Aveline.DataSources.get_latest_by_base(base_id) do
+      # Source row gone entirely (not just soft-deleted): echo a neutral
+      # placeholder so the caption doesn't mislabel a raw chart "derived".
+      nil -> %{"source" => %{"name" => "(unknown source)", "adapter" => "sql"}}
+      ds -> %{"source" => Aveline.DataSources.safe_map(ds)}
+    end
+  end
+
+  defp chart_source_echo(workspace_id, %{kind: "derived"}) do
+    case Aveline.DataSources.workspace_source(workspace_id) do
+      nil -> %{}
+      ws_source -> %{"source" => Aveline.DataSources.safe_map(ws_source)}
+    end
+  end
 
   defp enrich_doc_links(blocks, workspace_id) when is_list(blocks) do
     block_ids =
@@ -744,50 +854,28 @@ defmodule Aveline.Docs do
     end
   end
 
-  # Typeless modify_block patches: `source`/`data_source_id` are chart
-  # keys (doc_link patches use `doc`/`doc_id` and match above).
-  defp resolve_block_target(%{"source" => name} = patch, ws_id) when is_binary(name),
-    do: resolve_chart_source(patch, ws_id)
-
-  defp resolve_block_target(%{"data_source_id" => id} = patch, ws_id) when is_binary(id),
+  # Typeless modify_block patches: `query_ref` is the chart key
+  # (doc_link patches use `doc`/`doc_id` and match above).
+  defp resolve_block_target(%{"query_ref" => ref} = patch, ws_id) when is_binary(ref),
     do: resolve_chart_source(patch, ws_id)
 
   defp resolve_block_target(block, _ws_id), do: {:ok, block}
 
-  defp resolve_chart_source(block, ws_id) do
-    cond do
-      is_binary(block["source"]) ->
-        case Aveline.DataSources.get_current_by_name(ws_id, block["source"]) do
-          nil ->
-            {:error, :data_source_not_found,
-             "data source not found in this workspace: #{block["source"]}"}
+  # A chart references a catalog query by name; verify it resolves (like
+  # a doc_link target). The query owns the SQL and the source, so the
+  # block carries nothing else.
+  defp resolve_chart_source(%{"query_ref" => ref} = block, ws_id) when is_binary(ref) do
+    case Aveline.DataSources.Queries.get_current_by_name(ws_id, String.downcase(ref)) do
+      nil ->
+        {:error, :query_not_found,
+         "no catalog query named #{inspect(ref)} — create it first (aveline create-query), then chart it"}
 
-          ds ->
-            {:ok,
-             block |> Map.delete("source") |> Map.put("data_source_id", ds.base_data_source_id)}
-        end
-
-      is_binary(block["data_source_id"]) ->
-        case Ecto.UUID.cast(block["data_source_id"]) do
-          # Not UUID-shaped: let Block.validate reject with the schema error.
-          :error ->
-            {:ok, block}
-
-          {:ok, _} ->
-            case Aveline.DataSources.get_current_by_base(block["data_source_id"]) do
-              %{workspace_id: ^ws_id} ->
-                {:ok, block}
-
-              _ ->
-                {:error, :data_source_not_found,
-                 "data source not found in this workspace: #{block["data_source_id"]}"}
-            end
-        end
-
-      true ->
+      _query ->
         {:ok, block}
     end
   end
+
+  defp resolve_chart_source(block, _ws_id), do: {:ok, block}
 
   defp resolve_span_links(%{} = block, ws_id) do
     walk_spans(block, fn

@@ -871,9 +871,21 @@ if is_nil(Aveline.DataSources.get_current_by_name(workspace.id, "aveline-self"))
     Aveline.DataSources.create(workspace.id, "aveline-self", self_template, self_password, alice.id)
 end
 
-chart = fn query, viz ->
-  %{"type" => "chart", "source" => "aveline-self", "query" => query, "viz" => viz}
+# Every chart references a NAMED query. `mk_query` creates one (raw if
+# `source` given, derived otherwise) and `chart` returns a block for it.
+mk_query = fn name, source, sql ->
+  if is_nil(Aveline.DataSources.Queries.get_current_by_name(workspace.id, name)) do
+    attrs = %{name: name, sql: sql} |> then(fn a -> if source, do: Map.put(a, :source, source), else: a end)
+    {:ok, _} = Aveline.DataSources.Queries.create(workspace.id, attrs, alice.id)
+  end
 end
+
+chart = fn name, viz -> %{"type" => "chart", "query_ref" => name, "viz" => viz} end
+
+mk_query.("versions_per_day", "aveline-self", "SELECT inserted_at::date AS day, count(*) AS versions FROM docs GROUP BY 1 ORDER BY 1")
+mk_query.("versions_by_actor", "aveline-self", "SELECT actor_type, count(*) AS versions FROM docs GROUP BY 1 ORDER BY 2 DESC")
+mk_query.("most_versioned_docs", "aveline-self", "SELECT title, max(version_number) AS versions FROM docs WHERE NOT superseded GROUP BY title ORDER BY 2 DESC LIMIT 5")
+mk_query.("broken_showcase", "aveline-self", "SELECT nope FROM does_not_exist")
 
 if is_nil(Docs.get_current_by_slug(workspace.id, "metrics-dashboard")) do
   {:ok, _dash} =
@@ -889,30 +901,107 @@ if is_nil(Docs.get_current_by_slug(workspace.id, "metrics-dashboard")) do
       intent: "seed a chart-block showcase against the dev DB itself",
       blocks: [
         para.([
-          t.("Every chart below runs a live read-only query against this workspace's own database through the "),
+          t.("Every chart below is a view over a named query on the "),
           b.("aveline-self", ["code"]),
-          t.(" data source. Edit the SQL with ordinary apply-ops.")
+          t.(" data source. See them all on that source's page.")
         ]),
         heading.(2, "Doc versions per day"),
-        chart.(
-          "SELECT inserted_at::date AS day, count(*) AS versions FROM docs GROUP BY 1 ORDER BY 1",
-          %{"type" => "line", "x" => "day", "y" => "versions"}
-        ),
+        chart.("versions_per_day", %{"type" => "line", "x" => "day", "y" => "versions"}),
         heading.(2, "Versions by actor type"),
-        chart.(
-          "SELECT actor_type, count(*) AS versions FROM docs GROUP BY 1 ORDER BY 2 DESC",
-          %{"type" => "bar", "x" => "actor_type", "y" => "versions"}
-        ),
+        chart.("versions_by_actor", %{"type" => "bar", "x" => "actor_type", "y" => "versions"}),
         heading.(2, "Most-versioned docs (table)"),
-        chart.(
-          "SELECT title, max(version_number) AS versions FROM docs WHERE NOT superseded GROUP BY title ORDER BY 2 DESC LIMIT 5",
-          %{"type" => "table"}
-        ),
+        chart.("most_versioned_docs", %{"type" => "table"}),
         heading.(2, "A broken query (error state showcase)"),
-        chart.(
-          "SELECT nope FROM does_not_exist",
-          %{"type" => "table"}
-        )
+        chart.("broken_showcase", %{"type" => "table"})
+      ]
+    })
+end
+
+# ===== Query catalog + workspace-source charts =====
+# The catalog layer: named queries built on aveline-self, composed in
+# the DuckDB engine through the built-in `workspace` source. Charts here
+# point at `workspace` and speak the analytics dialect (regressions,
+# window functions) over the catalog — things the raw source can't do in
+# one query. Idempotent: skip any query that already exists.
+
+catalog_specs = [
+  # raw leaves over the dev DB
+  {"docs_per_day", "aveline-self",
+   "SELECT inserted_at::date AS day, count(*) AS n FROM docs WHERE NOT superseded GROUP BY 1 ORDER BY 1"},
+  {"comments_per_day", "aveline-self",
+   "SELECT inserted_at::date AS day, count(*) AS n FROM doc_comments GROUP BY 1 ORDER BY 1"},
+  # derived: a cross-query join (docs vs comments per day) — neither
+  # leaf can answer this alone; the engine joins them.
+  {"activity_per_day", nil,
+   "SELECT d.day, d.n AS docs, coalesce(c.n, 0) AS comments FROM docs_per_day d LEFT JOIN comments_per_day c USING (day) ORDER BY d.day"},
+  # derived on derived (a chain): a rolling trend the source dialect
+  # can't express — window over the joined series.
+  {"activity_trend", nil,
+   "SELECT day, docs, avg(docs) OVER (ORDER BY day ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS docs_ma3, regr_slope(docs, epoch(day::timestamp)) OVER () AS slope FROM activity_per_day ORDER BY day"}
+]
+
+Enum.each(catalog_specs, fn {name, source, sql} ->
+  if is_nil(Aveline.DataSources.Queries.get_current_by_name(workspace.id, name)) do
+    attrs = %{name: name, sql: sql} |> then(fn a -> if source, do: Map.put(a, :source, source), else: a end)
+    {:ok, _} = Aveline.DataSources.Queries.create(workspace.id, attrs, alice.id)
+  end
+end)
+
+# Each chart is a view over a named derived query (named-only charts).
+mk_query.("docs_vs_comments", nil, "SELECT day, docs, comments FROM activity_per_day ORDER BY day")
+mk_query.("docs_ma3", nil, "SELECT day, docs, docs_ma3 FROM activity_trend ORDER BY day")
+mk_query.("docs_with_fit", nil, "SELECT day, docs, regr_slope(docs, epoch(day::timestamp)) OVER () * epoch(day::timestamp) + regr_intercept(docs, epoch(day::timestamp)) OVER () AS fit FROM activity_per_day ORDER BY day")
+mk_query.("docs_forecast", nil, "WITH pts AS (SELECT day, docs FROM activity_per_day), model AS (SELECT regr_slope(docs, epoch(day::timestamp)) AS m, regr_intercept(docs, epoch(day::timestamp)) AS b FROM pts), axis AS (SELECT unnest(generate_series((SELECT min(day) FROM pts), (SELECT max(day) FROM pts) + INTERVAL 7 DAY, INTERVAL 1 DAY))::date AS day) SELECT a.day, p.docs AS actual, round(m.m * epoch(a.day::timestamp) + m.b, 2) AS forecast FROM axis a CROSS JOIN model m LEFT JOIN pts p ON p.day = a.day ORDER BY a.day")
+mk_query.("docs_trend_slope", nil, "SELECT round(regr_slope(docs, epoch(day::timestamp)) * 86400, 4) AS docs_per_day_trend FROM activity_per_day")
+
+if is_nil(Docs.get_current_by_slug(workspace.id, "catalog-dashboard")) do
+  {:ok, _dash} =
+    Docs.create_doc(%{
+      workspace_id: workspace.id,
+      owner_id: alice.id,
+      actor_user_id: alice.id,
+      actor_type: "agent",
+      slug: "catalog-dashboard",
+      title: "Catalog dashboard (workspace source)",
+      summary: "Charts over the query catalog: a cross-query join and a rolling trend + regression, composed in the analytics engine.",
+      tags: ["product"],
+      intent: "seed a workspace-source chart showcase over the query catalog",
+      blocks: [
+        para.([
+          t.("These charts point at the built-in "),
+          b.("workspace", ["code"]),
+          t.(" source. Their SQL is the analytics dialect (DuckDB) over catalog queries — "),
+          b.("activity_per_day", ["code"]),
+          t.(" joins two raw queries, "),
+          b.("activity_trend", ["code"]),
+          t.(" chains on top with a moving average and a regression slope the source can't express.")
+        ]),
+        heading.(2, "Docs vs comments per day (cross-query join)"),
+        chart.("docs_vs_comments", %{"type" => "combo", "x" => "day", "series" => [%{"y" => "docs", "type" => "line"}, %{"y" => "comments", "type" => "bar"}]}),
+        heading.(2, "Docs per day with 3-day moving average (chained derived query)"),
+        chart.("docs_ma3", %{"type" => "combo", "x" => "day", "series" => [%{"y" => "docs", "type" => "bar"}, %{"y" => "docs_ma3", "type" => "line"}]}),
+        heading.(2, "Docs per day with a fitted regression line"),
+        para.([
+          t.("The "),
+          b.("fit", ["code"]),
+          t.(" series is the least-squares line, computed in SQL: "),
+          b.("regr_slope(y, x) OVER () * x + regr_intercept(y, x) OVER ()", ["code"]),
+          t.(". Plotted as a line over the actual bars. The source dialect can't do this; the engine can.")
+        ]),
+        chart.("docs_with_fit", %{"type" => "combo", "x" => "day", "series" => [%{"y" => "docs", "type" => "bar"}, %{"y" => "fit", "type" => "line"}]}),
+        heading.(2, "7-day forecast (regression extended past the data)"),
+        para.([
+          t.("The fit line evaluated at future dates the data doesn't have: "),
+          b.("generate_series", ["code"]),
+          t.(" fabricates the next 7 days, and the regression formula projects onto them. "),
+          b.("actual", ["code"]),
+          t.(" stops at the last real day; "),
+          b.("forecast", ["code"]),
+          t.(" runs 7 days past it. (Linear extrapolation of a steep toy trend dives negative fast — that's the math, not a bug.)")
+        ]),
+        chart.("docs_forecast", %{"type" => "combo", "x" => "day", "series" => [%{"y" => "actual", "type" => "bar"}, %{"y" => "forecast", "type" => "line"}]}),
+        heading.(2, "Ad-hoc: regression slope over the catalog (table)"),
+        chart.("docs_trend_slope", %{"type" => "table"})
       ]
     })
 end

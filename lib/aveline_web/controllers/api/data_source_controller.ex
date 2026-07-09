@@ -72,7 +72,19 @@ defmodule AvelineWeb.Api.DataSourceController do
 
       true ->
         with %{} = ds <- DataSources.get_current_by_name(ws.id, name) || {:error, :not_found} do
-          case Aveline.DataSources.Runner.run(ds, query) do
+          # The built-in "derived" source composes catalog queries in the
+          # analytics engine (cross-source joins from the CLI, nothing
+          # rendered, nothing saved). Leaves ride the 60s cache — shared
+          # building blocks; predictable load on customer databases
+          # beats 60s freshness. External sources stay cache-free here:
+          # an agent iterating on raw SQL wants fresh results.
+          run_result =
+            case ds.adapter do
+              "workspace" -> Aveline.DataSources.Catalog.run(ws.id, query)
+              _ -> Aveline.DataSources.Runner.run(ds, query)
+            end
+
+          case run_result do
             {:ok, result} -> Envelope.ok(conn, result)
             {:error, msg} -> {:error, :query_failed, msg}
           end

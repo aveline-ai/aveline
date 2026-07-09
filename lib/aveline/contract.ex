@@ -143,15 +143,15 @@ defmodule Aveline.Contract do
       },
       %{
         "type" => "chart",
-        "summary" => "A live SQL query against a workspace data source, rendered as a chart or table.",
+        "summary" => "A view over a named catalog query, rendered as a chart or table.",
         "example" => %{
           "type" => "chart",
-          "data_source_id" => "00000000-0000-0000-0000-000000000000",
-          "query" => "select day, signups from daily_growth order by day",
+          "query_ref" => "daily_growth",
           "viz" => %{"type" => "bar", "x" => "day", "y" => "signups"}
         },
         "notes" => [
-          "Prefer `source: <data-source-name>` over data_source_id — the server resolves it.",
+          "query_ref names a catalog query — create it first (create-query), then chart it. Charts carry no SQL; the query owns it.",
+          "A raw query runs against its data source; a derived query composes other queries in the analytics engine.",
           "viz.type is table | line | bar | combo. line/bar need x and y column names.",
           "combo needs x and 1-4 series: [{y: <col>, type: line|bar, axis?: left|right}].",
           "Reads gain a computed result (columns/rows or an error) — never write result back."

@@ -102,5 +102,4 @@ defmodule Aveline.CommentsOpenThreadsTest do
 
     assert Comments.list_open_threads_for_owner(ws.id, owner.id) == []
   end
-
 end

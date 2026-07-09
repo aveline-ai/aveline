@@ -77,6 +77,20 @@ defmodule Aveline.Fixtures do
     {token, plaintext}
   end
 
+  @doc "Create a catalog query. Pass `source:` for a raw query; omit for derived."
+  def query_fixture(workspace, user, name, sql, opts \\ []) do
+    attrs =
+      %{name: name, sql: sql}
+      |> then(fn a -> if opts[:source], do: Map.put(a, :source, opts[:source]), else: a end)
+
+    {:ok, q} = Aveline.DataSources.Queries.create(workspace.id, attrs, user.id)
+    q
+  end
+
+  @doc "A chart block referencing a named query (the current chart shape)."
+  def chart_block(query_ref, viz \\ %{"type" => "table"}),
+    do: %{"type" => "chart", "query_ref" => query_ref, "viz" => viz}
+
   defp stringify(attrs) when is_map(attrs) do
     Enum.into(attrs, %{}, fn
       {k, v} when is_atom(k) -> {Atom.to_string(k), v}

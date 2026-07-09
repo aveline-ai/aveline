@@ -78,5 +78,4 @@ defmodule Aveline.DocViewsRecentTest do
     assert [{d, _}] = DocViews.recent_for_user(ws.id, user.id, 5)
     assert d.version_number == 3
   end
-
 end
