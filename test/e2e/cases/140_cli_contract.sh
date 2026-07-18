@@ -70,9 +70,11 @@ test_unknown_verb_local_error() {
 test_help_lists_every_verb() {
   XDG_CONFIG_HOME="$(persona_xdg)" "$E2E_BIN" --help > "$(mktemp /tmp/aveline-help-XXXX)" 2>&1
   local helptxt; helptxt="$(XDG_CONFIG_HOME="$(persona_xdg)" "$E2E_BIN" --help 2>&1)"
-  # Spot-check verbs from every category.
+  # Spot-check verbs from every category. apply-ops is a hidden alias of
+  # edit-doc, so it legitimately isn't in top-level help (its alias
+  # behavior is covered by test_per_verb_help_renders below).
   local missing=0
-  for v in list-docs create-doc apply-ops list-comments create-tag list-members get-invite list-events heartbeat whoami; do
+  for v in list-docs create-doc edit-doc list-comments create-tag list-members get-invite list-events heartbeat whoami; do
     if ! grep -q "$v" <<<"$helptxt"; then
       missing=$((missing + 1))
       fail "help missing $v"
