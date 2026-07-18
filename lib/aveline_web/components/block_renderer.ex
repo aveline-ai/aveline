@@ -171,16 +171,25 @@ defmodule AvelineWeb.BlockRenderer do
     result = assigns.block["result"] || %{"error" => "no result"}
     viz = assigns.block["viz"] || %{"type" => "table"}
     source = assigns.block["source"]
+    table_primary? = viz["type"] == "table"
 
     rendered =
       cond do
         result["pending"] -> :pending
         result["idle"] -> :idle
-        viz["type"] == "table" -> {:table, result}
+        table_primary? -> {:table, result}
         true -> AvelineWeb.ChartRenderer.spec(result, viz)
       end
 
-    assigns = assign(assigns, rendered: rendered, source: source, result: result)
+    assigns =
+      assign(assigns,
+        rendered: rendered,
+        source: source,
+        result: result,
+        # A table-primary chart already IS the raw view — the extra
+        # results tab would be redundant, so it only exists for charts.
+        table_primary?: table_primary?
+      )
 
     ~H"""
     <div id={@block["id"]} class="blk-chart blk-anchored">
@@ -192,7 +201,16 @@ defmodule AvelineWeb.BlockRenderer do
           class="chart-tab chart-tab-active"
           phx-click={chart_tab(@block["id"], "viz")}
         >
-          chart
+          {if @table_primary?, do: "table", else: "chart"}
+        </button>
+        <button
+          :if={not @table_primary?}
+          type="button"
+          id={@block["id"] <> "-tab-table"}
+          class="chart-tab"
+          phx-click={chart_tab(@block["id"], "table")}
+        >
+          table
         </button>
         <button type="button" id={@block["id"] <> "-tab-sql"} class="chart-tab">
           sql
@@ -225,21 +243,8 @@ defmodule AvelineWeb.BlockRenderer do
               data-spec={Jason.encode!(spec)}
             >
             </div>
-          <% {:table, %{"columns" => cols, "rows" => rows}} -> %>
-            <div class="blk-table-wrap">
-              <table class="blk-table">
-                <thead>
-                  <tr>
-                    <th :for={c <- cols}>{c}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr :for={row <- rows}>
-                    <td :for={cell <- row}>{display_cell(cell)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          <% {:table, %{"columns" => _} = tbl} -> %>
+            <.results_table result={tbl} />
           <% {:table, %{"error" => msg}} -> %>
             <div class="chart-error">
               {msg}
@@ -266,6 +271,22 @@ defmodule AvelineWeb.BlockRenderer do
             </div>
           <% _ -> %>
             <div class="chart-error">nothing to render</div>
+        <% end %>
+      </div>
+      <div :if={not @table_primary?} id={@block["id"] <> "-pane-table"} hidden>
+        <%= cond do %>
+          <% @result["pending"] -> %>
+            <div class="chart-placeholder">
+              <span class="chart-spinner"></span> running query…
+            </div>
+          <% @result["idle"] -> %>
+            <div class="chart-placeholder">
+              <span class="chart-idle-note">run the query from the {if @table_primary?, do: "table", else: "chart"} tab to see rows</span>
+            </div>
+          <% @result["columns"] -> %>
+            <.results_table result={@result} />
+          <% true -> %>
+            <div class="chart-error">{@result["error"] || "nothing to render"}</div>
         <% end %>
       </div>
       <div
@@ -426,16 +447,45 @@ defmodule AvelineWeb.BlockRenderer do
   defp sql_dialect(%{"adapter" => "workspace"}), do: "postgresql"
   defp sql_dialect(_), do: "sql"
 
-  # Client-only pane switch: show one pane, hide the other, move the
-  # active class. No server round trip for a peek at the SQL.
+  # Client-only pane switch: show one pane, hide the rest, move the
+  # active class. No server round trip for a peek at the SQL or rows.
+  # Hides on absent panes (table-primary charts have no table pane) are
+  # no-ops.
   defp chart_tab(block_id, show) do
-    hide = if show == "viz", do: "sql", else: "viz"
-
-    %Phoenix.LiveView.JS{}
-    |> Phoenix.LiveView.JS.show(to: "##{block_id}-pane-#{show}")
-    |> Phoenix.LiveView.JS.hide(to: "##{block_id}-pane-#{hide}")
+    ["viz", "table", "sql"]
+    |> List.delete(show)
+    |> Enum.reduce(
+      Phoenix.LiveView.JS.show(%Phoenix.LiveView.JS{}, to: "##{block_id}-pane-#{show}"),
+      fn hide, js ->
+        js
+        |> Phoenix.LiveView.JS.hide(to: "##{block_id}-pane-#{hide}")
+        |> Phoenix.LiveView.JS.remove_class("chart-tab-active", to: "##{block_id}-tab-#{hide}")
+      end
+    )
     |> Phoenix.LiveView.JS.add_class("chart-tab-active", to: "##{block_id}-tab-#{show}")
-    |> Phoenix.LiveView.JS.remove_class("chart-tab-active", to: "##{block_id}-tab-#{hide}")
+  end
+
+  # Raw query results as a table — the table-primary render and every
+  # chart's "table" tab share this markup.
+  attr :result, :map, required: true
+
+  defp results_table(assigns) do
+    ~H"""
+    <div class="blk-table-wrap">
+      <table class="blk-table">
+        <thead>
+          <tr>
+            <th :for={c <- @result["columns"]}>{c}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr :for={row <- @result["rows"]}>
+            <td :for={cell <- row}>{display_cell(cell)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    """
   end
 
   defp display_cell(nil), do: ""

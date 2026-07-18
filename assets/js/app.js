@@ -270,14 +270,16 @@ const Hooks = {
     },
     reveal() {
       const base = this.el.id.replace("-pane-sql", "")
-      const viz = document.getElementById(base + "-pane-viz")
-      if (viz) viz.style.display = "none"
+      for (const pane of ["viz", "table"]) {
+        const el = document.getElementById(base + "-pane-" + pane)
+        if (el) el.style.display = "none"
+        const tab = document.getElementById(base + "-tab-" + pane)
+        if (tab) tab.classList.remove("chart-tab-active")
+      }
       this.el.hidden = false
       this.el.style.display = ""
       const sqlTab = document.getElementById(base + "-tab-sql")
-      const vizTab = document.getElementById(base + "-tab-viz")
       if (sqlTab) sqlTab.classList.add("chart-tab-active")
-      if (vizTab) vizTab.classList.remove("chart-tab-active")
     },
   },
 
