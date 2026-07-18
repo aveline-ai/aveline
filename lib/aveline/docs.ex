@@ -36,10 +36,11 @@ defmodule Aveline.Docs do
   end
 
   def list_current(workspace_id, opts \\ []) do
-    sort = Keyword.get(opts, :sort, :recent)
     tags = Keyword.get(opts, :tags, []) || []
     owner_ids = Keyword.get(opts, :owner_ids, []) || []
     search = (Keyword.get(opts, :search) || "") |> to_string() |> String.trim()
+    # No explicit sort + a search query → relevance; recency otherwise.
+    sort = Keyword.get(opts, :sort) || if(search == "", do: :recent, else: :relevance)
     updated = Keyword.get(opts, :updated)
     limit = Keyword.get(opts, :limit)
     offset = Keyword.get(opts, :offset, 0)
@@ -53,7 +54,8 @@ defmodule Aveline.Docs do
     |> maybe_filter_owners(owner_ids)
     |> maybe_filter_search(search)
     |> maybe_filter_updated(updated)
-    |> apply_sort(sort)
+    |> apply_sort(sort, search)
+    |> maybe_select_snippet(search)
     |> maybe_paginate(limit, offset)
     |> Repo.all()
     |> Repo.preload([:owner, :actor_user])
@@ -145,15 +147,50 @@ defmodule Aveline.Docs do
     do: from(d in query, limit: ^limit, offset: ^offset)
 
   # Sort modes:
-  #   :recent → updated_at desc (last edited)
-  #   :kudos  → kudos count desc, then updated_at desc
-  #   :views  → view count desc, then updated_at desc
+  #   :recent    → updated_at desc (last edited)
+  #   :kudos     → kudos count desc, then updated_at desc
+  #   :views     → view count desc, then updated_at desc
+  #   :relevance → ts_rank against the search query, then updated_at desc
+  #                (falls back to :recent when there is no query to rank by)
   # Pins are a home-page concept; they don't influence list ordering.
-  defp apply_sort(query, :recent),
+  defp apply_sort(query, :relevance, ""), do: apply_sort(query, :recent, "")
+
+  defp apply_sort(query, :relevance, q) do
+    from d in query,
+      order_by: [
+        desc:
+          fragment(
+            "ts_rank(to_tsvector('english', ?), websearch_to_tsquery('english', ?))",
+            d.search_text,
+            ^q
+          ),
+        desc: d.updated_at
+      ]
+  end
+
+  defp apply_sort(query, :recent, _),
     do: from(d in query, order_by: [desc: d.updated_at])
 
-  defp apply_sort(query, :kudos), do: count_join_sort(query, "doc_kudos")
-  defp apply_sort(query, :views), do: count_join_sort(query, "doc_views")
+  defp apply_sort(query, :kudos, _), do: count_join_sort(query, "doc_kudos")
+  defp apply_sort(query, :views, _), do: count_join_sort(query, "doc_views")
+
+  # A ts_headline extract of why the doc matched. Computed per matching
+  # row (the sort may materialize it pre-limit); fine at current corpus
+  # sizes — revisit with a lateral-on-limited-rows shape if it shows up
+  # in slow queries.
+  defp maybe_select_snippet(query, ""), do: query
+
+  defp maybe_select_snippet(query, q) do
+    from d in query,
+      select_merge: %{
+        search_snippet:
+          fragment(
+            "ts_headline('english', ?, websearch_to_tsquery('english', ?), 'StartSel=**, StopSel=**, MaxFragments=2, MaxWords=12, MinWords=4')",
+            d.search_text,
+            ^q
+          )
+      }
+  end
 
   defp count_join_sort(query, table) do
     from d in query,

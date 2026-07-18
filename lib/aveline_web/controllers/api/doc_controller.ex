@@ -9,6 +9,7 @@ defmodule AvelineWeb.Api.DocController do
   alias Aveline.Docs
   alias Aveline.DocViews
   alias Aveline.Kudos
+  alias Aveline.Workspaces
   alias AvelineWeb.Api.Envelope
   alias AvelineWeb.Api.Views
 
@@ -16,16 +17,79 @@ defmodule AvelineWeb.Api.DocController do
 
   # ===== Reads =====
 
+  # Results are capped so an unbounded corpus can't blow out an agent's
+  # context window; explicit ?limit goes up to @max_limit.
+  @default_limit 25
+  @max_limit 100
+
   def index(conn, params) do
     ws = conn.assigns.current_workspace
 
-    items =
-      Docs.list_current(ws.id,
-        tags: parse_tag_list(params["tag"] || params["tags"]),
-        updated: params["edited"] || params["updated"]
-      )
+    with {:ok, sort} <- parse_sort(params["sort"]),
+         {:ok, limit} <- parse_limit(params["limit"]),
+         {:ok, offset} <- parse_offset(params["offset"]),
+         {:ok, owner_ids} <- resolve_authors(ws.id, parse_tag_list(params["author"] || params["authors"])) do
+      items =
+        Docs.list_current(ws.id,
+          tags: parse_tag_list(params["tag"] || params["tags"]),
+          updated: params["edited"] || params["updated"],
+          search: params["q"],
+          sort: sort,
+          owner_ids: owner_ids,
+          limit: limit,
+          offset: offset
+        )
 
-    Envelope.ok(conn, %{docs: Enum.map(items, &Views.doc_summary/1)})
+      Envelope.ok(conn, %{docs: Enum.map(items, &Views.doc_summary/1)})
+    end
+  end
+
+  # nil sort → Docs.list_current picks (relevance with a query, recency without).
+  defp parse_sort(nil), do: {:ok, nil}
+  defp parse_sort(""), do: {:ok, nil}
+  defp parse_sort("recent"), do: {:ok, :recent}
+  defp parse_sort("kudos"), do: {:ok, :kudos}
+  defp parse_sort("views"), do: {:ok, :views}
+  defp parse_sort("relevance"), do: {:ok, :relevance}
+
+  defp parse_sort(other),
+    do: {:error, {:list_param_invalid, "sort must be recent | kudos | views | relevance, got: #{inspect(other)}"}}
+
+  defp parse_limit(nil), do: {:ok, @default_limit}
+  defp parse_limit(""), do: {:ok, @default_limit}
+
+  defp parse_limit(raw) do
+    case Integer.parse(to_string(raw)) do
+      {n, ""} when n in 1..@max_limit ->
+        {:ok, n}
+
+      _ ->
+        {:error, {:list_param_invalid, "limit must be an integer between 1 and #{@max_limit}"}}
+    end
+  end
+
+  defp parse_offset(nil), do: {:ok, 0}
+  defp parse_offset(""), do: {:ok, 0}
+
+  defp parse_offset(raw) do
+    case Integer.parse(to_string(raw)) do
+      {n, ""} when n >= 0 -> {:ok, n}
+      _ -> {:error, {:list_param_invalid, "offset must be a non-negative integer"}}
+    end
+  end
+
+  defp resolve_authors(_ws_id, []), do: {:ok, []}
+
+  defp resolve_authors(ws_id, usernames) do
+    by_name =
+      ws_id
+      |> Workspaces.list_members()
+      |> Map.new(fn m -> {m.user.username, m.user.id} end)
+
+    case Enum.reject(usernames, &Map.has_key?(by_name, &1)) do
+      [] -> {:ok, Enum.map(usernames, &Map.fetch!(by_name, &1))}
+      unknown -> {:error, {:unknown_authors, unknown}}
+    end
   end
 
   def show(conn, %{"doc_slug" => slug}) do

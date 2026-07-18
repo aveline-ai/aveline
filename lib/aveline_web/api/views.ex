@@ -63,7 +63,15 @@ defmodule AvelineWeb.Api.Views do
       "owner" => user(preload(d, :owner)),
       "updated_at" => iso(d.updated_at)
     }
+    |> maybe_put_snippet(d)
   end
+
+  # Present only on search hits: a ts_headline extract (**match** marked)
+  # saying why the doc matched, so agents can triage without a get-doc.
+  defp maybe_put_snippet(map, %Doc{search_snippet: s}) when is_binary(s) and s != "",
+    do: Map.put(map, "snippet", s)
+
+  defp maybe_put_snippet(map, _), do: map
 
   @doc """
   Shape returned by GET /docs/:slug — full body, blocks included.

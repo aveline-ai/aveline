@@ -61,6 +61,9 @@ defmodule Aveline.Docs.Doc do
     # Docs.apply_ops. The English tsvector is built from this column via
     # the docs_search_idx GIN index.
     field :search_text, :string, default: ""
+    # ts_headline extract set by Docs.list_current when a search query is
+    # present — why this doc matched, never persisted.
+    field :search_snippet, :string, virtual: true
     # Mechanism vs intent (house model): superseded = a newer version
     # exists; deleted_at (+deleted_by) = a human deleted the doc.
     field :superseded, :boolean, default: false

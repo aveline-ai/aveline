@@ -47,6 +47,17 @@ defmodule AvelineWeb.Api.FallbackController do
         unknown_tags: slugs
       })
 
+  # ===== List / search params =====
+
+  def call(conn, {:error, {:list_param_invalid, message}}),
+    do: err(conn, 422, "list_param_invalid", message)
+
+  def call(conn, {:error, {:unknown_authors, usernames}}),
+    do:
+      err(conn, 422, "unknown_authors", "One or more authors aren't members of this workspace.", %{
+        unknown_authors: usernames
+      })
+
   # ===== Comment dispositions =====
 
   def call(conn, {:error, {:disposition_missing, missing}}),
