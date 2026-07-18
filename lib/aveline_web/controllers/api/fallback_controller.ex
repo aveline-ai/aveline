@@ -47,6 +47,12 @@ defmodule AvelineWeb.Api.FallbackController do
         unknown_tags: slugs
       })
 
+  # ===== API keys =====
+
+  def call(conn, {:error, :last_key}),
+    do:
+      err(conn, 422, "last_key", "That's the only active key on this account. Create a replacement first, then revoke this one.")
+
   # ===== List / search params =====
 
   def call(conn, {:error, {:list_param_invalid, message}}),

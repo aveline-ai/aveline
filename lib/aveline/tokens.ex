@@ -43,7 +43,8 @@ defmodule Aveline.Tokens do
         user_id: user_id,
         name: name,
         token_hash: hash(plaintext),
-        token_prefix: String.slice(plaintext, 0, 8)
+        token_prefix: String.slice(plaintext, 0, 8),
+        token_suffix: String.slice(plaintext, -4, 4)
       }
 
       case %ApiToken{} |> ApiToken.changeset(attrs) |> Repo.insert() do
@@ -110,6 +111,41 @@ defmodule Aveline.Tokens do
     )
     |> Repo.all()
   end
+
+  @doc "The user's active (non-revoked) keys, newest first."
+  def list_active_for_user(user_id) do
+    from(t in base_query(),
+      where: t.user_id == ^user_id,
+      order_by: [desc: t.inserted_at]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Revoke one of the user's own keys, refusing to strand the account:
+  the last active key can't be revoked (`{:error, :last_key}`). Returns
+  `{:error, :not_found}` for another user's key or an already-revoked id.
+  """
+  def revoke_guarded(user_id, token_id) when is_binary(user_id) and is_binary(token_id) do
+    case Repo.one(from(t in base_query(), where: t.id == ^token_id and t.user_id == ^user_id)) do
+      nil ->
+        {:error, :not_found}
+
+      token ->
+        others =
+          from(t in base_query(), where: t.user_id == ^user_id and t.id != ^token_id)
+          |> Repo.aggregate(:count, :id)
+
+        if others == 0, do: {:error, :last_key}, else: revoke(token)
+    end
+  end
+
+  @doc """
+  Masked display for a key: "avl_…a1b2" via the persisted suffix, or the
+  stored prefix ("avl_AbCd…") for keys minted before suffixes existed.
+  """
+  def masked(%ApiToken{token_suffix: s}) when is_binary(s) and s != "", do: "avl_…" <> s
+  def masked(%ApiToken{token_prefix: p}), do: (p || "avl_") <> "…"
 
   # ===== Internals =====
 

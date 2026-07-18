@@ -77,6 +77,9 @@ defmodule AvelineWeb.Router do
     pipe_through :api_auth
 
     get "/me", MeController, :show
+    get "/keys", KeyController, :index
+    post "/keys", KeyController, :create
+    delete "/keys/:id", KeyController, :delete
     get "/contract", ContractController, :show
     get "/workspaces", WorkspaceController, :index
     post "/workspaces", WorkspaceController, :create

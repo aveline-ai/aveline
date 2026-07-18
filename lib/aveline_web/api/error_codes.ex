@@ -42,6 +42,7 @@ defmodule AvelineWeb.Api.ErrorCodes do
   | password_required          | 422  | template change submitted without the password (secrets never pair with new settings) |
   | query_failed               | 422  | ad-hoc data source query failed (carries the driver's message)                        |
   | view_invalid               | 422  | view config rejected (unknown tags, bad group_by scope)                               |
+  | last_key                   | 422  | tried to revoke the account's only active API key — mint a replacement first          |
   | list_param_invalid         | 422  | bad list/search param (sort not a known mode, limit/offset not sane integers)         |
   | unknown_authors            | 422  | one or more author usernames aren't members of this workspace                         |
   | internal_error             | 500  | something unexpected blew up                                                          |
@@ -82,6 +83,7 @@ defmodule AvelineWeb.Api.ErrorCodes do
       password_required
       query_failed
       view_invalid
+      last_key
       list_param_invalid
       unknown_authors
       internal_error
