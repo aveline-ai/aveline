@@ -58,7 +58,9 @@ defmodule AvelineWeb.Router do
     # Usage merged into Team; old links land on the Team page.
     get "/w/:slug/usage", RedirectController, :team
     live "/w/:slug/data-sources", DataSourcesLive, :index
-    live "/w/:slug/data-sources/:name", DataSourceShowLive, :show
+    # Per-source detail pages folded into the Data sources page (query
+    # modal + source filter); old links land on the list.
+    get "/w/:slug/data-sources/:name", RedirectController, :data_sources
     live "/w/:slug/team", TeamLive, :index
     live "/w/:slug/settings", SettingsLive, :index
   end
@@ -130,6 +132,11 @@ defmodule AvelineWeb.Router do
     post "/views/:name/restore", ViewController, :restore
     post "/views/:name/pin", ViewController, :pin
     delete "/views/:name/pin", ViewController, :unpin
+
+    # Timeline milestones — dated facts overlaid on time-series charts.
+    get "/milestones", MilestoneController, :index
+    post "/milestones", MilestoneController, :create
+    delete "/milestones/:id", MilestoneController, :delete
 
     get "/data-sources", DataSourceController, :index
     post "/data-sources", DataSourceController, :create

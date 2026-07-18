@@ -54,7 +54,7 @@ defmodule AvelineWeb.Api.QueryController do
     user = conn.assigns.current_user
 
     attrs =
-      %{name: params["name"], sql: params["sql"]}
+      %{name: params["name"], sql: params["sql"], description: params["description"]}
       |> then(fn a -> if params["source"], do: Map.put(a, :source, params["source"]), else: a end)
 
     with {:ok, query} <- Queries.create(ws.id, attrs, user.id) do
@@ -62,7 +62,7 @@ defmodule AvelineWeb.Api.QueryController do
     end
   end
 
-  @doc "Versioned edit. Body: any of `new_name`, `sql`."
+  @doc "Versioned edit. Body: any of `new_name`, `description`, `sql`."
   def update(conn, %{"name" => name} = params) do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
@@ -71,6 +71,11 @@ defmodule AvelineWeb.Api.QueryController do
       %{}
       |> then(fn c -> if params["new_name"], do: Map.put(c, :name, params["new_name"]), else: c end)
       |> then(fn c -> if params["sql"], do: Map.put(c, :sql, params["sql"]), else: c end)
+      |> then(fn c ->
+        if Map.has_key?(params, "description"),
+          do: Map.put(c, :description, params["description"]),
+          else: c
+      end)
 
     with %{} = query <- Queries.get_current_by_name(ws.id, name) || {:error, :not_found},
          {:ok, updated} <- Queries.edit(query, changes, user.id) do

@@ -77,10 +77,11 @@ defmodule Aveline.DataSources.Queries do
   def create(workspace_id, attrs, user_id) do
     name = attrs |> Map.get(:name, "") |> to_string() |> String.trim() |> String.downcase()
     sql = attrs |> Map.get(:sql, "") |> to_string()
+    description = normalize_description(Map.get(attrs, :description))
 
     case Map.get(attrs, :source) do
       nil ->
-        insert_derived(workspace_id, name, sql, user_id)
+        insert_derived(workspace_id, name, description, sql, user_id)
 
       source_name ->
         case DataSources.get_current_by_name(workspace_id, to_string(source_name)) do
@@ -94,6 +95,7 @@ defmodule Aveline.DataSources.Queries do
           source ->
             insert(workspace_id, %{
               name: name,
+              description: description,
               kind: "raw",
               data_source_id: source.base_data_source_id,
               sql: sql,
@@ -103,13 +105,14 @@ defmodule Aveline.DataSources.Queries do
     end
   end
 
-  defp insert_derived(workspace_id, name, sql, user_id) do
+  defp insert_derived(workspace_id, name, description, sql, user_id) do
     with_graph_lock(workspace_id, fn ->
       with {:ok, refs} <- parse_derived(sql),
            :ok <- refs_resolve(workspace_id, refs, name),
            :ok <- graph_stays_dag(workspace_id, name, refs) do
         insert(workspace_id, %{
           name: name,
+          description: description,
           kind: "derived",
           data_source_id: nil,
           sql: sql,
@@ -117,6 +120,15 @@ defmodule Aveline.DataSources.Queries do
         })
       end
     end)
+  end
+
+  defp normalize_description(nil), do: nil
+
+  defp normalize_description(d) do
+    case d |> to_string() |> String.trim() do
+      "" -> nil
+      trimmed -> trimmed
+    end
   end
 
   defp insert(workspace_id, attrs) do
@@ -127,8 +139,9 @@ defmodule Aveline.DataSources.Queries do
   end
 
   @doc """
-  Versioned edit; `changes` may carry `:name` and/or `:sql`. Renames are
-  rejected while other derived queries reference the old name.
+  Versioned edit; `changes` may carry `:name`, `:description`, and/or
+  `:sql`. Renames are rejected while other derived queries reference the
+  old name.
   """
   def edit(%Query{} = current, changes, user_id) when is_map(changes) do
     name =
@@ -136,12 +149,17 @@ defmodule Aveline.DataSources.Queries do
 
     sql = changes |> Map.get(:sql, current.sql) |> to_string()
 
+    description =
+      if Map.has_key?(changes, :description),
+        do: normalize_description(Map.get(changes, :description)),
+        else: current.description
+
     with_graph_lock(current.workspace_id, fn ->
       rename? = name != current.name
 
       with :ok <- if(rename?, do: no_derived_dependents(current, "rename"), else: :ok),
            :ok <- validate_for_kind(current, name, sql) do
-        insert_next_version(current, %{name: name, sql: sql}, user_id)
+        insert_next_version(current, %{name: name, description: description, sql: sql}, user_id)
       end
     end)
   end
@@ -192,6 +210,7 @@ defmodule Aveline.DataSources.Queries do
             base_query_id: current.base_query_id,
             version_number: current.version_number + 1,
             name: attrs.name,
+            description: Map.get(attrs, :description, current.description),
             kind: current.kind,
             data_source_id: current.data_source_id,
             sql: attrs.sql,
@@ -360,6 +379,7 @@ defmodule Aveline.DataSources.Queries do
   def safe_map(%Query{} = q) do
     %{
       "name" => q.name,
+      "description" => q.description,
       "kind" => q.kind,
       "data_source_id" => q.data_source_id,
       "sql" => q.sql,

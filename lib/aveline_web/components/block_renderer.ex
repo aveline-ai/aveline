@@ -23,6 +23,9 @@ defmodule AvelineWeb.BlockRenderer do
   attr :block, :map, required: true
   attr :ws_slug, :string, default: nil
   attr :tag_colors, :map, default: %{}
+  # Timeline milestones (safe maps) — charts overlay the ones their
+  # x-range spans as vertical markers.
+  attr :milestones, :list, default: []
 
   def block(%{block: %{"type" => "heading"}} = assigns) do
     ~H"""
@@ -175,10 +178,23 @@ defmodule AvelineWeb.BlockRenderer do
 
     rendered =
       cond do
-        result["pending"] -> :pending
-        result["idle"] -> :idle
-        table_primary? -> {:table, result}
-        true -> AvelineWeb.ChartRenderer.spec(result, viz)
+        result["pending"] ->
+          :pending
+
+        result["idle"] ->
+          :idle
+
+        table_primary? ->
+          {:table, result}
+
+        true ->
+          case AvelineWeb.ChartRenderer.spec(result, viz) do
+            {:ok, spec} ->
+              {:ok, Map.put(spec, "milestones", Map.get(assigns, :milestones, []))}
+
+            other ->
+              other
+          end
       end
 
     assigns =

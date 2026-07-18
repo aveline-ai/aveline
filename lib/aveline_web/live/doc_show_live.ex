@@ -100,6 +100,9 @@ defmodule AvelineWeb.DocShowLive do
                 # current or a historical version.
                 current_doc: current_doc,
                 tag_colors: tag_colors,
+                # Timeline milestones — time-series charts overlay the
+                # ones their x-range spans as vertical markers.
+                milestones: Enum.map(Aveline.Milestones.list_active(ws.id), &Aveline.Milestones.safe_map/1),
                 item: showing,
                 historical?: is_historical,
                 messages: messages,
@@ -884,7 +887,12 @@ defmodule AvelineWeb.DocShowLive do
         <article class="prose">
           <div class="blocks">
             <%= for b <- @item.blocks || [] do %>
-              <AvelineWeb.BlockRenderer.block block={b} ws_slug={@workspace.slug} tag_colors={@tag_colors} />
+              <AvelineWeb.BlockRenderer.block
+                block={b}
+                ws_slug={@workspace.slug}
+                tag_colors={@tag_colors}
+                milestones={@milestones}
+              />
               <.block_comment_zone
                 block_id={b["id"]}
                 threads={Map.get(@threads_by_block, b["id"], [])}

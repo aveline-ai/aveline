@@ -186,6 +186,53 @@ const Hooks = {
           : { ...base, type: "bar", barMaxWidth: 42, itemStyle: { borderRadius: [3, 3, 0, 0] } }
       })
 
+      // Timeline milestones whose date falls inside the x-range render
+      // as labeled vertical markers on the first series. Dates are
+      // ISO-day strings; on a time axis compare day prefixes, on a
+      // category axis the date must be one of the categories.
+      const day = (v) => String(v).slice(0, 10)
+      const inRange = (date) => {
+        if (temporal) {
+          const days = present.map(day)
+          const min = days.reduce((a, b) => (a < b ? a : b))
+          const max = days.reduce((a, b) => (a > b ? a : b))
+          return date >= min && date <= max
+        }
+        return xs.some((v) => v !== null && day(v) === date)
+      }
+      const marks = (spec.milestones || []).filter((m) => m.date && inRange(m.date))
+      if (marks.length && series.length) {
+        const attn = color("--attn", "#E09150")
+        series[0].markLine = {
+          symbol: "none",
+          animation: false,
+          silent: false,
+          lineStyle: { color: attn, type: "dashed", width: 1, opacity: 0.6 },
+          label: {
+            show: true,
+            position: "insideEndTop",
+            color: attn,
+            fontSize: 10,
+            opacity: 0.9,
+            formatter: (p) => p.name,
+          },
+          emphasis: { lineStyle: { opacity: 1 }, label: { opacity: 1 } },
+          tooltip: {
+            formatter: (p) =>
+              `<strong>${p.name}</strong><br/>${p.data.milestoneDate}` +
+              (p.data.description ? `<br/>${p.data.description}` : ""),
+          },
+          data: marks.map((m) => ({
+            // Category axes need the exact category value; time axes
+            // take the ISO day directly.
+            xAxis: temporal ? m.date : xs.find((v) => v !== null && day(v) === m.date),
+            name: m.name,
+            milestoneDate: m.date,
+            description: m.description || null,
+          })),
+        }
+      }
+
       const yAxisBase = {
         type: "value",
         axisLabel: { color: muted, fontSize: 10.5 },

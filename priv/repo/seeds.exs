@@ -873,19 +873,22 @@ end
 
 # Every chart references a NAMED query. `mk_query` creates one (raw if
 # `source` given, derived otherwise) and `chart` returns a block for it.
-mk_query = fn name, source, sql ->
+mk_query = fn name, source, sql, desc ->
   if is_nil(Aveline.DataSources.Queries.get_current_by_name(workspace.id, name)) do
-    attrs = %{name: name, sql: sql} |> then(fn a -> if source, do: Map.put(a, :source, source), else: a end)
+    attrs =
+      %{name: name, sql: sql, description: desc}
+      |> then(fn a -> if source, do: Map.put(a, :source, source), else: a end)
+
     {:ok, _} = Aveline.DataSources.Queries.create(workspace.id, attrs, alice.id)
   end
 end
 
 chart = fn name, viz -> %{"type" => "chart", "query_ref" => name, "viz" => viz} end
 
-mk_query.("versions_per_day", "aveline-self", "SELECT inserted_at::date AS day, count(*) AS versions FROM docs GROUP BY 1 ORDER BY 1")
-mk_query.("versions_by_actor", "aveline-self", "SELECT actor_type, count(*) AS versions FROM docs GROUP BY 1 ORDER BY 2 DESC")
-mk_query.("most_versioned_docs", "aveline-self", "SELECT title, max(version_number) AS versions FROM docs WHERE NOT superseded GROUP BY title ORDER BY 2 DESC LIMIT 5")
-mk_query.("broken_showcase", "aveline-self", "SELECT nope FROM does_not_exist")
+mk_query.("versions_per_day", "aveline-self", "SELECT inserted_at::date AS day, count(*) AS versions FROM docs GROUP BY 1 ORDER BY 1", "Doc versions written per day, across the whole workspace.")
+mk_query.("versions_by_actor", "aveline-self", "SELECT actor_type, count(*) AS versions FROM docs GROUP BY 1 ORDER BY 2 DESC", "Who writes here: version counts split human vs agent.")
+mk_query.("most_versioned_docs", "aveline-self", "SELECT title, max(version_number) AS versions FROM docs WHERE NOT superseded GROUP BY title ORDER BY 2 DESC LIMIT 5", "The five most-edited living docs.")
+mk_query.("broken_showcase", "aveline-self", "SELECT nope FROM does_not_exist", "Intentionally broken: showcases the chart error state.")
 
 if is_nil(Docs.get_current_by_slug(workspace.id, "metrics-dashboard")) do
   {:ok, _dash} =
@@ -927,32 +930,60 @@ end
 catalog_specs = [
   # raw leaves over the dev DB
   {"docs_per_day", "aveline-self",
-   "SELECT inserted_at::date AS day, count(*) AS n FROM docs WHERE NOT superseded GROUP BY 1 ORDER BY 1"},
+   "SELECT inserted_at::date AS day, count(*) AS n FROM docs WHERE NOT superseded GROUP BY 1 ORDER BY 1",
+   "Living docs created per day."},
   {"comments_per_day", "aveline-self",
-   "SELECT inserted_at::date AS day, count(*) AS n FROM doc_comments GROUP BY 1 ORDER BY 1"},
+   "SELECT inserted_at::date AS day, count(*) AS n FROM doc_comments GROUP BY 1 ORDER BY 1",
+   "Comment volume per day."},
   # derived: a cross-query join (docs vs comments per day) — neither
   # leaf can answer this alone; the engine joins them.
   {"activity_per_day", nil,
-   "SELECT d.day, d.n AS docs, coalesce(c.n, 0) AS comments FROM docs_per_day d LEFT JOIN comments_per_day c USING (day) ORDER BY d.day"},
+   "SELECT d.day, d.n AS docs, coalesce(c.n, 0) AS comments FROM docs_per_day d LEFT JOIN comments_per_day c USING (day) ORDER BY d.day",
+   "Docs vs comments per day: one activity series, joined in the engine."},
   # derived on derived (a chain): a rolling trend the source dialect
   # can't express — window over the joined series.
   {"activity_trend", nil,
-   "SELECT day, docs, avg(docs) OVER (ORDER BY day ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS docs_ma3, regr_slope(docs, epoch(day::timestamp)) OVER () AS slope FROM activity_per_day ORDER BY day"}
+   "SELECT day, docs, avg(docs) OVER (ORDER BY day ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS docs_ma3, regr_slope(docs, epoch(day::timestamp)) OVER () AS slope FROM activity_per_day ORDER BY day",
+   "Doc activity smoothed: 3-day moving average plus overall trend slope."}
 ]
 
-Enum.each(catalog_specs, fn {name, source, sql} ->
+Enum.each(catalog_specs, fn {name, source, sql, desc} ->
   if is_nil(Aveline.DataSources.Queries.get_current_by_name(workspace.id, name)) do
-    attrs = %{name: name, sql: sql} |> then(fn a -> if source, do: Map.put(a, :source, source), else: a end)
+    attrs =
+      %{name: name, sql: sql, description: desc}
+      |> then(fn a -> if source, do: Map.put(a, :source, source), else: a end)
+
     {:ok, _} = Aveline.DataSources.Queries.create(workspace.id, attrs, alice.id)
   end
 end)
 
+# Timeline milestones: dated facts the time-series charts above overlay
+# as vertical markers. Dates sit inside the seeded activity range so the
+# markers actually show. Idempotent by name.
+mk_milestone = fn name, days_ago, desc ->
+  exists =
+    Aveline.Milestones.list_active(workspace.id)
+    |> Enum.any?(&(&1.name == name))
+
+  unless exists do
+    {:ok, _} =
+      Aveline.Milestones.create(
+        workspace.id,
+        %{name: name, date: Date.add(Date.utc_today(), -days_ago), description: desc},
+        alice.id
+      )
+  end
+end
+
+mk_milestone.("query catalog shipped", 3, "Named queries + the DuckDB engine landed.")
+mk_milestone.("pricing change", 1, "Pro tier moved to $12/seat.")
+
 # Each chart is a view over a named derived query (named-only charts).
-mk_query.("docs_vs_comments", nil, "SELECT day, docs, comments FROM activity_per_day ORDER BY day")
-mk_query.("docs_ma3", nil, "SELECT day, docs, docs_ma3 FROM activity_trend ORDER BY day")
-mk_query.("docs_with_fit", nil, "SELECT day, docs, regr_slope(docs, epoch(day::timestamp)) OVER () * epoch(day::timestamp) + regr_intercept(docs, epoch(day::timestamp)) OVER () AS fit FROM activity_per_day ORDER BY day")
-mk_query.("docs_forecast", nil, "WITH pts AS (SELECT day, docs FROM activity_per_day), model AS (SELECT regr_slope(docs, epoch(day::timestamp)) AS m, regr_intercept(docs, epoch(day::timestamp)) AS b FROM pts), axis AS (SELECT unnest(generate_series((SELECT min(day) FROM pts), (SELECT max(day) FROM pts) + INTERVAL 7 DAY, INTERVAL 1 DAY))::date AS day) SELECT a.day, p.docs AS actual, round(m.m * epoch(a.day::timestamp) + m.b, 2) AS forecast FROM axis a CROSS JOIN model m LEFT JOIN pts p ON p.day = a.day ORDER BY a.day")
-mk_query.("docs_trend_slope", nil, "SELECT round(regr_slope(docs, epoch(day::timestamp)) * 86400, 4) AS docs_per_day_trend FROM activity_per_day")
+mk_query.("docs_vs_comments", nil, "SELECT day, docs, comments FROM activity_per_day ORDER BY day", "Docs and comments per day, side by side.")
+mk_query.("docs_ma3", nil, "SELECT day, docs, docs_ma3 FROM activity_trend ORDER BY day", "Docs per day with a 3-day moving average.")
+mk_query.("docs_with_fit", nil, "SELECT day, docs, regr_slope(docs, epoch(day::timestamp)) OVER () * epoch(day::timestamp) + regr_intercept(docs, epoch(day::timestamp)) OVER () AS fit FROM activity_per_day ORDER BY day", "Docs per day with a fitted linear trend line.")
+mk_query.("docs_forecast", nil, "WITH pts AS (SELECT day, docs FROM activity_per_day), model AS (SELECT regr_slope(docs, epoch(day::timestamp)) AS m, regr_intercept(docs, epoch(day::timestamp)) AS b FROM pts), axis AS (SELECT unnest(generate_series((SELECT min(day) FROM pts), (SELECT max(day) FROM pts) + INTERVAL 7 DAY, INTERVAL 1 DAY))::date AS day) SELECT a.day, p.docs AS actual, round(m.m * epoch(a.day::timestamp) + m.b, 2) AS forecast FROM axis a CROSS JOIN model m LEFT JOIN pts p ON p.day = a.day ORDER BY a.day", "Docs per day plus a 7-day linear forecast.")
+mk_query.("docs_trend_slope", nil, "SELECT round(regr_slope(docs, epoch(day::timestamp)) * 86400, 4) AS docs_per_day_trend FROM activity_per_day", "One number: the docs-per-day trend slope.")
 
 if is_nil(Docs.get_current_by_slug(workspace.id, "catalog-dashboard")) do
   {:ok, _dash} =

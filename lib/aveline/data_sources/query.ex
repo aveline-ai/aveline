@@ -25,6 +25,8 @@ defmodule Aveline.DataSources.Query do
     field :base_query_id, :binary_id
     field :version_number, :integer, default: 1
     field :name, :string
+    # One-line human description: what question this query answers.
+    field :description, :string
     field :kind, :string
     # Base id of the raw query's data source; nil for derived.
     field :data_source_id, :binary_id
@@ -48,6 +50,7 @@ defmodule Aveline.DataSources.Query do
       :base_query_id,
       :version_number,
       :name,
+      :description,
       :kind,
       :data_source_id,
       :sql,

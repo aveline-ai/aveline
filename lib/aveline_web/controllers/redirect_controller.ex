@@ -8,4 +8,8 @@ defmodule AvelineWeb.RedirectController do
   def team(conn, %{"slug" => slug}) do
     redirect(conn, to: ~p"/w/#{slug}/team")
   end
+
+  def data_sources(conn, %{"slug" => slug}) do
+    redirect(conn, to: ~p"/w/#{slug}/data-sources")
+  end
 end

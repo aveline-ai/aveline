@@ -39,11 +39,33 @@ defmodule AvelineWeb.Api.QueryCatalogApiTest do
     # raw query
     body =
       conn
-      |> post(base, %{"name" => "signups", "source" => "self", "sql" => "select 1 as n"})
+      |> post(base, %{
+        "name" => "signups",
+        "source" => "self",
+        "sql" => "select 1 as n",
+        "description" => "Daily signup count."
+      })
       |> json_response(200)
 
     assert body["query"]["name"] == "signups"
     assert body["query"]["kind"] == "raw"
+    assert body["query"]["description"] == "Daily signup count."
+
+    # description edits are versioned and survive unrelated edits
+    edited =
+      conn
+      |> patch(~p"/api/workspaces/#{ws.slug}/queries/signups", %{"description" => "Signups per day."})
+      |> json_response(200)
+
+    assert edited["query"]["description"] == "Signups per day."
+    assert edited["query"]["version_number"] == 2
+
+    resqled =
+      conn
+      |> patch(~p"/api/workspaces/#{ws.slug}/queries/signups", %{"sql" => "select 2 as n"})
+      |> json_response(200)
+
+    assert resqled["query"]["description"] == "Signups per day."
 
     # derived query on top
     conn
