@@ -37,6 +37,7 @@ defmodule AvelineWeb.Api.ErrorCodes do
   | pin_slot_taken             | 422  | that home-page pin slot is occupied by another doc                                   |
   | tag_scope_conflict         | 422  | tag set carries two tags from the same scope (e.g. status:todo + status:done)        |
   | data_source_not_found      | 422  | chart block references a data source that doesn't exist in this workspace            |
+  | query_not_found            | 422  | chart block references a catalog query that doesn't exist (create-query first)        |
   | invalid_data_source_url    | 422  | connection template isn't a postgres:// or mysql:// URL with a <password> placeholder |
   | password_required          | 422  | template change submitted without the password (secrets never pair with new settings) |
   | query_failed               | 422  | ad-hoc data source query failed (carries the driver's message)                        |
@@ -76,6 +77,7 @@ defmodule AvelineWeb.Api.ErrorCodes do
       pin_slot_taken
       tag_scope_conflict
       data_source_not_found
+      query_not_found
       invalid_data_source_url
       password_required
       query_failed
