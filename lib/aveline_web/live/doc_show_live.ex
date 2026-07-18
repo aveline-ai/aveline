@@ -9,6 +9,7 @@ defmodule AvelineWeb.DocShowLive do
   alias Aveline.Kudos
   alias Aveline.Workspaces
   alias AvelineWeb.LiveSession
+  alias Phoenix.LiveView.JS
 
   @impl true
   def mount(%{"slug" => slug, "doc_slug" => doc_slug} = params, session, socket) do
@@ -162,6 +163,17 @@ defmodule AvelineWeb.DocShowLive do
   defp parse_comment_view("all"), do: :all
   defp parse_comment_view("hide"), do: :hide
   defp parse_comment_view(_), do: :open
+
+  defp comment_view_word(:open), do: "open"
+  defp comment_view_word(:all), do: "all"
+  defp comment_view_word(:hide), do: "hidden"
+
+  defp comment_view_options,
+    do: [
+      {:open, "open", "unresolved threads"},
+      {:all, "all", "includes resolved + deleted"},
+      {:hide, "hidden", "clean canvas, no comments"}
+    ]
 
   # Build the URL for the current view with the new comment_view set.
   # `version` param is preserved when we're on a historical view.
@@ -746,6 +758,29 @@ defmodule AvelineWeb.DocShowLive do
                 <span class="article-meta-val">v{@item.version_number} · {relative_time(@item.updated_at)}</span>
               </span>
             <% end %>
+            <span class="card-meta-dot">·</span>
+            <details class="version-switcher" id="comment-view-switcher">
+              <summary class="version-switcher-trigger">
+                <span class="article-meta-val">Comments · {comment_view_word(@comment_view)}</span>
+                <svg class="version-switcher-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </summary>
+              <div class="version-switcher-menu comment-view-menu">
+                <div class="switcher-label">Comments</div>
+                <button
+                  :for={{view, word, desc} <- comment_view_options()}
+                  type="button"
+                  phx-click={
+                    JS.remove_attribute("open", to: "#comment-view-switcher")
+                    |> JS.push("set_comment_view", value: %{view: Atom.to_string(view)})
+                  }
+                  class={"version-switcher-item comment-view-item " <> if @comment_view == view, do: "current", else: ""}
+                >
+                  <span class="comment-view-word">{word}</span>
+                  <span class="comment-view-desc">{desc}</span>
+                  <span :if={@comment_view == view} class="check">✓</span>
+                </button>
+              </div>
+            </details>
             <%= if @item.tags != [] do %>
               <span class="card-meta-dot">·</span>
               <span class="chip-row" style="gap:6px">
@@ -765,35 +800,6 @@ defmodule AvelineWeb.DocShowLive do
             <% end %>
           </div>
         </header>
-
-        <div class="comment-filter-row">
-          <div class="seg">
-            <button
-              type="button"
-              phx-click="set_comment_view"
-              phx-value-view="open"
-              class={"seg-btn " <> if @comment_view == :open, do: "seg-btn-active", else: ""}
-            >
-              Open comments
-            </button>
-            <button
-              type="button"
-              phx-click="set_comment_view"
-              phx-value-view="all"
-              class={"seg-btn " <> if @comment_view == :all, do: "seg-btn-active", else: ""}
-            >
-              All comments
-            </button>
-            <button
-              type="button"
-              phx-click="set_comment_view"
-              phx-value-view="hide"
-              class={"seg-btn " <> if @comment_view == :hide, do: "seg-btn-active", else: ""}
-            >
-              Hide comments
-            </button>
-          </div>
-        </div>
 
         <section
           :if={@doc_level_threads != [] or @orphan_threads != [] or @commenting_on_block_id == "__doc__"}

@@ -1846,13 +1846,18 @@
          buttons too so the reader gets a clean canvas. Comment cards
          already aren't rendered server-side in this mode. */
       .doc-comments-hidden .block-comment-btn { display: none !important; }
-      /* Comment view filter — single 3-segment control (Hide / Open /
-         All) using the same .seg / .seg-btn pattern as the doc-page sort
-         control, so it reads as the same kind of toggle. */
-      .comment-filter-row {
-        display: flex;
-        margin: 10px 0 0;
+      /* Comment view dropdown — lives in the article meta row beside the
+         version switcher and borrows its chrome. Items are buttons (the
+         switcher's are links), so neutralize button defaults. */
+      .comment-view-menu { min-width: 250px; }
+      .comment-view-item {
+        display: flex; align-items: center;
+        width: 100%;
+        background: none; border: none; cursor: pointer;
+        font: inherit; text-align: left;
       }
+      .comment-view-word { font-weight: 500; color: var(--text); min-width: 48px; }
+      .comment-view-desc { flex: 1; font-size: 11.5px; color: var(--text-muted); }
       /* Deleted-comment indicator. The body still renders normally
          (readable), but a small "deleted by X" tag in the meta row
          signals that the thread was removed by its author. No strike-
