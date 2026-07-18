@@ -3,6 +3,7 @@ defmodule AvelineWeb.TeamLive do
   use AvelineWeb, :live_view
 
   alias Aveline.Docs
+  alias Aveline.Stats
   alias Aveline.Workspaces
   alias AvelineWeb.LiveSession
 
@@ -16,12 +17,12 @@ defmodule AvelineWeb.TeamLive do
           Phoenix.PubSub.subscribe(Aveline.PubSub, Workspaces.members_topic(ws.id))
         end
 
-        members = Workspaces.list_members(ws.id)
         items = Docs.list_current(ws.id)
         invite = Workspaces.get_active_invite_for_workspace(ws.id)
 
         {:ok,
-         assign(socket,
+         socket
+         |> assign(
            page_title: "Aveline · Team · #{ws.name}",
            current_user: user,
            workspace: ws,
@@ -30,10 +31,9 @@ defmodule AvelineWeb.TeamLive do
            total_count: length(items),
            topbar_title: "Team",
            nav_active: :team,
-           members: members,
-           member_count: length(members),
            invite: invite
-         )}
+         )
+         |> assign_roster(ws.id)}
 
       :not_found ->
         {:ok, socket |> put_flash(:error, "Workspace not found.") |> push_navigate(to: ~p"/")}
@@ -91,8 +91,7 @@ defmodule AvelineWeb.TeamLive do
     else
       case Workspaces.remove_member(ws.id, uid, socket.assigns.current_user.id) do
         {:ok, _} ->
-          members = Workspaces.list_members(ws.id)
-          {:noreply, assign(socket, members: members, member_count: length(members))}
+          {:noreply, assign_roster(socket, ws.id)}
 
         {:error, _} ->
           {:noreply, put_flash(socket, :error, "Could not remove member.")}
@@ -102,11 +101,24 @@ defmodule AvelineWeb.TeamLive do
 
   @impl true
   def handle_info({event, _payload}, socket) when event in [:member_added, :member_removed] do
-    members = Workspaces.list_members(socket.assigns.workspace.id)
-    {:noreply, assign(socket, members: members, member_count: length(members))}
+    {:noreply, assign_roster(socket, socket.assigns.workspace.id)}
   end
 
   def handle_info(_other, socket), do: {:noreply, socket}
+
+  # Members plus their usage stats (folded in from the old Usage page) —
+  # recomputed together so rows and stats never drift apart.
+  defp assign_roster(socket, ws_id) do
+    members = Workspaces.list_members(ws_id)
+    stats_by_user = Map.new(Stats.contributors(ws_id), &{&1.user.id, &1})
+
+    assign(socket,
+      members: members,
+      member_count: length(members),
+      stats_by_user: stats_by_user,
+      totals: Stats.workspace_totals(ws_id)
+    )
+  end
 
   defp invite_url(code) do
     base = AvelineWeb.Endpoint.url()
@@ -127,6 +139,14 @@ defmodule AvelineWeb.TeamLive do
         Everyone who can read + comment in <span class="mono">{@workspace.slug}</span>.
       </p>
 
+      <p class="team-totals">
+        Together: <.stat value={@totals.active_docs} label="doc" />
+        · <.stat value={@totals.reads} label="view" />
+        · <.stat value={@totals.total_edits} label="edit" />
+        · <.stat value={@totals.kudos} label="kudos" />
+        · <.stat value={@totals.comments} label="comment" />
+      </p>
+
       <div class="section-label">
         Members <span class="count">{@member_count}</span>
       </div>
@@ -134,6 +154,12 @@ defmodule AvelineWeb.TeamLive do
       <ul class="card-list">
         <li :for={m <- @members} class="card team-row">
           <div class="team-row-left">
+            <div
+              class="team-avatar"
+              style={"background: hsl(#{avatar_hue(m.user.username)}, 55%, 28%); color: hsl(#{avatar_hue(m.user.username)}, 70%, 80%)"}
+            >
+              {initial(m.user.username)}
+            </div>
             <div>
               <div class="team-row-name">
                 {m.user.username}
@@ -150,16 +176,19 @@ defmodule AvelineWeb.TeamLive do
             </div>
           </div>
           <div class="team-row-right">
-            <%= if m.user.id != @current_user.id do %>
-              <button
-                phx-click="remove_member"
-                phx-value-user-id={m.user.id}
-                data-confirm={"Remove #{m.user.username} from this workspace?"}
-                class="thread-action-btn"
-              >
-                remove
-              </button>
-            <% end %>
+            <.member_stats stats={Map.get(@stats_by_user, m.user.id)} />
+            <div class="team-row-actions">
+              <%= if m.user.id != @current_user.id do %>
+                <button
+                  phx-click="remove_member"
+                  phx-value-user-id={m.user.id}
+                  data-confirm={"Remove #{m.user.username} from this workspace?"}
+                  class="thread-action-btn"
+                >
+                  remove
+                </button>
+              <% end %>
+            </div>
           </div>
         </li>
       </ul>
@@ -214,4 +243,48 @@ defmodule AvelineWeb.TeamLive do
     </div>
     """
   end
+
+  attr :stats, :map, default: nil
+
+  defp member_stats(%{stats: nil} = assigns), do: ~H""
+
+  # Two clusters so the semantics are unmissable: what they made (docs
+  # owned, versions written) vs what it earned (views + kudos received
+  # by docs they own).
+  defp member_stats(assigns) do
+    ~H"""
+    <div class="team-row-stats">
+      <div class="team-stat-group">
+        <div class="team-stat-group-label">Built</div>
+        <div class="team-stat-group-values">
+          <.stat value={@stats.docs_owned} label="doc" />
+          · <.stat value={@stats.edits_made} label="edit" />
+        </div>
+      </div>
+      <div class="team-stat-group">
+        <div class="team-stat-group-label">Impact</div>
+        <div class="team-stat-group-values">
+          <.stat value={@stats.reads_earned} label="view" />
+          · <.stat value={@stats.kudos_earned} label="kudos" />
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  attr :value, :integer, required: true
+  attr :label, :string, required: true
+
+  # "kudos" is its own plural; everything else takes a plain s.
+  defp stat(assigns) do
+    assigns = assign(assigns, :word, pluralize_label(assigns.label, assigns.value))
+
+    ~H"""
+    <span class="team-stat"><strong>{format_number(@value)}</strong> {@word}</span>
+    """
+  end
+
+  defp pluralize_label(label, 1), do: label
+  defp pluralize_label("kudos", _), do: "kudos"
+  defp pluralize_label(label, _), do: label <> "s"
 end

@@ -1734,6 +1734,14 @@
       .doc-banner-deleted    { border-left-color: var(--danger); }
 
       /* ===== Team page ===== */
+      /* One quiet line of workspace totals under the subtitle — the
+         merged-in Usage page's hero cards, demoted on purpose. */
+      .team-totals {
+        margin-top: 6px;
+        font-size: 12.5px;
+        color: var(--text-muted);
+        font-variant-numeric: tabular-nums;
+      }
       .team-row {
         display: flex; align-items: center; justify-content: space-between;
         padding: 14px 16px;
@@ -1741,7 +1749,53 @@
       .team-row-left { display: flex; align-items: center; gap: 12px; }
       .team-row-name { font-size: 14px; font-weight: 500; color: var(--text); display: flex; align-items: center; }
       .team-row-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-      .team-row-right { display: flex; align-items: center; gap: 8px; }
+      .team-row-right { display: flex; align-items: center; gap: 16px; }
+      /* Fixed-width actions slot on every row (empty on your own) so the
+         stats keep one right edge; "remove" only surfaces on hover. */
+      .team-row-actions { width: 56px; display: flex; justify-content: flex-end; }
+      .team-row .thread-action-btn { opacity: 0; transition: opacity 0.12s ease; }
+      .team-row:hover .thread-action-btn,
+      .team-row .thread-action-btn:focus-visible { opacity: 1; }
+      .team-avatar {
+        width: 34px; height: 34px;
+        border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-weight: 600; font-size: 13.5px;
+        flex-shrink: 0;
+      }
+      /* Per-member activity in two labeled clusters — Built (docs +
+         edits they made) and Impact (views + kudos their docs earned).
+         Fixed group widths so the clusters column-align across rows. */
+      .team-row-stats { display: flex; gap: 28px; }
+      .team-stat-group {
+        display: flex; flex-direction: column; gap: 3px;
+        min-width: 138px;
+      }
+      .team-stat-group-label {
+        font-size: 10px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.08em;
+        color: var(--text-muted);
+      }
+      .team-stat-group-values {
+        font-size: 13px;
+        color: var(--text-muted);
+        white-space: nowrap;
+      }
+      .team-stat strong {
+        color: var(--text);
+        font-weight: 600; font-size: 14px;
+        font-variant-numeric: tabular-nums;
+      }
+      /* The workspace totals line reuses .team-stat; keep it quiet there. */
+      .team-totals .team-stat strong {
+        font-size: inherit;
+        color: var(--text-secondary);
+      }
+      @media (max-width: 720px) {
+        .team-row-stats { display: none; }
+        /* No hover on touch — keep remove always visible there. */
+        .team-row .thread-action-btn { opacity: 1; }
+      }
 
       /* ===== Invite link block ===== */
       .invite-block {
@@ -1843,157 +1897,6 @@
       /* General discussion. Notion-style: at the top of the doc body,
          no label — just the threads (if any) followed by a compact
          "Add a comment…" input that expands on focus. */
-      /* ===== Stats page ===== */
-      /* Hero grid: three sleek individual cards. Each has an icon at top,
-         a big number, and a label. Sits on its own with proper gap —
-         feels like Linear/Vercel/Stripe dashboard cards. */
-      .hero-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 14px;
-        margin-top: 20px;
-      }
-      .hero-grid + .hero-grid { margin-top: 14px; }
-      /* Card sits on the page background — only the border defines it.
-         A huge watermark icon sits top-right, clipped by overflow:hidden
-         so part of it pokes outside the card silhouette. Gives the
-         dashboard a more alive, modern-SaaS feel without competing for
-         attention with the actual number. */
-      .hero-card {
-        position: relative;
-        overflow: hidden;
-        background: var(--bg);
-        border: 1px solid var(--border-strong);
-        border-radius: 12px;
-        padding: 22px 24px 20px;
-        display: flex; flex-direction: column; gap: 10px;
-        min-height: 132px;
-        transition: border-color 0.15s ease, transform 0.15s ease;
-      }
-      .hero-card:hover {
-        border-color: var(--text-muted);
-      }
-      .hero-card:hover .hero-icon {
-        opacity: 0.3;
-        transform: rotate(-4deg) scale(1.04);
-      }
-      .hero-icon {
-        position: absolute;
-        top: -20px; right: -22px;
-        width: 116px; height: 116px;
-        display: inline-flex;
-        color: var(--text-muted);
-        opacity: 0.18;
-        pointer-events: none;
-        transition: opacity 0.18s ease, transform 0.25s ease;
-        transform-origin: 50% 50%;
-      }
-      .hero-icon svg { width: 100%; height: 100%; }
-      .hero-card-accent .hero-icon {
-        color: var(--accent);
-        opacity: 0.28;
-      }
-      .hero-card-accent:hover .hero-icon { opacity: 0.42; }
-      .hero-value {
-        position: relative;
-        font-size: 38px; font-weight: 600; letter-spacing: -0.025em;
-        line-height: 1;
-        color: var(--text);
-        font-variant-numeric: tabular-nums;
-        margin-top: auto;
-      }
-      .hero-card-accent .hero-value { color: var(--accent); }
-      .hero-label {
-        position: relative;
-        font-size: 11px; font-weight: 500;
-        color: var(--text-muted);
-        text-transform: uppercase; letter-spacing: 0.08em;
-      }
-      .hero-supporting {
-        margin-top: 16px;
-        font-size: 12.5px;
-        color: var(--text-muted);
-        display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
-      }
-      .hero-supporting strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
-
-      /* Contributors table: sortable per-column, clean rows, numeric
-         right-aligned with tabular nums so column totals scan vertically.
-         Sits with a generous top margin so it breathes after the hero
-         grid above. */
-      .leader-table {
-        margin-top: 40px;
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13.5px;
-      }
-      .leader-th {
-        text-align: right;
-        padding: 0 0 10px;
-        border-bottom: 1px solid var(--border);
-        font-weight: 500;
-      }
-      .leader-th-text { text-align: left; }
-      .leader-sort {
-        background: none; border: none; cursor: pointer; padding: 4px 6px;
-        font: inherit; font-size: 11px; font-weight: 500;
-        color: var(--text-muted);
-        text-transform: uppercase; letter-spacing: 0.06em;
-        border-radius: 4px;
-        transition: color 0.1s ease, background 0.1s ease;
-        display: inline-flex; align-items: center; gap: 4px;
-      }
-      .leader-sort:hover { color: var(--text); background: rgba(255,255,255,0.04); }
-      .leader-sort.is-active { color: var(--text); }
-      .leader-sort-arrow {
-        font-size: 11px;
-        font-variant-numeric: tabular-nums;
-        min-width: 8px;
-        text-align: center;
-      }
-      .leader-tr {
-        border-bottom: 1px solid var(--border);
-      }
-      .leader-tr:last-child { border-bottom: none; }
-      .leader-td {
-        padding: 14px 6px;
-        text-align: right;
-        color: var(--text);
-        font-variant-numeric: tabular-nums;
-        font-weight: 500;
-      }
-      .leader-td-muted { color: var(--text-muted); font-weight: 400; }
-      /* Trophy marker on the row leading each column. Sits flush left of
-         the number so the cell's right-edge alignment stays intact. */
-      .leader-trophy {
-        display: inline-flex; align-items: center;
-        color: var(--accent);
-        margin-right: 6px;
-        vertical-align: -1px;
-      }
-      .leader-trophy svg { width: 12px; height: 12px; }
-      .leader-td-user {
-        text-align: left;
-        display: flex; align-items: center; gap: 10px;
-        padding-left: 6px;
-      }
-      .leader-avatar {
-        width: 32px; height: 32px;
-        border-radius: 50%;
-        display: inline-flex; align-items: center; justify-content: center;
-        font-weight: 600; font-size: 13px;
-        flex-shrink: 0;
-      }
-      .leader-name-block { display: flex; flex-direction: column; }
-      .leader-name { color: var(--text); font-weight: 600; font-size: 14px; }
-      .leader-display { color: var(--text-muted); font-size: 11.5px; margin-top: 1px; }
-
-      @media (max-width: 720px) {
-        .hero-grid { grid-template-columns: 1fr; gap: 10px; }
-        .hero-card { padding: 18px 18px 16px; }
-        .hero-value { font-size: 28px; }
-        .leader-bar-meta { min-width: 100px; }
-      }
 
       /* ===== Tags management page ===== */
       /* Header row: title + subtitle on the left, "+ New tag" on the right.

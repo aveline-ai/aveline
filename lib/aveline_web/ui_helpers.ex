@@ -68,4 +68,29 @@ defmodule AvelineWeb.UIHelpers do
   def avatar_hue(username) when is_binary(username) do
     rem(:erlang.phash2(username), 360)
   end
+
+  @doc """
+  Compact number formatter — "1,234" or "12.3k" for big values so stat
+  lines stay readable.
+  """
+  def format_number(n) when n < 1000, do: Integer.to_string(n)
+  def format_number(n) when n < 10_000, do: comma(n)
+
+  def format_number(n) when n < 1_000_000 do
+    case rem(n, 1000) do
+      0 -> "#{div(n, 1000)}k"
+      r when r < 100 -> "#{div(n, 1000)}k"
+      r -> "#{div(n, 1000)}.#{div(r, 100)}k"
+    end
+  end
+
+  def format_number(n), do: "#{div(n, 1_000_000)}M"
+
+  defp comma(n) do
+    n
+    |> Integer.to_string()
+    |> String.reverse()
+    |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
+    |> String.reverse()
+  end
 end

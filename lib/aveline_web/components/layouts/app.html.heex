@@ -84,17 +84,6 @@
           <span class="label">Activity</span>
         </.link>
         <.link
-          navigate={~p"/w/#{@workspace.slug}/usage"}
-          class={"sidebar-item " <> if assigns[:nav_active] == :usage, do: "active", else: ""}
-        >
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="20" x2="18" y2="10"/>
-            <line x1="12" y1="20" x2="12" y2="4"/>
-            <line x1="6" y1="20" x2="6" y2="14"/>
-          </svg>
-          <span class="label">Usage</span>
-        </.link>
-        <.link
           navigate={~p"/w/#{@workspace.slug}/data-sources"}
           class={"sidebar-item " <> if assigns[:nav_active] == :data_sources, do: "active", else: ""}
         >

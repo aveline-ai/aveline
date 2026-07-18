@@ -55,7 +55,8 @@ defmodule AvelineWeb.Router do
     live "/w/:slug/d/:doc_slug", DocShowLive, :show
     live "/w/:slug/d/:doc_slug/v/:version", DocShowLive, :show_version
     live "/w/:slug/activity", ActivityLive, :index
-    live "/w/:slug/usage", UsageLive, :index
+    # Usage merged into Team; old links land on the Team page.
+    get "/w/:slug/usage", RedirectController, :team
     live "/w/:slug/data-sources", DataSourcesLive, :index
     live "/w/:slug/data-sources/:name", DataSourceShowLive, :show
     live "/w/:slug/team", TeamLive, :index
