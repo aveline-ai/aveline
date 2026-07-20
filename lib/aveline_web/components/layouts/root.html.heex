@@ -116,7 +116,11 @@
         border-right: 1px solid var(--border);
         display: flex; flex-direction: column;
         padding: 8px;
+        /* dvh, not vh: mobile 100vh is the large viewport, which makes a
+           sticky sidebar taller than the screen — it then scrolls with
+           the page and pushes the footer below the fold. */
         height: 100vh;
+        height: 100dvh;
         position: sticky; top: 0;
         overflow-y: auto;
       }
