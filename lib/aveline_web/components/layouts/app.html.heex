@@ -75,15 +75,6 @@
           </.link>
         </div>
         <.link
-          navigate={~p"/w/#{@workspace.slug}/activity"}
-          class={"sidebar-item " <> if assigns[:nav_active] == :activity, do: "active", else: ""}
-        >
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-          </svg>
-          <span class="label">Activity</span>
-        </.link>
-        <.link
           navigate={~p"/w/#{@workspace.slug}/data-sources"}
           class={"sidebar-item " <> if assigns[:nav_active] == :data_sources, do: "active", else: ""}
         >
@@ -93,6 +84,15 @@
             <path d="M3 12a9 3 0 0 0 18 0"/>
           </svg>
           <span class="label">Data sources</span>
+        </.link>
+        <.link
+          navigate={~p"/w/#{@workspace.slug}/activity"}
+          class={"sidebar-item " <> if assigns[:nav_active] == :activity, do: "active", else: ""}
+        >
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+          <span class="label">Activity</span>
         </.link>
         <.link
           navigate={~p"/w/#{@workspace.slug}/team"}
