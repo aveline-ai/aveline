@@ -1110,7 +1110,10 @@
 
       /* ===== Data sources page: source cards ===== */
       .ds-grid {
-        display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+        /* minmax(0,1fr), not 1fr: a bare 1fr track's min-content floor
+           lets one unbreakable string (a connection URL) blow the card
+           past the container and off the phone's right edge. */
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;
         margin-top: 4px;
       }
       .ds-card {
@@ -1196,7 +1199,7 @@
       .qc-search:focus { outline: none; border-color: var(--accent-dim, var(--accent)); }
       .qc-search::placeholder { color: var(--text-muted); }
       .qc-grid {
-        display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
       }
       .qc-card {
         display: flex; flex-direction: column; gap: 7px;
@@ -1250,6 +1253,9 @@
         position: relative;
         height: 84px;
         margin: 2px 0 0;
+        /* Tooltips near the strip's edges are laid out (opacity 0) and
+           would widen the page; clip x only, tips still hang below. */
+        overflow-x: clip; overflow-y: visible;
       }
       .tl-line {
         position: absolute; left: 0; right: 0; top: 58px;
@@ -1313,7 +1319,7 @@
       }
       .tl-tip-desc { font-size: 12px; color: var(--text-secondary); margin-top: 6px; line-height: 1.5; }
       @media (max-width: 860px) {
-        .ds-grid, .qc-grid { grid-template-columns: 1fr; }
+        .ds-grid, .qc-grid { grid-template-columns: minmax(0, 1fr); }
         .qc-header { flex-direction: column; align-items: stretch; }
         .qc-search-form { width: 100%; }
       }
@@ -2991,7 +2997,11 @@
          create a scroll container and break the sticky sidebar) so no
          stray wide element can drag the whole page sideways. */
       @media (max-width: 720px) {
-        body { overflow-x: clip; }
+        /* hidden first as the fallback where clip is unsupported. */
+        body { overflow-x: hidden; overflow-x: clip; }
+        /* The home glow pseudo reaches 60px past both edges; on phones
+           that widens the page, so pin it to the container. */
+        .home-content::before { left: 0; right: 0; }
         .content { padding: 28px 16px 64px; }
         .doc-layout { padding: 28px 16px 64px; }
         h1.page-title { font-size: 22px; }
