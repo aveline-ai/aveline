@@ -17,7 +17,7 @@ defmodule AvelineWeb.TeamLive do
           Phoenix.PubSub.subscribe(Aveline.PubSub, Workspaces.members_topic(ws.id))
         end
 
-        items = Docs.list_current(ws.id)
+        items = Docs.list_current(ws.id, viewer: user.id)
         invite = Workspaces.get_active_invite_for_workspace(ws.id)
 
         {:ok,

@@ -65,7 +65,8 @@ defmodule Aveline.Fixtures do
           blocks: Map.get(attrs, :blocks, [
             %{"type" => "paragraph", "content" => [%{"text" => "Body #{i}"}]}
           ]),
-          intent: Map.get(attrs, :intent, "seed item-fixture")
+          intent: Map.get(attrs, :intent, "seed item-fixture"),
+          visibility: Map.get(attrs, :visibility, "workspace")
         }
       )
 

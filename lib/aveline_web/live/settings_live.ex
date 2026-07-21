@@ -19,7 +19,7 @@ defmodule AvelineWeb.SettingsLive do
 
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
-        items = Docs.list_current(ws.id)
+        items = Docs.list_current(ws.id, viewer: user.id)
 
         {:ok,
          assign(socket,

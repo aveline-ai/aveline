@@ -17,7 +17,8 @@ defmodule AvelineWeb.Api.EventController do
     opts =
       [
         limit: parse_limit(params["limit"]),
-        before_id: params["before_id"]
+        before_id: params["before_id"],
+        viewer: conn.assigns.current_user.id
       ]
       |> Enum.reject(fn {_, v} -> is_nil(v) end)
 

@@ -132,6 +132,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
     # a separate COUNT(*).
     raw =
       Docs.list_current(ws.id,
+        viewer: socket.assigns.current_user.id,
         sort: sort,
         tags: selected_tags,
         owner_ids: owner_ids,
@@ -352,6 +353,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
 
     raw =
       Docs.list_current(ws.id,
+        viewer: socket.assigns.current_user.id,
         sort: sort,
         tags: tags,
         owner_ids: author_ids(authors, ws_authors),
@@ -829,6 +831,20 @@ defmodule AvelineWeb.WorkspaceShowLive do
     ~H"""
     <.link navigate={~p"/w/#{@ws.slug}/d/#{@i.slug}"} class="card">
               <div class="card-title">
+                <svg
+                  :if={@i.visibility == "private"}
+                  class="doc-lock"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <title>Private doc</title>
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
                 {@i.title}
               </div>
               <%= if @i.summary do %>

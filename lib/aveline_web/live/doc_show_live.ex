@@ -17,7 +17,13 @@ defmodule AvelineWeb.DocShowLive do
 
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
-        case Docs.get_current_by_slug(ws.id, doc_slug) do
+        current_doc = Docs.get_current_by_slug(ws.id, doc_slug)
+
+        # Inaccessible and nonexistent render identically: existence is
+        # information. Same doctrine as the workspace gate.
+        readable? = current_doc && user && Docs.member_can_read?(current_doc, user.id)
+
+        case if(readable?, do: current_doc, else: nil) do
           nil ->
             {:ok,
              socket
@@ -33,7 +39,7 @@ defmodule AvelineWeb.DocShowLive do
               if user, do: DocViews.record(ws.id, current_doc.base_doc_id, user.id, "human")
             end
 
-            all_items = Docs.list_current(ws.id)
+            all_items = Docs.list_current(ws.id, viewer: user && user.id)
 
             tag_colors =
               ws.id
@@ -66,7 +72,7 @@ defmodule AvelineWeb.DocShowLive do
             # charts idle until manually run.
             showing = %{
               showing
-              | blocks: Docs.enrich_blocks(showing.blocks || [], ws.id, run_charts: false)
+              | blocks: Docs.enrich_blocks(showing.blocks || [], ws.id, run_charts: false, viewer: user && user.id)
             }
 
             showing = if is_historical, do: idle_charts(showing), else: showing
@@ -126,7 +132,15 @@ defmodule AvelineWeb.DocShowLive do
                 expanded_threads: MapSet.new(),
                 kudos_count: Kudos.count_for_base(current_doc.base_doc_id),
                 kudos_given?: user && Kudos.given_by?(current_doc.base_doc_id, user.id),
-                view_count: DocViews.count_for_base(current_doc.base_doc_id)
+                view_count: DocViews.count_for_base(current_doc.base_doc_id),
+                # Visibility switcher state. Candidates: members minus
+                # the owner (who always has full access).
+                doc_shares: Docs.list_shares(current_doc),
+                share_candidates:
+                  Workspaces.list_members(ws.id)
+                  |> Enum.map(& &1.user)
+                  |> Enum.reject(&(&1.id == current_doc.owner_id))
+                  |> Enum.sort_by(& &1.username)
               )
 
             socket =
@@ -372,6 +386,44 @@ defmodule AvelineWeb.DocShowLive do
     end
   end
 
+  # ===== Visibility & shares (owner-only; context re-checks) =====
+
+  def handle_event("set_visibility", %{"visibility" => vis}, socket) do
+    %{current_user: user, current_doc: current_doc} = socket.assigns
+
+    case Docs.set_visibility(current_doc, vis, user.id) do
+      {:ok, updated} ->
+        {:noreply, assign(socket, current_doc: updated, doc_shares: Docs.list_shares(updated))}
+
+      {:error, msg} when is_binary(msg) ->
+        {:noreply, put_flash(socket, :error, msg)}
+    end
+  end
+
+  def handle_event("share_doc", %{"username" => username, "role" => role}, socket) do
+    %{current_user: user, current_doc: current_doc} = socket.assigns
+
+    with %_{} = target <- Aveline.Accounts.get_user_by_username(username),
+         {:ok, _share} <- Docs.share_doc(current_doc, target.id, role, user.id) do
+      {:noreply, assign(socket, doc_shares: Docs.list_shares(current_doc))}
+    else
+      nil -> {:noreply, put_flash(socket, :error, "No such user.")}
+      {:error, msg} when is_binary(msg) -> {:noreply, put_flash(socket, :error, msg)}
+    end
+  end
+
+  def handle_event("unshare_doc", %{"user-id" => user_id}, socket) do
+    %{current_user: user, current_doc: current_doc} = socket.assigns
+
+    case Docs.unshare_doc(current_doc, user_id, user.id) do
+      {:ok, _} ->
+        {:noreply, assign(socket, doc_shares: Docs.list_shares(current_doc))}
+
+      {:error, msg} when is_binary(msg) ->
+        {:noreply, put_flash(socket, :error, msg)}
+    end
+  end
+
   def handle_event("toggle_kudos", _, socket) do
     %{current_user: user, workspace: ws, current_doc: current_doc} = socket.assigns
 
@@ -484,7 +536,11 @@ defmodule AvelineWeb.DocShowLive do
       else
         item = %{
           new_current
-          | blocks: Docs.enrich_blocks(new_current.blocks || [], new_current.workspace_id, run_charts: false)
+          | blocks:
+              Docs.enrich_blocks(new_current.blocks || [], new_current.workspace_id,
+                run_charts: false,
+                viewer: socket.assigns.current_user && socket.assigns.current_user.id
+              )
         }
 
         # Keep results for queries the new version still references,
@@ -684,7 +740,23 @@ defmodule AvelineWeb.DocShowLive do
                 </svg>
               </button>
             </span>
-            <h1 class="article-title">{@item.title}</h1>
+            <h1 class="article-title">
+              <svg
+                :if={@current_doc.visibility == "private"}
+                class="doc-lock"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <title>Private: only you and people it's shared with can see this doc</title>
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              {@item.title}
+            </h1>
             <%= if @current_user && @current_user.id != @current_doc.owner_id do %>
               <button
                 type="button"
@@ -784,6 +856,83 @@ defmodule AvelineWeb.DocShowLive do
                 </button>
               </div>
             </details>
+            <span class="card-meta-dot">·</span>
+            <%= if @current_user && @current_user.id == @current_doc.owner_id && not @historical? do %>
+              <details class="version-switcher" id="visibility-switcher">
+                <summary class="version-switcher-trigger" title="Who can see this doc">
+                  <span class="article-meta-val">
+                    <%= if @current_doc.visibility == "private" do %>
+                      Private<%= if @doc_shares != [] do %> · {length(@doc_shares)}<% end %>
+                    <% else %>
+                      Team
+                    <% end %>
+                  </span>
+                  <svg class="version-switcher-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </summary>
+                <div class="version-switcher-menu visibility-menu">
+                  <div class="switcher-label">Who can see this doc</div>
+                  <button
+                    type="button"
+                    phx-click="set_visibility"
+                    phx-value-visibility="workspace"
+                    class={"version-switcher-item comment-view-item " <> if @current_doc.visibility == "workspace", do: "current", else: ""}
+                  >
+                    <span class="comment-view-word">team</span>
+                    <span class="comment-view-desc">everyone in this workspace</span>
+                    <span :if={@current_doc.visibility == "workspace"} class="check">✓</span>
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="set_visibility"
+                    phx-value-visibility="private"
+                    class={"version-switcher-item comment-view-item " <> if @current_doc.visibility == "private", do: "current", else: ""}
+                  >
+                    <span class="comment-view-word">private</span>
+                    <span class="comment-view-desc">you, plus people you share it with</span>
+                    <span :if={@current_doc.visibility == "private"} class="check">✓</span>
+                  </button>
+                  <%= if @current_doc.visibility == "private" do %>
+                    <div class="switcher-label">Shared with</div>
+                    <p :if={@doc_shares == []} class="share-empty">No one yet. Only you can see this doc.</p>
+                    <div :for={share <- @doc_shares} class="share-row">
+                      <span class="share-name">{share.user && share.user.username}</span>
+                      <span class="share-role">{share.role}</span>
+                      <button
+                        type="button"
+                        class="share-remove"
+                        phx-click="unshare_doc"
+                        phx-value-user-id={share.user_id}
+                        title="Revoke access"
+                        aria-label={"Revoke access for #{share.user && share.user.username}"}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <form :if={@share_candidates != []} phx-submit="share_doc" class="share-form">
+                      <select name="username" class="share-select">
+                        <option
+                          :for={u <- @share_candidates}
+                          value={u.username}
+                        >
+                          {u.username}
+                        </option>
+                      </select>
+                      <select name="role" class="share-select share-select-role">
+                        <option value="viewer">viewer</option>
+                        <option value="editor">editor</option>
+                      </select>
+                      <button type="submit" class="share-add-btn">Share</button>
+                    </form>
+                  <% end %>
+                </div>
+              </details>
+            <% else %>
+              <span class="article-meta-item" title="Who can see this doc">
+                <span class="article-meta-val">
+                  {if @current_doc.visibility == "private", do: "Private", else: "Team"}
+                </span>
+              </span>
+            <% end %>
             <%= if @item.tags != [] do %>
               <span class="card-meta-dot">·</span>
               <span class="chip-row" style="gap:6px">

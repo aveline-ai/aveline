@@ -499,6 +499,14 @@
       }
       .card-stat svg { width: 12px; height: 12px; opacity: 0.75; }
 
+      /* Private-doc lock: quiet glyph beside titles, scales with the
+         surrounding type. */
+      .doc-lock {
+        width: 0.8em; height: 0.8em; flex: none;
+        color: var(--text-muted);
+        vertical-align: -0.08em; /* inline beside h1 text */
+      }
+
       /* ===== Actor icon (human / agent) ===== */
       .actor-icon {
         width: 14px; height: 14px;
@@ -2079,6 +2087,46 @@
          version switcher and borrows its chrome. Items are buttons (the
          switcher's are links), so neutralize button defaults. */
       .comment-view-menu { min-width: 250px; }
+
+      /* ===== Visibility switcher (doc meta row) ===== */
+      .visibility-menu { min-width: 280px; }
+      .share-empty {
+        font-size: 12px; color: var(--text-muted);
+        padding: 4px 10px 8px; margin: 0;
+      }
+      .share-row {
+        display: flex; align-items: center; gap: 8px;
+        padding: 4px 10px; font-size: 12.5px;
+      }
+      .share-name { color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+      .share-role { color: var(--text-muted); font-size: 11px; }
+      .share-remove {
+        margin-left: auto;
+        background: none; border: none; cursor: pointer;
+        color: var(--text-muted); font-size: 14px; line-height: 1;
+        padding: 2px 6px; border-radius: 4px;
+      }
+      .share-remove:hover { color: var(--danger); background: rgba(255,255,255,0.05); }
+      .share-form {
+        display: flex; align-items: center; gap: 6px;
+        padding: 8px 10px 6px;
+        border-top: 1px solid var(--border);
+        margin-top: 4px;
+      }
+      .share-select {
+        flex: 1; min-width: 0;
+        font: inherit; font-size: 12px; color: var(--text);
+        background: var(--bg-input, var(--bg));
+        border: 1px solid var(--border); border-radius: 6px;
+        padding: 4px 6px;
+      }
+      .share-select-role { flex: 0 0 auto; }
+      .share-add-btn {
+        font-size: 12px; font-weight: 500; color: var(--text);
+        background: var(--bg-card); border: 1px solid var(--border-strong);
+        border-radius: 6px; padding: 4px 10px; cursor: pointer;
+      }
+      .share-add-btn:hover { border-color: var(--accent-dim); }
       .comment-view-item {
         display: flex; align-items: center;
         width: 100%;

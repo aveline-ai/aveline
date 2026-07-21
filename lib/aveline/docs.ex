@@ -22,6 +22,7 @@ defmodule Aveline.Docs do
   alias Aveline.Comments.Comment
   alias Aveline.Comments.Disposition
   alias Aveline.Docs.Doc
+  alias Aveline.Docs.Share
   alias Aveline.Events
   alias Aveline.Repo
   alias Aveline.Slug
@@ -50,6 +51,9 @@ defmodule Aveline.Docs do
         where: d.workspace_id == ^workspace_id
 
     base
+    # `:viewer` is who is asking. Callers must pass it; omitting it
+    # fails closed (private docs hidden from everyone).
+    |> where_readable(Keyword.get(opts, :viewer))
     |> maybe_filter_tags(tags)
     |> maybe_filter_owners(owner_ids)
     |> maybe_filter_search(search)
@@ -325,6 +329,11 @@ defmodule Aveline.Docs do
   def pin(%Doc{orientation: true}, _slot, _actor),
     do: {:error, "the orientation doc has its own card on the home page; it can't take a pin slot"}
 
+  # The home page is a team surface; a pinned private doc would leak its
+  # title to everyone. set_visibility enforces the reverse direction.
+  def pin(%Doc{visibility: "private"}, _slot, _actor),
+    do: {:error, "private docs can't be pinned; make the doc workspace-visible first"}
+
   def pin(%Doc{} = doc, slot, actor_user_id) when is_nil(slot) or slot in 1..6 do
     taken =
       from(d in base_query(),
@@ -384,6 +393,201 @@ defmodule Aveline.Docs do
     end
   end
 
+  # ===== Visibility & shares =====
+  #
+  # Doc permissions v1 (doc-permissions TIP): visibility is
+  # private | workspace on the doc row; "shared with some people" is
+  # private plus doc_shares rows granting specific members access. One
+  # access rule, applied here at the read boundary. No admin override:
+  # access comes only from visibility, ownership, and shares.
+
+  @visibilities ~w(private workspace)
+
+  def visibilities, do: @visibilities
+
+  @doc """
+  Narrows a docs query to what `user_id` may read. `nil` fails closed:
+  private docs are visible only through an authenticated viewer.
+  """
+  def where_readable(query, nil) do
+    from d in query, where: d.visibility != "private"
+  end
+
+  def where_readable(query, user_id) do
+    share_bases =
+      from s in Share,
+        where: s.user_id == ^user_id and is_nil(s.deleted_at),
+        select: s.base_doc_id
+
+    from d in query,
+      where:
+        d.visibility != "private" or d.owner_id == ^user_id or
+          d.base_doc_id in subquery(share_bases)
+  end
+
+  @doc "May this workspace member read the doc? (Membership already checked.)"
+  def member_can_read?(%Doc{visibility: "private"} = doc, user_id),
+    do: doc.owner_id == user_id or share_role(doc.base_doc_id, user_id) != nil
+
+  def member_can_read?(%Doc{}, _user_id), do: true
+
+  @doc "May this workspace member edit the doc? (Membership already checked.)"
+  def member_can_edit?(%Doc{visibility: "private"} = doc, user_id),
+    do: doc.owner_id == user_id or share_role(doc.base_doc_id, user_id) == "editor"
+
+  def member_can_edit?(%Doc{}, _user_id), do: true
+
+  defp share_role(base_doc_id, user_id) do
+    from(s in Share,
+      where: s.base_doc_id == ^base_doc_id and s.user_id == ^user_id and is_nil(s.deleted_at),
+      select: s.role
+    )
+    |> Repo.one()
+  end
+
+  @doc """
+  Change a doc's visibility in place (like pin slots — versioning stays
+  about content). Owner only. The orientation doc is permanently public,
+  and a pinned doc can't go private: the home page is a team surface and
+  a pinned private doc would leak its title there.
+  """
+  def set_visibility(%Doc{} = doc, visibility, actor_user_id) do
+    cond do
+      visibility not in @visibilities ->
+        {:error, "visibility must be one of: #{Enum.join(@visibilities, ", ")}"}
+
+      doc.orientation ->
+        {:error, "the orientation doc is always visible to the whole workspace"}
+
+      doc.owner_id != actor_user_id ->
+        {:error, "only the doc's owner can change its visibility"}
+
+      visibility == "private" and not is_nil(doc.pin_slot) ->
+        {:error, "unpin this doc first: pinned docs are a team surface and can't be private"}
+
+      doc.visibility == visibility ->
+        {:ok, doc}
+
+      true ->
+        doc
+        |> Ecto.Changeset.change(%{visibility: visibility})
+        |> Repo.update()
+        |> case do
+          {:ok, updated} ->
+            updated = Repo.preload(updated, [:owner, :actor_user])
+            Broadcasts.publish_doc_event(:doc_updated, updated)
+
+            Events.record(%{
+              workspace_id: updated.workspace_id,
+              actor: actor_user_id,
+              actor_type: "agent",
+              action: "doc_visibility_changed",
+              target_kind: "doc",
+              target_id: updated.base_doc_id,
+              target_slug: updated.slug,
+              target_label: updated.title,
+              data: %{"visibility" => visibility}
+            })
+
+            {:ok, updated}
+
+          err ->
+            err
+        end
+    end
+  end
+
+  @doc "Live shares on a doc, user preloaded, oldest first."
+  def list_shares(%Doc{} = doc) do
+    from(s in Share,
+      where: s.base_doc_id == ^doc.base_doc_id and is_nil(s.deleted_at),
+      order_by: [asc: s.inserted_at],
+      preload: [:user, :granted_by]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Grant (or re-role) a member's access to a doc. Owner only; the target
+  must be a member of the doc's workspace. Upserts the live share row.
+  """
+  def share_doc(%Doc{} = doc, user_id, role, actor_user_id) do
+    cond do
+      role not in Share.roles() ->
+        {:error, "role must be one of: #{Enum.join(Share.roles(), ", ")}"}
+
+      doc.owner_id != actor_user_id ->
+        {:error, "only the doc's owner can share it"}
+
+      user_id == doc.owner_id ->
+        {:error, "the owner already has full access"}
+
+      not Aveline.Workspaces.member?(doc.workspace_id, user_id) ->
+        {:error, "that user is not a member of this workspace"}
+
+      true ->
+        existing =
+          Repo.one(
+            from s in Share,
+              where:
+                s.base_doc_id == ^doc.base_doc_id and s.user_id == ^user_id and
+                  is_nil(s.deleted_at)
+          )
+
+        result =
+          case existing do
+            nil ->
+              %Share{}
+              |> Share.changeset(%{
+                base_doc_id: doc.base_doc_id,
+                workspace_id: doc.workspace_id,
+                user_id: user_id,
+                role: role,
+                granted_by_id: actor_user_id
+              })
+              |> Repo.insert()
+
+            %Share{} = s ->
+              s |> Share.changeset(%{role: role}) |> Repo.update()
+          end
+
+        with {:ok, share} <- result do
+          Events.record(%{
+            workspace_id: doc.workspace_id,
+            actor: actor_user_id,
+            actor_type: "agent",
+            action: "doc_shared",
+            target_kind: "doc",
+            target_id: doc.base_doc_id,
+            target_slug: doc.slug,
+            target_label: doc.title,
+            data: %{"user_id" => user_id, "role" => role}
+          })
+
+          {:ok, Repo.preload(share, [:user, :granted_by])}
+        end
+    end
+  end
+
+  @doc "Revoke a member's share. Owner only; soft delete."
+  def unshare_doc(%Doc{} = doc, user_id, actor_user_id) do
+    with :owner <- if(doc.owner_id == actor_user_id, do: :owner, else: :not_owner),
+         %Share{} = share <-
+           Repo.one(
+             from s in Share,
+               where:
+                 s.base_doc_id == ^doc.base_doc_id and s.user_id == ^user_id and
+                   is_nil(s.deleted_at)
+           ) do
+      share
+      |> Ecto.Changeset.change(%{deleted_at: DateTime.utc_now()})
+      |> Repo.update()
+    else
+      :not_owner -> {:error, "only the doc's owner can revoke shares"}
+      nil -> {:error, "no live share for that user on this doc"}
+    end
+  end
+
   @doc "The workspace's orientation doc."
   def get_orientation(workspace_id) do
     from(d in base_query(),
@@ -435,7 +639,7 @@ defmodule Aveline.Docs do
     run? = Keyword.get(opts, :run_charts, true)
 
     blocks
-    |> enrich_doc_links(workspace_id)
+    |> enrich_doc_links(workspace_id, Keyword.get(opts, :viewer))
     |> Enum.map(fn
       %{"type" => "chart"} = b -> Map.merge(b, chart_echo(b, workspace_id, run?))
       b -> b
@@ -573,7 +777,7 @@ defmodule Aveline.Docs do
     end
   end
 
-  defp enrich_doc_links(blocks, workspace_id) when is_list(blocks) do
+  defp enrich_doc_links(blocks, workspace_id, viewer) when is_list(blocks) do
     block_ids =
       for %{"type" => "doc_link", "doc_id" => id} <- blocks, is_binary(id), do: id
 
@@ -613,18 +817,52 @@ defmodule Aveline.Docs do
 
       live_tags = Tags.live_slug_set(workspace_id)
 
+      # Cross-links must not leak what the viewer can't read: a link to
+      # a private doc renders as inaccessible (no title, no summary),
+      # distinct from deleted. One prefetched share set — no per-link
+      # queries. `viewer: nil` fails closed.
+      private_ids =
+        for {id, d} <- Map.merge(dead, live), d.visibility == "private", do: id
+
+      shared_set =
+        if viewer && private_ids != [] do
+          from(s in Share,
+            where:
+              s.user_id == ^viewer and s.base_doc_id in ^private_ids and is_nil(s.deleted_at),
+            select: s.base_doc_id
+          )
+          |> Repo.all()
+          |> MapSet.new()
+        else
+          MapSet.new()
+        end
+
+      readable? = fn
+        nil -> true
+        %Doc{visibility: "private"} = d -> d.owner_id == viewer or MapSet.member?(shared_set, d.base_doc_id)
+        %Doc{} -> true
+      end
+
+      target_for = fn id ->
+        if readable?.(live[id]) and readable?.(dead[id]) do
+          doc_link_target(live[id], dead[id], live_tags)
+        else
+          %{"inaccessible" => true}
+        end
+      end
+
       Enum.map(blocks, fn
         %{} = b ->
           b =
             case b do
               %{"type" => "doc_link", "doc_id" => id} ->
-                Map.put(b, "target", doc_link_target(live[id], dead[id], live_tags))
+                Map.put(b, "target", target_for.(id))
 
               _ ->
                 b
             end
 
-          enrich_span_links(b, live, dead, live_tags)
+          enrich_span_links(b, target_for)
 
         b ->
           b
@@ -632,13 +870,13 @@ defmodule Aveline.Docs do
     end
   end
 
-  defp enrich_doc_links(blocks, _workspace_id), do: blocks
+  defp enrich_doc_links(blocks, _workspace_id, _viewer), do: blocks
 
-  defp enrich_span_links(block, live, dead, live_tags) do
+  defp enrich_span_links(block, target_for) do
     {:ok, enriched} =
       walk_spans(block, fn
         %{"link" => %{"doc_id" => id} = link} = span when is_binary(id) ->
-          {:ok, Map.put(span, "link", Map.put(link, "target", doc_link_target(live[id], dead[id], live_tags)))}
+          {:ok, Map.put(span, "link", Map.put(link, "target", target_for.(id)))}
 
         span ->
           {:ok, span}
@@ -690,6 +928,7 @@ defmodule Aveline.Docs do
         tags: Map.get(attrs, :tags, []),
         # Internal-only (workspace seeding) — not exposed through the API.
         orientation: Map.get(attrs, :orientation, false),
+        visibility: Map.get(attrs, :visibility) || "workspace",
         owner_id: Map.fetch!(attrs, :owner_id),
         actor_user_id: Map.fetch!(attrs, :actor_user_id),
         actor_type: Map.fetch!(attrs, :actor_type)
@@ -1086,10 +1325,12 @@ defmodule Aveline.Docs do
         title: Map.get(update_attrs, :title, current.title),
         summary: Map.get(update_attrs, :summary, current.summary),
         tags: Map.get(update_attrs, :tags, current.tags),
-        # Slot + orientation carry across edits; neither is editable
-        # through apply_ops.
+        # Slot, orientation, and visibility carry across edits; none is
+        # editable through apply_ops (visibility changes go through
+        # set_visibility, in place on the current row).
         pin_slot: current.pin_slot,
         orientation: current.orientation,
+        visibility: current.visibility,
         owner_id: current.owner_id,
         actor_user_id: Map.fetch!(update_attrs, :actor_user_id),
         actor_type: actor_type,

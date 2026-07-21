@@ -137,8 +137,15 @@ defmodule AvelineWeb.Api.CommentController do
 
   # ===== Helpers =====
 
+  # Access-gated: commenting rides read access (viewer shares can
+  # comment); an unreadable doc resolves to nil = not_found.
   defp resolve_current(conn, slug) do
     ws = conn.assigns.current_workspace
-    Docs.get_current_by_slug(ws.id, slug)
+    user = conn.assigns.current_user
+
+    case Docs.get_current_by_slug(ws.id, slug) do
+      nil -> nil
+      item -> if Docs.member_can_read?(item, user.id), do: item, else: nil
+    end
   end
 end

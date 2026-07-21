@@ -30,6 +30,7 @@ defmodule Aveline.Docs.Doc do
              :tags,
              :pin_slot,
              :orientation,
+             :visibility,
              :actor_type,
              :operations,
              :intent,
@@ -50,6 +51,11 @@ defmodule Aveline.Docs.Doc do
     field :pin_slot, :integer
     # Exactly one per workspace; undeletable by CHECK. See Docs moduledoc.
     field :orientation, :boolean, default: false
+    # private | workspace. Carried across versions like pin_slot;
+    # changed in place on the current row (owner only). "Shared with
+    # some people" is private plus doc_shares rows. Orientation docs
+    # are forced workspace-visible by CHECK.
+    field :visibility, :string, default: "workspace"
     field :actor_type, :string
     field :operations, {:array, :map}, default: []
     field :intent, :string
@@ -93,6 +99,7 @@ defmodule Aveline.Docs.Doc do
       :tags,
       :pin_slot,
       :orientation,
+      :visibility,
       :owner_id,
       :actor_user_id,
       :actor_type,
@@ -113,6 +120,7 @@ defmodule Aveline.Docs.Doc do
       :actor_type
     ])
     |> validate_inclusion(:actor_type, @actor_types)
+    |> validate_inclusion(:visibility, ~w(private workspace))
     |> validate_length(:title, min: 1, max: @max_title)
     |> validate_length(:summary, max: @max_summary)
     |> validate_slug()

@@ -33,7 +33,7 @@ defmodule AvelineWeb.HomeLive do
            recently_viewed: (user && DocViews.recent_for_user(ws.id, user.id, 3)) || [],
            pinned_docs: Docs.list_pinned(ws.id),
            needs_you: (user && Comments.list_open_threads_for_owner(ws.id, user.id, 5)) || [],
-           recent_changes: Docs.list_current(ws.id, sort: :recent, limit: 5),
+           recent_changes: Docs.list_current(ws.id, sort: :recent, limit: 5, viewer: user.id),
            # All tags in the workspace tag order (sort_key override,
            # alphabetical otherwise): the glossary is the vocabulary,
            # not a popularity chart. Chips only; clicking one swaps the

@@ -20,7 +20,7 @@ defmodule AvelineWeb.ActivityLive do
 
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
-        {events, has_more?} = load_page(ws.id, nil)
+        {events, has_more?} = load_page(ws.id, user.id, nil)
 
         {:ok,
          assign(socket,
@@ -49,15 +49,20 @@ defmodule AvelineWeb.ActivityLive do
     %{workspace: ws, events: existing} = socket.assigns
     cursor = List.last(existing) && List.last(existing).inserted_at
 
-    {next, has_more?} = load_page(ws.id, cursor)
+    {next, has_more?} = load_page(ws.id, socket.assigns.current_user.id, cursor)
 
     {:noreply, assign(socket, events: existing ++ next, has_more?: has_more?)}
   end
 
   # Fetch one extra row so we can flag whether more pages exist without a
   # separate COUNT(*).
-  defp load_page(workspace_id, cursor) do
-    raw = Events.list_for_workspace(workspace_id, limit: @page_size + 1, before: cursor)
+  defp load_page(workspace_id, viewer_id, cursor) do
+    raw =
+      Events.list_for_workspace(workspace_id,
+        limit: @page_size + 1,
+        before: cursor,
+        viewer: viewer_id
+      )
 
     if length(raw) > @page_size do
       {Enum.take(raw, @page_size), true}

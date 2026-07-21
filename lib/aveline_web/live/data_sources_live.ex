@@ -35,7 +35,7 @@ defmodule AvelineWeb.DataSourcesLive do
           |> Aveline.Repo.preload(:created_by)
           |> Enum.sort_by(& &1.name)
 
-        {chart_counts, charted_in} = chart_index(ws.id)
+        {chart_counts, charted_in} = chart_index(ws.id, user.id)
         built_on = built_on_index(queries)
 
         {:ok,
@@ -114,8 +114,8 @@ defmodule AvelineWeb.DataSourcesLive do
 
   # {query name => chart count, query name => [%{slug, title}]} across
   # live docs. Derived at read time from block JSON, so it can't drift.
-  defp chart_index(workspace_id) do
-    docs = Docs.list_current(workspace_id)
+  defp chart_index(workspace_id, viewer_id) do
+    docs = Docs.list_current(workspace_id, viewer: viewer_id)
 
     refs_per_doc =
       Enum.flat_map(docs, fn doc ->

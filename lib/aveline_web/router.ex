@@ -106,6 +106,12 @@ defmodule AvelineWeb.Router do
     post "/docs/:doc_slug/pin", DocController, :pin
     delete "/docs/:doc_slug/pin", DocController, :unpin
 
+    # Doc permissions v1: visibility in place, per-member shares.
+    put "/docs/:doc_slug/visibility", DocController, :set_visibility
+    get "/docs/:doc_slug/shares", DocController, :shares
+    post "/docs/:doc_slug/shares", DocController, :share
+    delete "/docs/:doc_slug/shares/:username", DocController, :unshare
+
     # Doc versions
     get "/docs/:doc_slug/versions", VersionController, :index
     get "/docs/:doc_slug/versions/:version_number", VersionController, :show

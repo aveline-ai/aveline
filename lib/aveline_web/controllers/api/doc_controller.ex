@@ -31,6 +31,7 @@ defmodule AvelineWeb.Api.DocController do
          {:ok, owner_ids} <- resolve_authors(ws.id, parse_tag_list(params["author"] || params["authors"])) do
       items =
         Docs.list_current(ws.id,
+          viewer: conn.assigns.current_user.id,
           tags: parse_tag_list(params["tag"] || params["tags"]),
           updated: params["edited"] || params["updated"],
           search: params["q"],
@@ -96,16 +97,16 @@ defmodule AvelineWeb.Api.DocController do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
 
-    case Docs.get_current_by_slug(ws.id, slug) do
-      nil ->
+    case fetch_readable(ws, user, slug) do
+      {:error, :not_found} ->
         {:error, :not_found}
 
-      item ->
+      {:ok, item} ->
         # Record an agent "read" event — same as the LV connects do.
         DocViews.record(ws.id, item.base_doc_id, user.id, "agent")
         # Reads return chart CONFIG, not data — a doc read never dials a
         # customer database. Agents fetch rows explicitly via run-block.
-        item = %{item | blocks: Docs.enrich_blocks(item.blocks || [], ws.id, run_charts: false)}
+        item = %{item | blocks: Docs.enrich_blocks(item.blocks || [], ws.id, run_charts: false, viewer: user.id)}
         Envelope.ok(conn, %{doc: Views.doc_full(item)})
     end
   end
@@ -125,7 +126,7 @@ defmodule AvelineWeb.Api.DocController do
 
       item ->
         DocViews.record(ws.id, item.base_doc_id, user.id, "agent")
-        item = %{item | blocks: Docs.enrich_blocks(item.blocks || [], ws.id, run_charts: false)}
+        item = %{item | blocks: Docs.enrich_blocks(item.blocks || [], ws.id, run_charts: false, viewer: user.id)}
         Envelope.ok(conn, %{doc: Views.doc_full(item)})
     end
   end
@@ -137,8 +138,9 @@ defmodule AvelineWeb.Api.DocController do
   """
   def run_block(conn, %{"doc_slug" => slug, "block_id" => block_id}) do
     ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
 
-    with %{} = item <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
+    with {:ok, item} <- fetch_readable(ws, user, slug),
          %{"type" => "chart"} = block <- find_chart(item.blocks, block_id) || {:error, :not_found} do
       case Docs.run_chart(ws.id, block) do
         %{"error" => msg} -> {:error, :query_failed, msg}
@@ -183,7 +185,8 @@ defmodule AvelineWeb.Api.DocController do
       owner_id: user.id,
       actor_user_id: user.id,
       actor_type: params["actor"] || "agent",
-      intent: params["intent"]
+      intent: params["intent"],
+      visibility: params["visibility"] || "workspace"
     }
 
     with {:ok, item} <- Docs.create_doc(attrs) do
@@ -235,7 +238,8 @@ defmodule AvelineWeb.Api.DocController do
     blocks = params["blocks"]
     ops = params["operations"]
 
-    with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
+    with {:ok, current} <- fetch_readable(ws, user, slug),
+         :ok <- ensure_editable(current, user),
          :ok <- validate_edit_mode(blocks, ops) do
       intent = params["intent"]
       resolves = params["resolves_comment_ids"] || []
@@ -288,7 +292,8 @@ defmodule AvelineWeb.Api.DocController do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
 
-    with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
+    with {:ok, current} <- fetch_readable(ws, user, slug),
+         :ok <- ensure_editable(current, user),
          {:ok, _deleted} <- Docs.soft_delete(current, user.id) do
       Envelope.ok(conn, %{})
     end
@@ -296,9 +301,15 @@ defmodule AvelineWeb.Api.DocController do
 
   def restore(conn, %{"doc_slug" => slug}) do
     ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
 
     case latest_for_slug(ws.id, slug) do
       nil ->
+        {:error, :not_found}
+
+      # A deleted private doc stays private: only its owner can restore
+      # it, and to anyone else it does not exist.
+      %{visibility: "private", owner_id: owner_id} when owner_id != user.id ->
         {:error, :not_found}
 
       %{base_doc_id: base} ->
@@ -327,14 +338,14 @@ defmodule AvelineWeb.Api.DocController do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
 
-    case Docs.get_current_by_slug(ws.id, slug) do
-      nil ->
+    case fetch_readable(ws, user, slug) do
+      {:error, :not_found} ->
         {:error, :not_found}
 
-      %{owner_id: owner_id} when owner_id == user.id ->
+      {:ok, %{owner_id: owner_id}} when owner_id == user.id ->
         {:error, :self_kudos, "You can't give kudos to your own doc."}
 
-      item ->
+      {:ok, item} ->
         {:ok, action} = Kudos.toggle(ws.id, item.base_doc_id, user.id)
         count = Kudos.count_for_base(item.base_doc_id)
 
@@ -354,7 +365,7 @@ defmodule AvelineWeb.Api.DocController do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
 
-    with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
+    with {:ok, current} <- fetch_readable(ws, user, slug),
          {:ok, slot} <- parse_slot(params["slot"]),
          {:ok, doc} <- Docs.pin(current, slot, user.id) do
       Envelope.ok(conn, %{slug: doc.slug, pin_slot: doc.pin_slot})
@@ -365,7 +376,7 @@ defmodule AvelineWeb.Api.DocController do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
 
-    with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
+    with {:ok, current} <- fetch_readable(ws, user, slug),
          {:ok, doc} <- Docs.unpin(current, user.id) do
       Envelope.ok(conn, %{slug: doc.slug, pin_slot: nil})
     end
@@ -383,7 +394,104 @@ defmodule AvelineWeb.Api.DocController do
 
   defp parse_slot(_), do: {:error, "pin slot must be an integer between 1 and 6"}
 
+  # ===== Visibility & shares =====
+
+  @doc """
+  Change a doc's visibility in place: "private" | "workspace". Owner
+  only. Does not create a version — visibility is placement-style
+  state, like pin slots.
+  """
+  def set_visibility(conn, %{"doc_slug" => slug, "visibility" => vis}) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    with {:ok, current} <- fetch_readable(ws, user, slug),
+         {:ok, item} <- Docs.set_visibility(current, vis, user.id) do
+      Envelope.ok(conn, %{slug: item.slug, doc_id: item.base_doc_id, visibility: item.visibility})
+    end
+  end
+
+  def set_visibility(_conn, _params), do: {:error, {:missing_field, "visibility"}}
+
+  @doc """
+  Grant a workspace member access to a private doc. Body:
+  {"username": "...", "role": "viewer" | "editor"} (role defaults to
+  viewer). Owner only; upserts the live share.
+  """
+  def share(conn, %{"doc_slug" => slug, "username" => username} = params) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    with {:ok, current} <- fetch_readable(ws, user, slug),
+         %_{} = target <- Aveline.Accounts.get_user_by_username(username) || {:error, :not_member},
+         {:ok, share} <- Docs.share_doc(current, target.id, params["role"] || "viewer", user.id) do
+      Envelope.ok(conn, %{
+        slug: current.slug,
+        doc_id: current.base_doc_id,
+        username: username,
+        role: share.role
+      })
+    end
+  end
+
+  def share(_conn, _params), do: {:error, {:missing_field, "username"}}
+
+  @doc "Revoke a member's share. Owner only."
+  def unshare(conn, %{"doc_slug" => slug, "username" => username}) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    with {:ok, current} <- fetch_readable(ws, user, slug),
+         %_{} = target <- Aveline.Accounts.get_user_by_username(username) || {:error, :not_member},
+         {:ok, _share} <- Docs.unshare_doc(current, target.id, user.id) do
+      Envelope.ok(conn, %{slug: current.slug, doc_id: current.base_doc_id, username: username})
+    end
+  end
+
+  def unshare(_conn, _params), do: {:error, {:missing_field, "username"}}
+
+  @doc "Live shares on a doc, with usernames. Readable by anyone who can read the doc."
+  def shares(conn, %{"doc_slug" => slug}) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    with {:ok, current} <- fetch_readable(ws, user, slug) do
+      shares =
+        Enum.map(Docs.list_shares(current), fn s ->
+          %{
+            username: s.user && s.user.username,
+            role: s.role,
+            granted_by: s.granted_by && s.granted_by.username,
+            granted_at: s.inserted_at
+          }
+        end)
+
+      Envelope.ok(conn, %{
+        slug: current.slug,
+        doc_id: current.base_doc_id,
+        visibility: current.visibility,
+        shares: shares
+      })
+    end
+  end
+
   # ===== Helpers =====
+
+  # One access rule for every by-slug endpoint. Inaccessible and
+  # nonexistent are indistinguishable on purpose: existence is
+  # information.
+  defp fetch_readable(ws, user, slug) do
+    case Docs.get_current_by_slug(ws.id, slug) do
+      nil -> {:error, :not_found}
+      item -> if Docs.member_can_read?(item, user.id), do: {:ok, item}, else: {:error, :not_found}
+    end
+  end
+
+  defp ensure_editable(item, user) do
+    if Docs.member_can_edit?(item, user.id),
+      do: :ok,
+      else: {:error, :forbidden, "You have viewer access to this doc; editing needs an editor share or ownership."}
+  end
 
   defp latest_for_slug(ws_id, slug) do
     import Ecto.Query
