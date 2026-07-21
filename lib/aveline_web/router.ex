@@ -139,6 +139,12 @@ defmodule AvelineWeb.Router do
     post "/views/:name/pin", ViewController, :pin
     delete "/views/:name/pin", ViewController, :unpin
 
+    # View permissions: the doc model copied onto views.
+    put "/views/:name/visibility", ViewController, :set_visibility
+    get "/views/:name/shares", ViewController, :shares
+    post "/views/:name/shares", ViewController, :share
+    delete "/views/:name/shares/:username", ViewController, :unshare
+
     # Timeline milestones — dated facts overlaid on time-series charts.
     get "/milestones", MilestoneController, :index
     post "/milestones", MilestoneController, :create

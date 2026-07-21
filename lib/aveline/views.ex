@@ -12,6 +12,7 @@ defmodule Aveline.Views do
   alias Aveline.Repo
   alias Aveline.Tags
   alias Aveline.Views.View
+  alias Aveline.Views.ViewShare
 
   defp base_query do
     from v in View, where: not v.superseded and is_nil(v.deleted_at)
@@ -19,12 +20,147 @@ defmodule Aveline.Views do
 
   # Pinned first, then name — the one ordering every surface uses
   # (title switcher, list-views, sidebar).
-  def list_for_workspace(workspace_id) do
+  def list_for_workspace(workspace_id, opts \\ []) do
     from(v in base_query(),
       where: v.workspace_id == ^workspace_id,
       order_by: [desc: v.pinned, asc: v.name]
     )
+    |> where_usable(Keyword.get(opts, :viewer))
     |> Repo.all()
+  end
+
+  @doc """
+  Narrows a views query to what `user_id` may use. Same rule as docs;
+  `nil` fails closed (private views hidden).
+  """
+  def where_usable(query, nil) do
+    from v in query, where: v.visibility != "private"
+  end
+
+  def where_usable(query, user_id) do
+    shared =
+      from s in ViewShare,
+        where: s.user_id == ^user_id and is_nil(s.deleted_at),
+        select: s.base_view_id
+
+    from v in query,
+      where:
+        v.visibility != "private" or v.owner_id == ^user_id or
+          v.base_view_id in subquery(shared)
+  end
+
+  @doc "May this member use the view? (Membership already checked.)"
+  def member_can_use?(%View{visibility: "private"} = view, user_id),
+    do: view.owner_id == user_id or share_role(view.base_view_id, user_id) != nil
+
+  def member_can_use?(%View{}, _user_id), do: true
+
+  @doc "May this member edit the view's config? Private needs owner or editor share."
+  def member_can_edit?(%View{visibility: "private"} = view, user_id),
+    do: view.owner_id == user_id or share_role(view.base_view_id, user_id) == "editor"
+
+  def member_can_edit?(%View{}, _user_id), do: true
+
+  defp share_role(base_view_id, user_id) do
+    from(s in ViewShare,
+      where: s.base_view_id == ^base_view_id and s.user_id == ^user_id and is_nil(s.deleted_at),
+      select: s.role
+    )
+    |> Repo.one()
+  end
+
+  @doc """
+  Change a view's visibility in place. Owner only; a pinned view can't
+  go private (the sidebar is a team surface): unpin it first.
+  """
+  def set_visibility(%View{} = view, visibility, actor_user_id) do
+    cond do
+      visibility not in ~w(private workspace) ->
+        {:error, "visibility must be one of: private, workspace"}
+
+      view.owner_id != actor_user_id ->
+        {:error, "only the view's owner can change its visibility"}
+
+      visibility == "private" and view.pinned ->
+        {:error, "unpin this view first: pinned views live in the shared sidebar and can't be private"}
+
+      view.visibility == visibility ->
+        {:ok, view}
+
+      true ->
+        view |> Ecto.Changeset.change(%{visibility: visibility}) |> Repo.update()
+    end
+  end
+
+  @doc "Live shares on a view, user preloaded, oldest first."
+  def list_shares(%View{} = view) do
+    from(s in ViewShare,
+      where: s.base_view_id == ^view.base_view_id and is_nil(s.deleted_at),
+      order_by: [asc: s.inserted_at],
+      preload: [:user, :granted_by]
+    )
+    |> Repo.all()
+  end
+
+  @doc "Grant (or re-role) a member's access. Owner only; target must be a member."
+  def share_view(%View{} = view, user_id, role, actor_user_id) do
+    cond do
+      role not in ViewShare.roles() ->
+        {:error, "role must be one of: #{Enum.join(ViewShare.roles(), ", ")}"}
+
+      view.owner_id != actor_user_id ->
+        {:error, "only the view's owner can share it"}
+
+      user_id == view.owner_id ->
+        {:error, "the owner already has full access"}
+
+      not Aveline.Workspaces.member?(view.workspace_id, user_id) ->
+        {:error, "that user is not a member of this workspace"}
+
+      true ->
+        existing =
+          Repo.one(
+            from s in ViewShare,
+              where:
+                s.base_view_id == ^view.base_view_id and s.user_id == ^user_id and
+                  is_nil(s.deleted_at)
+          )
+
+        case existing do
+          nil ->
+            %ViewShare{}
+            |> ViewShare.changeset(%{
+              base_view_id: view.base_view_id,
+              workspace_id: view.workspace_id,
+              user_id: user_id,
+              role: role,
+              granted_by_id: actor_user_id
+            })
+            |> Repo.insert()
+
+          %ViewShare{} = share ->
+            share |> ViewShare.changeset(%{role: role}) |> Repo.update()
+        end
+    end
+  end
+
+  @doc "Revoke a member's share. Owner only; soft delete."
+  def unshare_view(%View{} = view, user_id, actor_user_id) do
+    with :owner <- if(view.owner_id == actor_user_id, do: :owner, else: :not_owner),
+         %ViewShare{} = share <-
+           Repo.one(
+             from s in ViewShare,
+               where:
+                 s.base_view_id == ^view.base_view_id and s.user_id == ^user_id and
+                   is_nil(s.deleted_at)
+           ) do
+      share
+      |> Ecto.Changeset.change(%{deleted_at: DateTime.utc_now()})
+      |> Repo.update()
+    else
+      :not_owner -> {:error, "only the view's owner can revoke shares"}
+      nil -> {:error, "no live share for that user on this view"}
+    end
   end
 
   def list_pinned(workspace_id) do
@@ -46,7 +182,9 @@ defmodule Aveline.Views do
         name: name,
         description: description,
         config: config || %{},
-        created_by_id: created_by_id
+        created_by_id: created_by_id,
+        # The creator owns the view; ownership never moves with edits.
+        owner_id: created_by_id
       })
       |> Repo.insert()
     end
@@ -83,6 +221,8 @@ defmodule Aveline.Views do
             description: Map.get(changes, :description, current.description),
             config: config,
             pinned: current.pinned,
+            visibility: current.visibility,
+            owner_id: current.owner_id,
             created_by_id: user_id
           })
           |> Repo.insert()
@@ -117,6 +257,9 @@ defmodule Aveline.Views do
   end
 
   @doc "Placement, not meaning: in-place update, no version minted."
+  def set_pinned(%View{visibility: "private"} = _view, true),
+    do: {:error, "private views can't be pinned; make the view workspace-visible first"}
+
   def set_pinned(%View{} = view, pinned?) when is_boolean(pinned?) do
     view |> Ecto.Changeset.change(pinned: pinned?) |> Repo.update()
   end
@@ -127,6 +270,7 @@ defmodule Aveline.Views do
       "description" => view.description,
       "config" => view.config,
       "pinned" => view.pinned,
+      "visibility" => view.visibility,
       "version_number" => view.version_number,
       "created_at" => DateTime.to_iso8601(view.inserted_at)
     }

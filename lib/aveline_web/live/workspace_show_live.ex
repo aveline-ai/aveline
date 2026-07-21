@@ -38,7 +38,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
            group_by: nil,
            sub_group_by: nil,
            edited_within: nil,
-           views: Aveline.Views.list_for_workspace(ws.id),
+           views: Aveline.Views.list_for_workspace(ws.id, viewer: user.id),
            current_view: nil,
            modified?: false,
            sort: :recent,
@@ -69,10 +69,18 @@ defmodule AvelineWeb.WorkspaceShowLive do
   def handle_params(params, _uri, socket) do
     ws = socket.assigns.workspace
 
+    # A view you can't use resolves like one that doesn't exist.
     current_view =
       case params["view_name"] do
-        nil -> nil
-        name -> Aveline.Views.get_current_by_name(ws.id, name)
+        nil ->
+          nil
+
+        name ->
+          view = Aveline.Views.get_current_by_name(ws.id, name)
+
+          if view && Aveline.Views.member_can_use?(view, socket.assigns.current_user.id),
+            do: view,
+            else: nil
       end
 
     if params["view_name"] && is_nil(current_view) do
@@ -579,6 +587,20 @@ defmodule AvelineWeb.WorkspaceShowLive do
                 <span class="vmenu-body">
                   <span class="vmenu-name">
                     {v.name}
+                    <svg
+                      :if={v.visibility == "private"}
+                      class="doc-lock"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <title>Private view: only you and people it's shared with</title>
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
                     <svg
                       :if={v.pinned}
                       class="vmenu-pin"
