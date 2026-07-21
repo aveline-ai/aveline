@@ -32,17 +32,16 @@ defmodule Aveline.Views.View do
     field :config, :map, default: %{}
     # Placement, not meaning: updated in place, not versioned.
     field :pinned, :boolean, default: false
-    # private | workspace, the doc model copied onto views. Carried
-    # across versions; changed in place by the owner. Pinned views are
-    # forced workspace-visible by CHECK (the sidebar is a team surface).
-    field :visibility, :string, default: "workspace"
     field :superseded, :boolean, default: false
     field :deleted_at, :utc_datetime_usec
 
     belongs_to :workspace, Workspace, type: :binary_id
+    # The space this view lives in (exactly one): team, personal, or a
+    # project bucket (see the view-buckets TIP). The bucket IS the
+    # audience. Carried across versions; moved in place, like pins.
+    belongs_to :bucket, Aveline.Views.Bucket, type: :binary_id
     # created_by moves with each edit (the version's actor); owner is
-    # the version-1 creator, carried across versions, and is who may
-    # change visibility and manage shares.
+    # the version-1 creator, carried across versions.
     belongs_to :owner, User, type: :binary_id
     belongs_to :created_by, User, type: :binary_id
     belongs_to :deleted_by, User, type: :binary_id
@@ -62,7 +61,7 @@ defmodule Aveline.Views.View do
       :description,
       :config,
       :pinned,
-      :visibility,
+      :bucket_id,
       :owner_id,
       :created_by_id
     ])

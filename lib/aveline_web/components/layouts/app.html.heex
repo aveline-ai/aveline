@@ -86,10 +86,13 @@
               <span class="label">{v.name}</span>
             </.link>
           </div>
-          <div :if={sections.shared != []} class="sidebar-views sidebar-views-scoped">
-            <div class="sidebar-label">Shared with you</div>
+          <div
+            :for={%{bucket: bucket, views: bucket_views} <- sections.buckets}
+            class="sidebar-views sidebar-views-scoped"
+          >
+            <div class="sidebar-label">{bucket.name}</div>
             <.link
-              :for={v <- sections.shared}
+              :for={v <- bucket_views}
               navigate={~p"/w/#{@workspace.slug}/v/#{v.name}"}
               class={"sidebar-item " <> if assigns[:nav_active] == {:view, v.name}, do: "active", else: ""}
               title={v.description}

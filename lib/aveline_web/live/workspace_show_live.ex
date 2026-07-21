@@ -511,13 +511,21 @@ defmodule AvelineWeb.WorkspaceShowLive do
     """
   end
 
-  # The switcher's three sections: team (workspace-visible), yours
-  # (private, owned), shared with you (private, opened by a share).
-  # Headers only render when a personal section exists.
-  defp view_sections(views, user_id) do
-    {team, personal} = Enum.split_with(views, &(&1.visibility == "workspace"))
-    {yours, shared} = Enum.split_with(personal, &(&1.owner_id == user_id))
-    {team, yours, shared}
+  # The switcher's sections mirror the sidebar: Team, Yours (your
+  # personal bucket), then one per project bucket you're in. Headers
+  # only render when a non-team section exists.
+  defp view_sections(views, _user_id) do
+    {team, rest} = Enum.split_with(views, &(&1.bucket && &1.bucket.kind == "team"))
+    {yours, project} = Enum.split_with(rest, &(&1.bucket && &1.bucket.kind == "personal"))
+
+    bucket_groups =
+      project
+      |> Enum.group_by(& &1.bucket)
+      |> Enum.reject(fn {b, _} -> is_nil(b) end)
+      |> Enum.map(fn {b, vs} -> {b, Enum.sort_by(vs, & &1.name)} end)
+      |> Enum.sort_by(fn {b, _} -> b.name end)
+
+    {team, yours, bucket_groups}
   end
 
   attr :v, :map, required: true
@@ -536,7 +544,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
         <span class="vmenu-name">
           {@v.name}
           <svg
-            :if={@v.visibility == "private"}
+            :if={@v.bucket && @v.bucket.kind == "personal"}
             class="doc-lock"
             viewBox="0 0 24 24"
             fill="none"
@@ -545,7 +553,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
             stroke-linecap="round"
             stroke-linejoin="round"
           >
-            <title>Private view: only you and people it's shared with</title>
+            <title>In your personal bucket: only you can see this view</title>
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
           </svg>
@@ -636,8 +644,8 @@ defmodule AvelineWeb.WorkspaceShowLive do
                   <span class="vmenu-desc">Everything written in this workspace.</span>
                 </span>
               </.link>
-              <% {team_views, your_views, shared_views} = view_sections(@views, @current_user.id) %>
-              <% section_headers? = your_views != [] or shared_views != [] %>
+              <% {team_views, your_views, bucket_groups} = view_sections(@views, @current_user.id) %>
+              <% section_headers? = your_views != [] or bucket_groups != [] %>
               <div :if={section_headers? and team_views != []} class="fdd-section">Team</div>
               <.vmenu_view_row
                 :for={v <- team_views}
@@ -652,13 +660,15 @@ defmodule AvelineWeb.WorkspaceShowLive do
                 workspace={@workspace}
                 current_view={@current_view}
               />
-              <div :if={shared_views != []} class="fdd-section">Shared with you</div>
-              <.vmenu_view_row
-                :for={v <- shared_views}
-                v={v}
-                workspace={@workspace}
-                current_view={@current_view}
-              />
+              <%= for {bucket, bucket_views} <- bucket_groups do %>
+                <div class="fdd-section">{bucket.name}</div>
+                <.vmenu_view_row
+                  :for={v <- bucket_views}
+                  v={v}
+                  workspace={@workspace}
+                  current_view={@current_view}
+                />
+              <% end %>
             </div>
           </div>
         <% end %>

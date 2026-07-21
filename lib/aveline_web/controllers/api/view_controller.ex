@@ -28,9 +28,19 @@ defmodule AvelineWeb.Api.ViewController do
     user = conn.assigns.current_user
     name = params["name"] |> to_string() |> String.trim() |> String.downcase()
 
-    with {:ok, view} <-
-           Views.create(ws.id, name, params["description"], params["config"] || %{}, user.id) do
-      Envelope.ok(conn, %{view: Views.safe_map(view)})
+    bucket_result =
+      case params["bucket"] do
+        nil -> {:ok, nil}
+        "yours" -> {:ok, Views.ensure_personal_bucket(ws.id, user.id)}
+        b -> fetch_bucket(ws, user, b)
+      end
+
+    with {:ok, bucket} <- bucket_result,
+         {:ok, view} <-
+           Views.create(ws.id, name, params["description"], params["config"] || %{}, user.id,
+             bucket: bucket
+           ) do
+      Envelope.ok(conn, %{view: Views.safe_map(Aveline.Repo.preload(view, :bucket))})
     end
   end
 
@@ -47,7 +57,6 @@ defmodule AvelineWeb.Api.ViewController do
       |> then(fn c -> if params["config"], do: Map.put(c, :config, params["config"]), else: c end)
 
     with {:ok, view} <- fetch_usable(ws, user, name),
-         :ok <- ensure_view_editable(view, user),
          {:ok, view} <- Views.edit(view, changes, user.id) do
       Envelope.ok(conn, %{view: Views.safe_map(view)})
     end
@@ -58,7 +67,6 @@ defmodule AvelineWeb.Api.ViewController do
     user = conn.assigns.current_user
 
     with {:ok, view} <- fetch_usable(ws, user, name),
-         :ok <- ensure_view_editable(view, user),
          {:ok, _} <- Views.delete(view, user.id) do
       Envelope.ok(conn, %{})
     end
@@ -85,68 +93,90 @@ defmodule AvelineWeb.Api.ViewController do
     end
   end
 
-  # ===== Visibility & shares (the doc model copied onto views) =====
+  # ===== Buckets (see the view-buckets TIP) =====
 
-  @doc "Change a view's visibility in place: private | workspace. Owner only."
-  def set_visibility(conn, %{"name" => name, "visibility" => vis}) do
+  @doc "Buckets you can use, each with its member list."
+  def buckets(conn, _params) do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
 
-    with {:ok, view} <- fetch_usable(ws, user, name),
-         {:ok, view} <- Views.set_visibility(view, vis, user.id) do
-      Envelope.ok(conn, %{name: view.name, visibility: view.visibility})
+    buckets =
+      ws.id
+      |> Views.list_buckets_for(user.id)
+      |> Enum.map(&bucket_map/1)
+
+    Envelope.ok(conn, %{buckets: buckets})
+  end
+
+  @doc "Create a project bucket."
+  def create_bucket(conn, %{"name" => name}) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    with {:ok, bucket} <- Views.create_bucket(ws.id, name, user.id) do
+      Envelope.ok(conn, %{bucket: bucket_map(bucket)})
     end
   end
 
-  def set_visibility(_conn, _params), do: {:error, {:missing_field, "visibility"}}
-
-  @doc "Grant a member access to a private view. Owner only."
-  def share(conn, %{"name" => name, "username" => username} = params) do
+  @doc "Delete an empty project bucket. Owner only."
+  def delete_bucket(conn, %{"bucket_name" => name}) do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
 
-    with {:ok, view} <- fetch_usable(ws, user, name),
+    with {:ok, bucket} <- fetch_bucket(ws, user, name),
+         {:ok, _} <- Views.delete_bucket(bucket, user.id) do
+      Envelope.ok(conn, %{})
+    end
+  end
+
+  @doc "Add a workspace member to a project bucket. Owner only."
+  def add_bucket_member(conn, %{"bucket_name" => name, "username" => username}) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    with {:ok, bucket} <- fetch_bucket(ws, user, name),
          %_{} = target <- Aveline.Accounts.get_user_by_username(username) || {:error, :not_member},
-         {:ok, share} <- Views.share_view(view, target.id, params["role"] || "viewer", user.id) do
-      Envelope.ok(conn, %{name: view.name, username: username, role: share.role})
+         {:ok, _} <- Views.add_bucket_member(bucket, target.id, user.id) do
+      Envelope.ok(conn, %{bucket: name, username: username})
     end
   end
 
-  def share(_conn, _params), do: {:error, {:missing_field, "username"}}
+  def add_bucket_member(_conn, _params), do: {:error, {:missing_field, "username"}}
 
-  @doc "Revoke a member's share. Owner only."
-  def unshare(conn, %{"name" => name, "username" => username}) do
+  @doc "Remove a member from a project bucket. Owner only."
+  def remove_bucket_member(conn, %{"bucket_name" => name, "username" => username}) do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
+
+    with {:ok, bucket} <- fetch_bucket(ws, user, name),
+         %_{} = target <- Aveline.Accounts.get_user_by_username(username) || {:error, :not_member},
+         {:ok, _} <- Views.remove_bucket_member(bucket, target.id, user.id) do
+      Envelope.ok(conn, %{bucket: name, username: username})
+    end
+  end
+
+  @doc """
+  Move a view to another bucket. View owner only, into a bucket they
+  can use. "yours" targets (and lazily creates) your personal bucket.
+  """
+  def move(conn, %{"name" => name, "bucket" => bucket_name}) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    bucket_result =
+      case bucket_name do
+        "yours" -> {:ok, Views.ensure_personal_bucket(ws.id, user.id)}
+        b -> fetch_bucket(ws, user, b)
+      end
 
     with {:ok, view} <- fetch_usable(ws, user, name),
-         %_{} = target <- Aveline.Accounts.get_user_by_username(username) || {:error, :not_member},
-         {:ok, _} <- Views.unshare_view(view, target.id, user.id) do
-      Envelope.ok(conn, %{name: view.name, username: username})
+         {:ok, bucket} <- bucket_result,
+         {:ok, view} <- Views.move_view(view, bucket, user.id) do
+      Envelope.ok(conn, %{view: Views.safe_map(Aveline.Repo.preload(view, :bucket, force: true))})
     end
   end
 
-  def unshare(_conn, _params), do: {:error, {:missing_field, "username"}}
-
-  @doc "Live shares on a view."
-  def shares(conn, %{"name" => name}) do
-    ws = conn.assigns.current_workspace
-    user = conn.assigns.current_user
-
-    with {:ok, view} <- fetch_usable(ws, user, name) do
-      shares =
-        Enum.map(Views.list_shares(view), fn s ->
-          %{
-            username: s.user && s.user.username,
-            role: s.role,
-            granted_by: s.granted_by && s.granted_by.username,
-            granted_at: s.inserted_at
-          }
-        end)
-
-      Envelope.ok(conn, %{name: view.name, visibility: view.visibility, shares: shares})
-    end
-  end
+  def move(_conn, _params), do: {:error, {:missing_field, "bucket"}}
 
   # ===== Helpers =====
 
@@ -159,9 +189,31 @@ defmodule AvelineWeb.Api.ViewController do
     end
   end
 
-  defp ensure_view_editable(view, user) do
-    if Views.member_can_edit?(view, user.id),
-      do: :ok,
-      else: {:error, :forbidden, "You have viewer access to this view; editing needs an editor share or ownership."}
+  defp fetch_bucket(ws, user, name) do
+    case Views.get_bucket(ws.id, name) do
+      nil -> {:error, :not_found}
+      b -> if Views.bucket_audience?(b, user.id), do: {:ok, b}, else: {:error, :not_found}
+    end
+  end
+
+  defp bucket_map(bucket) do
+    members =
+      if bucket.kind == "project",
+        do: Enum.map(Views.list_bucket_members(bucket), &(&1.user && &1.user.username)),
+        else: []
+
+    %{
+      name: bucket.name,
+      kind: bucket.kind,
+      owner: bucket.owner_id && owner_username(bucket),
+      members: members
+    }
+  end
+
+  defp owner_username(bucket) do
+    case Aveline.Repo.preload(bucket, :owner).owner do
+      nil -> nil
+      %{username: u} -> u
+    end
   end
 end

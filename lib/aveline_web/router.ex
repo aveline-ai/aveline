@@ -139,11 +139,14 @@ defmodule AvelineWeb.Router do
     post "/views/:name/pin", ViewController, :pin
     delete "/views/:name/pin", ViewController, :unpin
 
-    # View permissions: the doc model copied onto views.
-    put "/views/:name/visibility", ViewController, :set_visibility
-    get "/views/:name/shares", ViewController, :shares
-    post "/views/:name/shares", ViewController, :share
-    delete "/views/:name/shares/:username", ViewController, :unshare
+    # View buckets: the space a view lives in, and the unit views are
+    # shared at.
+    get "/view-buckets", ViewController, :buckets
+    post "/view-buckets", ViewController, :create_bucket
+    delete "/view-buckets/:bucket_name", ViewController, :delete_bucket
+    post "/view-buckets/:bucket_name/members", ViewController, :add_bucket_member
+    delete "/view-buckets/:bucket_name/members/:username", ViewController, :remove_bucket_member
+    put "/views/:name/bucket", ViewController, :move
 
     # Timeline milestones — dated facts overlaid on time-series charts.
     get "/milestones", MilestoneController, :index

@@ -1,8 +1,8 @@
 defmodule Aveline.ViewPermissionsTest do
   @moduledoc """
-  View permissions: the doc model copied onto views. Private views
-  vanish from every listing for non-shared members; the sidebar (pins)
-  stays a team surface.
+  View buckets: views live in exactly one bucket (Team / personal /
+  project) and buckets are the unit of sharing. The core promise: a
+  view outside your buckets doesn't exist for you, on any surface.
   """
   use Aveline.DataCase, async: true
 
@@ -13,106 +13,193 @@ defmodule Aveline.ViewPermissionsTest do
   setup do
     owner = user_fixture()
     other = user_fixture()
+    outsider = user_fixture()
     ws = workspace_fixture(owner)
     {:ok, _} = Aveline.Workspaces.ensure_member(ws.id, other.id)
-    {:ok, view} = Views.create(ws.id, "my-daily", "What I check every morning.", %{}, owner.id)
 
-    %{owner: owner, other: other, ws: ws, view: view}
+    %{owner: owner, other: other, outsider: outsider, ws: ws}
   end
 
-  test "ownership is the creator and survives edits by others", %{
+  test "views default into the team bucket and everyone sees them", %{
     owner: owner,
     other: other,
-    view: view
+    ws: ws
   } do
-    assert view.owner_id == owner.id
+    {:ok, view} = Views.create(ws.id, "tickets-board", "The team ticket board.", %{}, owner.id)
 
-    {:ok, v2} = Views.edit(view, %{description: "Edited by someone else entirely."}, other.id)
-    assert v2.owner_id == owner.id
-    assert v2.created_by_id == other.id
+    assert view.bucket_id == Views.ensure_team_bucket(ws.id).id
+
+    names = fn viewer -> Views.list_for_workspace(ws.id, viewer: viewer) |> Enum.map(& &1.name) end
+    assert "tickets-board" in names.(owner.id)
+    assert "tickets-board" in names.(other.id)
   end
 
-  test "private views hide from listings, shares reopen them", %{
+  test "personal-bucket views exist only for their owner", %{owner: owner, other: other, ws: ws} do
+    personal = Views.ensure_personal_bucket(ws.id, owner.id)
+
+    {:ok, _} =
+      Views.create(ws.id, "my-daily", "What I check every morning.", %{}, owner.id,
+        bucket: personal
+      )
+
+    names = fn viewer -> Views.list_for_workspace(ws.id, viewer: viewer) |> Enum.map(& &1.name) end
+    assert "my-daily" in names.(owner.id)
+    refute "my-daily" in names.(other.id)
+    # No viewer fails closed.
+    refute "my-daily" in (Views.list_for_workspace(ws.id) |> Enum.map(& &1.name))
+
+    view = Views.get_current_by_name(ws.id, "my-daily")
+    assert Views.member_can_use?(view, owner.id)
+    refute Views.member_can_use?(view, other.id)
+  end
+
+  test "project buckets share every view with members, present and future", %{
     owner: owner,
     other: other,
-    ws: ws,
-    view: view
+    outsider: outsider,
+    ws: ws
   } do
-    {:ok, view} = Views.set_visibility(view, "private", owner.id)
+    {:ok, bucket} = Views.create_bucket(ws.id, "launch", owner.id)
+
+    {:ok, _} =
+      Views.create(ws.id, "launch-tickets", "Launch project tickets.", %{}, owner.id,
+        bucket: bucket
+      )
 
     names = fn viewer -> Views.list_for_workspace(ws.id, viewer: viewer) |> Enum.map(& &1.name) end
 
-    assert "my-daily" in names.(owner.id)
-    refute "my-daily" in names.(other.id)
-    refute "my-daily" in (Views.list_for_workspace(ws.id) |> Enum.map(& &1.name))
+    # Before membership: invisible.
+    refute "launch-tickets" in names.(other.id)
 
-    {:ok, _} = Views.share_view(view, other.id, "viewer", owner.id)
-    assert "my-daily" in names.(other.id)
-    assert Views.member_can_use?(view, other.id)
-    refute Views.member_can_edit?(view, other.id)
+    {:ok, _} = Views.add_bucket_member(bucket, other.id, owner.id)
+    assert "launch-tickets" in names.(other.id)
 
-    {:ok, share} = Views.share_view(view, other.id, "editor", owner.id)
-    assert share.role == "editor"
-    assert Views.member_can_edit?(view, other.id)
+    # Future views arrive automatically with the bucket.
+    {:ok, _} =
+      Views.create(ws.id, "launch-metrics", "Launch metrics slice.", %{}, owner.id,
+        bucket: bucket
+      )
 
-    {:ok, _} = Views.unshare_view(view, other.id, owner.id)
-    refute "my-daily" in names.(other.id)
+    assert "launch-metrics" in names.(other.id)
+
+    # Removal closes the whole bucket at once.
+    {:ok, _} = Views.remove_bucket_member(bucket, other.id, owner.id)
+    refute "launch-tickets" in names.(other.id)
+    refute "launch-metrics" in names.(other.id)
+
+    # Non-workspace-members can't be added at all.
+    assert {:error, msg} = Views.add_bucket_member(bucket, outsider.id, owner.id)
+    assert msg =~ "not a member"
   end
 
-  test "only the owner changes visibility or shares", %{other: other, view: view} do
-    assert {:error, msg} = Views.set_visibility(view, "private", other.id)
-    assert msg =~ "owner"
-
-    assert {:error, msg} = Views.share_view(view, other.id, "viewer", other.id)
-    assert msg =~ "owner"
-  end
-
-  test "pin is universal: private views pin into only their audience's sidebars", %{
+  test "bucket management is owner-only; team and personal take no members", %{
     owner: owner,
     other: other,
-    ws: ws,
-    view: view
+    ws: ws
   } do
-    {:ok, view} = Views.set_visibility(view, "private", owner.id)
-    {:ok, _} = Views.set_pinned(view, true)
+    {:ok, bucket} = Views.create_bucket(ws.id, "launch", owner.id)
 
-    assert Enum.map(Views.sidebar_sections(ws.id, owner.id).yours, & &1.name) == ["my-daily"]
-    assert Views.sidebar_sections(ws.id, other.id).shared == []
+    assert {:error, msg} = Views.add_bucket_member(bucket, other.id, other.id)
+    assert msg =~ "owner"
 
-    {:ok, _} = Views.share_view(view, other.id, "viewer", owner.id)
-    assert Enum.map(Views.sidebar_sections(ws.id, other.id).shared, & &1.name) == ["my-daily"]
+    team = Views.ensure_team_bucket(ws.id)
+    assert {:error, msg} = Views.add_bucket_member(team, other.id, owner.id)
+    assert msg =~ "everyone"
+
+    personal = Views.ensure_personal_bucket(ws.id, owner.id)
+    assert {:error, _} = Views.add_bucket_member(personal, other.id, owner.id)
   end
 
-  test "sidebar sections: team pins, yours, shared with you", %{
+  test "reserved bucket names are rejected and project names are unique", %{owner: owner, ws: ws} do
+    assert {:error, msg} = Views.create_bucket(ws.id, "team", owner.id)
+    assert msg =~ "reserved"
+
+    assert {:error, msg} = Views.create_bucket(ws.id, "personal-alice", owner.id)
+    assert msg =~ "reserved"
+
+    {:ok, _} = Views.create_bucket(ws.id, "launch", owner.id)
+    assert {:error, %Ecto.Changeset{}} = Views.create_bucket(ws.id, "launch", owner.id)
+  end
+
+  test "move_view: owner only, into buckets they can use; bucket carries across versions", %{
     owner: owner,
     other: other,
-    ws: ws,
-    view: view
+    ws: ws
   } do
-    {:ok, team} = Views.create(ws.id, "tickets-board", "The team ticket board.", %{}, other.id)
-    {:ok, _} = Views.set_pinned(team, true)
+    {:ok, view} = Views.create(ws.id, "my-daily", "What I check every morning.", %{}, owner.id)
+    personal = Views.ensure_personal_bucket(ws.id, owner.id)
 
-    {:ok, view} = Views.set_visibility(view, "private", owner.id)
-    {:ok, view} = Views.set_pinned(view, true)
-    {:ok, _} = Views.share_view(view, other.id, "viewer", owner.id)
+    assert {:error, msg} = Views.move_view(view, personal, other.id)
+    assert msg =~ "owner"
 
-    owner_sections = Views.sidebar_sections(ws.id, owner.id)
-    assert Enum.map(owner_sections.team, & &1.name) == ["tickets-board"]
-    assert Enum.map(owner_sections.yours, & &1.name) == ["my-daily"]
-    assert owner_sections.shared == []
+    other_personal = Views.ensure_personal_bucket(ws.id, other.id)
+    assert {:error, msg} = Views.move_view(view, other_personal, owner.id)
+    assert msg =~ "aren't in that bucket"
 
-    other_sections = Views.sidebar_sections(ws.id, other.id)
-    assert Enum.map(other_sections.team, & &1.name) == ["tickets-board"]
-    assert other_sections.yours == []
-    assert Enum.map(other_sections.shared, & &1.name) == ["my-daily"]
-  end
+    {:ok, view} = Views.move_view(view, personal, owner.id)
+    assert view.bucket_id == personal.id
 
-  test "visibility and owner carry across versions", %{owner: owner, view: view} do
-    {:ok, view} = Views.set_visibility(view, "private", owner.id)
-    {:ok, v2} = Views.edit(view, %{description: "Still my private daily view."}, owner.id)
-
-    assert v2.visibility == "private"
+    {:ok, v2} = Views.edit(view, %{description: "Still mine, still in my bucket."}, owner.id)
+    assert v2.bucket_id == personal.id
     assert v2.owner_id == owner.id
-    assert v2.version_number == view.version_number + 1
+  end
+
+  test "empty project buckets delete, occupied ones refuse", %{owner: owner, ws: ws} do
+    {:ok, bucket} = Views.create_bucket(ws.id, "launch", owner.id)
+
+    {:ok, view} =
+      Views.create(ws.id, "launch-tickets", "Launch project tickets.", %{}, owner.id,
+        bucket: bucket
+      )
+
+    assert {:error, msg} = Views.delete_bucket(bucket, owner.id)
+    assert msg =~ "views first"
+
+    {:ok, _} = Views.move_view(view, Views.ensure_team_bucket(ws.id), owner.id)
+    assert {:ok, _} = Views.delete_bucket(bucket, owner.id)
+  end
+
+  test "sidebar sections: team, yours, then one per project bucket; pin still gates", %{
+    owner: owner,
+    other: other,
+    ws: ws
+  } do
+    {:ok, team_view} = Views.create(ws.id, "tickets-board", "The team ticket board.", %{}, other.id)
+    {:ok, _} = Views.set_pinned(team_view, true)
+
+    personal = Views.ensure_personal_bucket(ws.id, owner.id)
+
+    {:ok, mine} =
+      Views.create(ws.id, "my-daily", "What I check every morning.", %{}, owner.id,
+        bucket: personal
+      )
+
+    {:ok, bucket} = Views.create_bucket(ws.id, "launch", other.id)
+    {:ok, _} = Views.add_bucket_member(bucket, owner.id, other.id)
+
+    {:ok, launch_view} =
+      Views.create(ws.id, "launch-tickets", "Launch project tickets.", %{}, other.id,
+        bucket: bucket
+      )
+
+    # Unpinned: sections stay empty of them.
+    sections = Views.sidebar_sections(ws.id, owner.id)
+    assert Enum.map(sections.team, & &1.name) == ["tickets-board"]
+    assert sections.yours == []
+    assert sections.buckets == []
+
+    {:ok, _} = Views.set_pinned(mine, true)
+    {:ok, _} = Views.set_pinned(launch_view, true)
+
+    sections = Views.sidebar_sections(ws.id, owner.id)
+    assert Enum.map(sections.yours, & &1.name) == ["my-daily"]
+    assert [%{bucket: %{name: "launch"}, views: [%{name: "launch-tickets"}]}] = sections.buckets
+
+    # A non-member of the launch bucket never sees its section.
+    third = user_fixture()
+    {:ok, _} = Aveline.Workspaces.ensure_member(ws.id, third.id)
+    sections = Views.sidebar_sections(ws.id, third.id)
+    assert sections.buckets == []
+    assert sections.yours == []
   end
 end

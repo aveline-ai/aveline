@@ -11,8 +11,9 @@ defmodule Aveline.Views do
 
   alias Aveline.Repo
   alias Aveline.Tags
+  alias Aveline.Views.Bucket
+  alias Aveline.Views.BucketMember
   alias Aveline.Views.View
-  alias Aveline.Views.ViewShare
 
   defp base_query do
     from v in View, where: not v.superseded and is_nil(v.deleted_at)
@@ -23,149 +24,245 @@ defmodule Aveline.Views do
   def list_for_workspace(workspace_id, opts \\ []) do
     from(v in base_query(),
       where: v.workspace_id == ^workspace_id,
-      order_by: [desc: v.pinned, asc: v.name]
+      order_by: [desc: v.pinned, asc: v.name],
+      preload: [:bucket]
     )
     |> where_usable(Keyword.get(opts, :viewer))
     |> Repo.all()
   end
 
-  @doc """
-  Narrows a views query to what `user_id` may use. Same rule as docs;
-  `nil` fails closed (private views hidden).
-  """
-  def where_usable(query, nil) do
-    from v in query, where: v.visibility != "private"
+  # ===== Buckets =====
+  #
+  # The space a view lives in and the unit views are shared at (see the
+  # view-buckets TIP). Audience by kind: team = every workspace member,
+  # personal = the owner, project = owner + live binary members.
+
+  @reserved_bucket_prefix "personal-"
+
+  def ensure_team_bucket(workspace_id) do
+    get_bucket_by_kind(workspace_id, "team") ||
+      Repo.insert!(
+        Bucket.changeset(%Bucket{}, %{workspace_id: workspace_id, name: "team", kind: "team"})
+      )
   end
 
-  def where_usable(query, user_id) do
-    shared =
-      from s in ViewShare,
-        where: s.user_id == ^user_id and is_nil(s.deleted_at),
-        select: s.base_view_id
+  def ensure_personal_bucket(workspace_id, user_id) do
+    existing =
+      Repo.one(
+        from b in live_buckets(),
+          where:
+            b.workspace_id == ^workspace_id and b.kind == "personal" and b.owner_id == ^user_id
+      )
 
-    from v in query,
-      where:
-        v.visibility != "private" or v.owner_id == ^user_id or
-          v.base_view_id in subquery(shared)
+    existing ||
+      Repo.insert!(
+        Bucket.changeset(%Bucket{}, %{
+          workspace_id: workspace_id,
+          name: @reserved_bucket_prefix <> personal_slug(user_id),
+          kind: "personal",
+          owner_id: user_id
+        })
+      )
   end
 
-  @doc "May this member use the view? (Membership already checked.)"
-  def member_can_use?(%View{visibility: "private"} = view, user_id),
-    do: view.owner_id == user_id or share_role(view.base_view_id, user_id) != nil
-
-  def member_can_use?(%View{}, _user_id), do: true
-
-  @doc "May this member edit the view's config? Private needs owner or editor share."
-  def member_can_edit?(%View{visibility: "private"} = view, user_id),
-    do: view.owner_id == user_id or share_role(view.base_view_id, user_id) == "editor"
-
-  def member_can_edit?(%View{}, _user_id), do: true
-
-  defp share_role(base_view_id, user_id) do
-    from(s in ViewShare,
-      where: s.base_view_id == ^base_view_id and s.user_id == ^user_id and is_nil(s.deleted_at),
-      select: s.role
-    )
-    |> Repo.one()
-  end
-
-  @doc """
-  Change a view's visibility in place. Owner only; a pinned view can't
-  go private (the sidebar is a team surface): unpin it first.
-  """
-  def set_visibility(%View{} = view, visibility, actor_user_id) do
-    cond do
-      visibility not in ~w(private workspace) ->
-        {:error, "visibility must be one of: private, workspace"}
-
-      view.owner_id != actor_user_id ->
-        {:error, "only the view's owner can change its visibility"}
-
-      view.visibility == visibility ->
-        {:ok, view}
-
-      true ->
-        view |> Ecto.Changeset.change(%{visibility: visibility}) |> Repo.update()
+  defp personal_slug(user_id) do
+    case Repo.get(Aveline.Accounts.User, user_id) do
+      %{username: u} when is_binary(u) -> u
+      _ -> String.slice(user_id, 0, 8)
     end
   end
 
-  @doc "Live shares on a view, user preloaded, oldest first."
-  def list_shares(%View{} = view) do
-    from(s in ViewShare,
-      where: s.base_view_id == ^view.base_view_id and is_nil(s.deleted_at),
-      order_by: [asc: s.inserted_at],
-      preload: [:user, :granted_by]
+  defp live_buckets, do: from(b in Bucket, where: is_nil(b.deleted_at))
+
+  defp get_bucket_by_kind(workspace_id, kind) do
+    Repo.one(from b in live_buckets(), where: b.workspace_id == ^workspace_id and b.kind == ^kind)
+  end
+
+  def get_bucket(workspace_id, name) when is_binary(name) do
+    Repo.one(from b in live_buckets(), where: b.workspace_id == ^workspace_id and b.name == ^name)
+  end
+
+  @doc "Buckets `user_id` can use: team, their personal one (if it exists), projects they own or belong to."
+  def list_buckets_for(workspace_id, user_id) do
+    member_ids =
+      from m in BucketMember, where: m.user_id == ^user_id and is_nil(m.deleted_at), select: m.bucket_id
+
+    from(b in live_buckets(),
+      where:
+        b.workspace_id == ^workspace_id and
+          (b.kind == "team" or b.owner_id == ^user_id or b.id in subquery(member_ids)),
+      order_by: [asc: b.kind, asc: b.name]
     )
     |> Repo.all()
   end
 
-  @doc "Grant (or re-role) a member's access. Owner only; target must be a member."
-  def share_view(%View{} = view, user_id, role, actor_user_id) do
-    cond do
-      role not in ViewShare.roles() ->
-        {:error, "role must be one of: #{Enum.join(ViewShare.roles(), ", ")}"}
+  @doc "Create a project bucket. Reserved names (team, personal-*) rejected."
+  def create_bucket(workspace_id, name, owner_id) do
+    name = name |> to_string() |> String.trim() |> String.downcase()
 
-      view.owner_id != actor_user_id ->
-        {:error, "only the view's owner can share it"}
-
-      user_id == view.owner_id ->
-        {:error, "the owner already has full access"}
-
-      not Aveline.Workspaces.member?(view.workspace_id, user_id) ->
-        {:error, "that user is not a member of this workspace"}
-
-      true ->
-        existing =
-          Repo.one(
-            from s in ViewShare,
-              where:
-                s.base_view_id == ^view.base_view_id and s.user_id == ^user_id and
-                  is_nil(s.deleted_at)
-          )
-
-        case existing do
-          nil ->
-            %ViewShare{}
-            |> ViewShare.changeset(%{
-              base_view_id: view.base_view_id,
-              workspace_id: view.workspace_id,
-              user_id: user_id,
-              role: role,
-              granted_by_id: actor_user_id
-            })
-            |> Repo.insert()
-
-          %ViewShare{} = share ->
-            share |> ViewShare.changeset(%{role: role}) |> Repo.update()
-        end
+    if name == "team" or String.starts_with?(name, @reserved_bucket_prefix) do
+      {:error, "that bucket name is reserved"}
+    else
+      %Bucket{}
+      |> Bucket.changeset(%{
+        workspace_id: workspace_id,
+        name: name,
+        kind: "project",
+        owner_id: owner_id
+      })
+      |> Repo.insert()
     end
   end
 
-  @doc "Revoke a member's share. Owner only; soft delete."
-  def unshare_view(%View{} = view, user_id, actor_user_id) do
-    with :owner <- if(view.owner_id == actor_user_id, do: :owner, else: :not_owner),
-         %ViewShare{} = share <-
+  @doc "Delete a project bucket. Owner only; must hold no live views."
+  def delete_bucket(%Bucket{} = bucket, actor_user_id) do
+    cond do
+      bucket.kind != "project" ->
+        {:error, "only project buckets can be deleted"}
+
+      bucket.owner_id != actor_user_id ->
+        {:error, "only the bucket's owner can delete it"}
+
+      Repo.exists?(from v in base_query(), where: v.bucket_id == ^bucket.id) ->
+        {:error, "move or delete this bucket's views first"}
+
+      true ->
+        bucket |> Ecto.Changeset.change(%{deleted_at: DateTime.utc_now()}) |> Repo.update()
+    end
+  end
+
+  @doc "Live members of a project bucket (the owner is implicit and not listed)."
+  def list_bucket_members(%Bucket{} = bucket) do
+    from(m in BucketMember,
+      where: m.bucket_id == ^bucket.id and is_nil(m.deleted_at),
+      order_by: [asc: m.inserted_at],
+      preload: [:user, :added_by]
+    )
+    |> Repo.all()
+  end
+
+  @doc "Add a workspace member to a project bucket. Owner only; binary membership."
+  def add_bucket_member(%Bucket{} = bucket, user_id, actor_user_id) do
+    cond do
+      bucket.kind != "project" ->
+        {:error, "only project buckets take members; team is everyone and personal is just you"}
+
+      bucket.owner_id != actor_user_id ->
+        {:error, "only the bucket's owner can add members"}
+
+      user_id == bucket.owner_id ->
+        {:error, "the owner is already in the bucket"}
+
+      not Aveline.Workspaces.member?(bucket.workspace_id, user_id) ->
+        {:error, "that user is not a member of this workspace"}
+
+      Repo.exists?(
+        from m in BucketMember,
+          where: m.bucket_id == ^bucket.id and m.user_id == ^user_id and is_nil(m.deleted_at)
+      ) ->
+        {:error, "that user is already in the bucket"}
+
+      true ->
+        %BucketMember{}
+        |> BucketMember.changeset(%{
+          bucket_id: bucket.id,
+          user_id: user_id,
+          added_by_id: actor_user_id
+        })
+        |> Repo.insert()
+    end
+  end
+
+  @doc "Remove a member from a project bucket. Owner only; soft delete."
+  def remove_bucket_member(%Bucket{} = bucket, user_id, actor_user_id) do
+    with :owner <- if(bucket.owner_id == actor_user_id, do: :owner, else: :not_owner),
+         %BucketMember{} = m <-
            Repo.one(
-             from s in ViewShare,
-               where:
-                 s.base_view_id == ^view.base_view_id and s.user_id == ^user_id and
-                   is_nil(s.deleted_at)
+             from m in BucketMember,
+               where: m.bucket_id == ^bucket.id and m.user_id == ^user_id and is_nil(m.deleted_at)
            ) do
-      share
-      |> Ecto.Changeset.change(%{deleted_at: DateTime.utc_now()})
-      |> Repo.update()
+      m |> Ecto.Changeset.change(%{deleted_at: DateTime.utc_now()}) |> Repo.update()
     else
-      :not_owner -> {:error, "only the view's owner can revoke shares"}
-      nil -> {:error, "no live share for that user on this view"}
+      :not_owner -> {:error, "only the bucket's owner can remove members"}
+      nil -> {:error, "that user is not in the bucket"}
+    end
+  end
+
+  @doc "Is `user_id` in this bucket's audience? (Workspace membership already checked.)"
+  def bucket_audience?(%Bucket{kind: "team"}, _user_id), do: true
+  def bucket_audience?(%Bucket{kind: "personal"} = b, user_id), do: b.owner_id == user_id
+
+  def bucket_audience?(%Bucket{kind: "project"} = b, user_id) do
+    b.owner_id == user_id or
+      Repo.exists?(
+        from m in BucketMember,
+          where: m.bucket_id == ^b.id and m.user_id == ^user_id and is_nil(m.deleted_at)
+      )
+  end
+
+  # ===== Access =====
+
+  @doc """
+  Narrows a views query to what `user_id` may use: views whose bucket
+  audience includes them. `nil` fails closed (team bucket only).
+  """
+  def where_usable(query, nil) do
+    team = from b in live_buckets(), where: b.kind == "team", select: b.id
+    from v in query, where: v.bucket_id in subquery(team)
+  end
+
+  def where_usable(query, user_id) do
+    member_ids =
+      from m in BucketMember, where: m.user_id == ^user_id and is_nil(m.deleted_at), select: m.bucket_id
+
+    usable =
+      from b in live_buckets(),
+        where: b.kind == "team" or b.owner_id == ^user_id or b.id in subquery(member_ids),
+        select: b.id
+
+    from v in query, where: v.bucket_id in subquery(usable)
+  end
+
+  @doc """
+  May this workspace member use (and, binary membership, edit) the
+  view? Resolves the bucket if not preloaded.
+  """
+  def member_can_use?(%View{} = view, user_id) do
+    case bucket_of(view) do
+      nil -> false
+      bucket -> bucket_audience?(bucket, user_id)
+    end
+  end
+
+  defp bucket_of(%View{bucket: %Bucket{} = b}), do: b
+  defp bucket_of(%View{bucket_id: nil}), do: nil
+  defp bucket_of(%View{bucket_id: id}), do: Repo.get(Bucket, id)
+
+  @doc """
+  Move a view to another bucket, in place (like pins — placement, not
+  meaning). The view's owner only, and only into a bucket they can use.
+  """
+  def move_view(%View{} = view, %Bucket{} = bucket, actor_user_id) do
+    cond do
+      view.owner_id != actor_user_id ->
+        {:error, "only the view's owner can move it"}
+
+      bucket.workspace_id != view.workspace_id ->
+        {:error, "that bucket belongs to another workspace"}
+
+      not bucket_audience?(bucket, actor_user_id) ->
+        {:error, "you aren't in that bucket"}
+
+      true ->
+        view |> Ecto.Changeset.change(%{bucket_id: bucket.id}) |> Repo.update()
     end
   end
 
   @doc """
-  The sidebar's three sections, one query. Pin = in the sidebar,
-  universally; the section is derived from scope: team (workspace
-  views), yours (private, owned), shared (private, opened to you by a
-  share). A pinned private view only renders for people who can use
-  it, so privacy never blocks pinning.
+  The sidebar's sections, one query. Pin = in the sidebar, universally;
+  the section is the view's bucket: Team, Yours (your personal bucket),
+  then one section per project bucket you're in, pinned views under
+  each.
   """
   def sidebar_sections(workspace_id, user_id) do
     pinned =
@@ -173,11 +270,17 @@ defmodule Aveline.Views do
       |> list_for_workspace(viewer: user_id)
       |> Enum.filter(& &1.pinned)
 
-    %{
-      team: Enum.filter(pinned, &(&1.visibility == "workspace")),
-      yours: Enum.filter(pinned, &(&1.visibility == "private" and &1.owner_id == user_id)),
-      shared: Enum.filter(pinned, &(&1.visibility == "private" and &1.owner_id != user_id))
-    }
+    {team, rest} = Enum.split_with(pinned, &(bucket_of(&1) && bucket_of(&1).kind == "team"))
+    {yours, project} = Enum.split_with(rest, &(bucket_of(&1) && bucket_of(&1).kind == "personal"))
+
+    buckets =
+      project
+      |> Enum.group_by(&bucket_of/1)
+      |> Enum.reject(fn {b, _} -> is_nil(b) end)
+      |> Enum.map(fn {b, views} -> %{bucket: b, views: Enum.sort_by(views, & &1.name)} end)
+      |> Enum.sort_by(& &1.bucket.name)
+
+    %{team: team, yours: yours, buckets: buckets}
   end
 
   def list_pinned(workspace_id) do
@@ -186,11 +289,20 @@ defmodule Aveline.Views do
   end
 
   def get_current_by_name(workspace_id, name) when is_binary(name) do
-    from(v in base_query(), where: v.workspace_id == ^workspace_id and v.name == ^name)
+    from(v in base_query(),
+      where: v.workspace_id == ^workspace_id and v.name == ^name,
+      preload: [:bucket]
+    )
     |> Repo.one()
   end
 
-  def create(workspace_id, name, description, config, created_by_id) do
+  def create(workspace_id, name, description, config, created_by_id, opts \\ []) do
+    bucket =
+      case Keyword.get(opts, :bucket) do
+        %Bucket{} = b -> b
+        nil -> ensure_team_bucket(workspace_id)
+      end
+
     with :ok <- validate_config_against_workspace(workspace_id, config) do
       %View{}
       |> View.insert_changeset(%{
@@ -200,6 +312,7 @@ defmodule Aveline.Views do
         description: description,
         config: config || %{},
         created_by_id: created_by_id,
+        bucket_id: bucket.id,
         # The creator owns the view; ownership never moves with edits.
         owner_id: created_by_id
       })
@@ -238,7 +351,7 @@ defmodule Aveline.Views do
             description: Map.get(changes, :description, current.description),
             config: config,
             pinned: current.pinned,
-            visibility: current.visibility,
+            bucket_id: current.bucket_id,
             owner_id: current.owner_id,
             created_by_id: user_id
           })
@@ -275,8 +388,8 @@ defmodule Aveline.Views do
 
   @doc """
   Placement, not meaning: in-place update, no version minted. Pin = in
-  the sidebar; private pinned views render only for people who can use
-  them.
+  the sidebar; a pinned view renders only in the sidebars of its
+  bucket's audience.
   """
   def set_pinned(%View{} = view, pinned?) when is_boolean(pinned?) do
     view |> Ecto.Changeset.change(pinned: pinned?) |> Repo.update()
@@ -288,7 +401,10 @@ defmodule Aveline.Views do
       "description" => view.description,
       "config" => view.config,
       "pinned" => view.pinned,
-      "visibility" => view.visibility,
+      "bucket" => (case view.bucket do
+        %Bucket{} = b -> %{"name" => b.name, "kind" => b.kind}
+        _ -> nil
+      end),
       "version_number" => view.version_number,
       "created_at" => DateTime.to_iso8601(view.inserted_at)
     }
