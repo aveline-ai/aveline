@@ -81,9 +81,6 @@ defmodule Aveline.Views do
       view.owner_id != actor_user_id ->
         {:error, "only the view's owner can change its visibility"}
 
-      visibility == "private" and view.pinned ->
-        {:error, "unpin this view first: pinned views live in the shared sidebar and can't be private"}
-
       view.visibility == visibility ->
         {:ok, view}
 
@@ -164,19 +161,22 @@ defmodule Aveline.Views do
   end
 
   @doc """
-  The sidebar's three sections, one query: team (pinned workspace
-  views — shared placement, unchanged), yours (private views you own),
-  shared (private views a live share opened to you). Sections are
-  derivable from the row alone: HOW you can see a private view is
-  exactly ownership vs share.
+  The sidebar's three sections, one query. Pin = in the sidebar,
+  universally; the section is derived from scope: team (workspace
+  views), yours (private, owned), shared (private, opened to you by a
+  share). A pinned private view only renders for people who can use
+  it, so privacy never blocks pinning.
   """
   def sidebar_sections(workspace_id, user_id) do
-    views = list_for_workspace(workspace_id, viewer: user_id)
+    pinned =
+      workspace_id
+      |> list_for_workspace(viewer: user_id)
+      |> Enum.filter(& &1.pinned)
 
     %{
-      team: Enum.filter(views, & &1.pinned),
-      yours: Enum.filter(views, &(&1.visibility == "private" and &1.owner_id == user_id)),
-      shared: Enum.filter(views, &(&1.visibility == "private" and &1.owner_id != user_id))
+      team: Enum.filter(pinned, &(&1.visibility == "workspace")),
+      yours: Enum.filter(pinned, &(&1.visibility == "private" and &1.owner_id == user_id)),
+      shared: Enum.filter(pinned, &(&1.visibility == "private" and &1.owner_id != user_id))
     }
   end
 
@@ -273,10 +273,11 @@ defmodule Aveline.Views do
     end
   end
 
-  @doc "Placement, not meaning: in-place update, no version minted."
-  def set_pinned(%View{visibility: "private"} = _view, true),
-    do: {:error, "private views can't be pinned; make the view workspace-visible first"}
-
+  @doc """
+  Placement, not meaning: in-place update, no version minted. Pin = in
+  the sidebar; private pinned views render only for people who can use
+  them.
+  """
   def set_pinned(%View{} = view, pinned?) when is_boolean(pinned?) do
     view |> Ecto.Changeset.change(pinned: pinned?) |> Repo.update()
   end

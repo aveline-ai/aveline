@@ -67,15 +67,20 @@ defmodule Aveline.ViewPermissionsTest do
     assert msg =~ "owner"
   end
 
-  test "pins and privacy exclude each other both ways", %{owner: owner, view: view} do
-    {:ok, view} = Views.set_pinned(view, true)
-    assert {:error, msg} = Views.set_visibility(view, "private", owner.id)
-    assert msg =~ "unpin"
-
-    {:ok, view} = Views.set_pinned(view, false)
+  test "pin is universal: private views pin into only their audience's sidebars", %{
+    owner: owner,
+    other: other,
+    ws: ws,
+    view: view
+  } do
     {:ok, view} = Views.set_visibility(view, "private", owner.id)
-    assert {:error, msg} = Views.set_pinned(view, true)
-    assert msg =~ "private"
+    {:ok, _} = Views.set_pinned(view, true)
+
+    assert Enum.map(Views.sidebar_sections(ws.id, owner.id).yours, & &1.name) == ["my-daily"]
+    assert Views.sidebar_sections(ws.id, other.id).shared == []
+
+    {:ok, _} = Views.share_view(view, other.id, "viewer", owner.id)
+    assert Enum.map(Views.sidebar_sections(ws.id, other.id).shared, & &1.name) == ["my-daily"]
   end
 
   test "sidebar sections: team pins, yours, shared with you", %{
@@ -88,6 +93,7 @@ defmodule Aveline.ViewPermissionsTest do
     {:ok, _} = Views.set_pinned(team, true)
 
     {:ok, view} = Views.set_visibility(view, "private", owner.id)
+    {:ok, view} = Views.set_pinned(view, true)
     {:ok, _} = Views.share_view(view, other.id, "viewer", owner.id)
 
     owner_sections = Views.sidebar_sections(ws.id, owner.id)
