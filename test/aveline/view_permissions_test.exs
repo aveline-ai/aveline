@@ -92,6 +92,51 @@ defmodule Aveline.ViewPermissionsTest do
     assert msg =~ "not a member"
   end
 
+  test "workspace-visible buckets reach everyone, current and future", %{
+    owner: owner,
+    other: other,
+    ws: ws
+  } do
+    {:ok, bucket} = Views.create_bucket(ws.id, "launch", owner.id, visibility: "workspace")
+
+    {:ok, _} =
+      Views.create(ws.id, "launch-tickets", "Launch project tickets.", %{}, owner.id,
+        bucket: bucket
+      )
+
+    names = fn viewer -> Views.list_for_workspace(ws.id, viewer: viewer) |> Enum.map(& &1.name) end
+
+    # Everyone sees it without any membership row — including a member
+    # who joins after the bucket existed.
+    assert "launch-tickets" in names.(other.id)
+
+    late = user_fixture()
+    {:ok, _} = Aveline.Workspaces.ensure_member(ws.id, late.id)
+    assert "launch-tickets" in names.(late.id)
+
+    # Its sidebar section appears for them too (once a view is pinned).
+    view = Views.get_current_by_name(ws.id, "launch-tickets")
+    {:ok, _} = Views.set_pinned(view, true)
+    assert [%{bucket: %{name: "launch"}}] = Views.sidebar_sections(ws.id, late.id).buckets
+
+    # Flip back private: only owner + members again. Owner only flips.
+    assert {:error, msg} = Views.set_bucket_visibility(bucket, "private", other.id)
+    assert msg =~ "owner"
+
+    {:ok, bucket} = Views.set_bucket_visibility(bucket, "private", owner.id)
+    refute "launch-tickets" in names.(late.id)
+    assert "launch-tickets" in names.(owner.id)
+
+    # Team and personal visibilities are fixed by definition.
+    team = Views.ensure_team_bucket(ws.id)
+    assert {:error, msg} = Views.set_bucket_visibility(team, "private", owner.id)
+    assert msg =~ "only project buckets"
+
+    personal = Views.ensure_personal_bucket(ws.id, owner.id)
+    assert {:error, _} = Views.set_bucket_visibility(personal, "workspace", owner.id)
+    assert bucket.visibility == "private"
+  end
+
   test "bucket management is owner-only; team and personal take no members", %{
     owner: owner,
     other: other,

@@ -42,7 +42,12 @@ defmodule Aveline.Views do
   def ensure_team_bucket(workspace_id) do
     get_bucket_by_kind(workspace_id, "team") ||
       Repo.insert!(
-        Bucket.changeset(%Bucket{}, %{workspace_id: workspace_id, name: "team", kind: "team"})
+        Bucket.changeset(%Bucket{}, %{
+          workspace_id: workspace_id,
+          name: "team",
+          kind: "team",
+          visibility: "workspace"
+        })
       )
   end
 
@@ -90,14 +95,19 @@ defmodule Aveline.Views do
     from(b in live_buckets(),
       where:
         b.workspace_id == ^workspace_id and
-          (b.kind == "team" or b.owner_id == ^user_id or b.id in subquery(member_ids)),
+          (b.visibility == "workspace" or b.owner_id == ^user_id or
+             b.id in subquery(member_ids)),
       order_by: [asc: b.kind, asc: b.name]
     )
     |> Repo.all()
   end
 
-  @doc "Create a project bucket. Reserved names (team, personal-*) rejected."
-  def create_bucket(workspace_id, name, owner_id) do
+  @doc """
+  Create a project bucket. Reserved names (team, personal-*) rejected.
+  `visibility:` private (default: owner + members) | workspace
+  (everyone).
+  """
+  def create_bucket(workspace_id, name, owner_id, opts \\ []) do
     name = name |> to_string() |> String.trim() |> String.downcase()
 
     if name == "team" or String.starts_with?(name, @reserved_bucket_prefix) do
@@ -108,9 +118,34 @@ defmodule Aveline.Views do
         workspace_id: workspace_id,
         name: name,
         kind: "project",
-        owner_id: owner_id
+        owner_id: owner_id,
+        visibility: Keyword.get(opts, :visibility) || "private"
       })
       |> Repo.insert()
+    end
+  end
+
+  @doc """
+  Change a project bucket's visibility in place: private (owner +
+  members) | workspace (everyone). Owner only; team and personal
+  buckets are fixed by definition.
+  """
+  def set_bucket_visibility(%Bucket{} = bucket, visibility, actor_user_id) do
+    cond do
+      visibility not in ~w(private workspace) ->
+        {:error, "visibility must be one of: private, workspace"}
+
+      bucket.kind != "project" ->
+        {:error, "team is always workspace-visible and personal is always private; only project buckets change"}
+
+      bucket.owner_id != actor_user_id ->
+        {:error, "only the bucket's owner can change its visibility"}
+
+      bucket.visibility == visibility ->
+        {:ok, bucket}
+
+      true ->
+        bucket |> Ecto.Changeset.change(%{visibility: visibility}) |> Repo.update()
     end
   end
 
@@ -189,7 +224,7 @@ defmodule Aveline.Views do
   end
 
   @doc "Is `user_id` in this bucket's audience? (Workspace membership already checked.)"
-  def bucket_audience?(%Bucket{kind: "team"}, _user_id), do: true
+  def bucket_audience?(%Bucket{visibility: "workspace"}, _user_id), do: true
   def bucket_audience?(%Bucket{kind: "personal"} = b, user_id), do: b.owner_id == user_id
 
   def bucket_audience?(%Bucket{kind: "project"} = b, user_id) do
@@ -207,8 +242,8 @@ defmodule Aveline.Views do
   audience includes them. `nil` fails closed (team bucket only).
   """
   def where_usable(query, nil) do
-    team = from b in live_buckets(), where: b.kind == "team", select: b.id
-    from v in query, where: v.bucket_id in subquery(team)
+    open = from b in live_buckets(), where: b.visibility == "workspace", select: b.id
+    from v in query, where: v.bucket_id in subquery(open)
   end
 
   def where_usable(query, user_id) do
@@ -217,7 +252,9 @@ defmodule Aveline.Views do
 
     usable =
       from b in live_buckets(),
-        where: b.kind == "team" or b.owner_id == ^user_id or b.id in subquery(member_ids),
+        where:
+          b.visibility == "workspace" or b.owner_id == ^user_id or
+            b.id in subquery(member_ids),
         select: b.id
 
     from v in query, where: v.bucket_id in subquery(usable)

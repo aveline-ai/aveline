@@ -144,6 +144,7 @@ defmodule AvelineWeb.Router do
     get "/view-buckets", ViewController, :buckets
     post "/view-buckets", ViewController, :create_bucket
     delete "/view-buckets/:bucket_name", ViewController, :delete_bucket
+    put "/view-buckets/:bucket_name/visibility", ViewController, :set_bucket_visibility
     post "/view-buckets/:bucket_name/members", ViewController, :add_bucket_member
     delete "/view-buckets/:bucket_name/members/:username", ViewController, :remove_bucket_member
     put "/views/:name/bucket", ViewController, :move

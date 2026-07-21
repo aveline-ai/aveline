@@ -108,15 +108,32 @@ defmodule AvelineWeb.Api.ViewController do
     Envelope.ok(conn, %{buckets: buckets})
   end
 
-  @doc "Create a project bucket."
-  def create_bucket(conn, %{"name" => name}) do
+  @doc """
+  Create a project bucket. Optional visibility: "private" (default,
+  owner + members) | "workspace" (everyone).
+  """
+  def create_bucket(conn, %{"name" => name} = params) do
     ws = conn.assigns.current_workspace
     user = conn.assigns.current_user
 
-    with {:ok, bucket} <- Views.create_bucket(ws.id, name, user.id) do
+    with {:ok, bucket} <-
+           Views.create_bucket(ws.id, name, user.id, visibility: params["visibility"]) do
       Envelope.ok(conn, %{bucket: bucket_map(bucket)})
     end
   end
+
+  @doc "Change a project bucket's visibility in place. Owner only."
+  def set_bucket_visibility(conn, %{"bucket_name" => name, "visibility" => vis}) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+
+    with {:ok, bucket} <- fetch_bucket(ws, user, name),
+         {:ok, bucket} <- Views.set_bucket_visibility(bucket, vis, user.id) do
+      Envelope.ok(conn, %{bucket: bucket_map(bucket)})
+    end
+  end
+
+  def set_bucket_visibility(_conn, _params), do: {:error, {:missing_field, "visibility"}}
 
   @doc "Delete an empty project bucket. Owner only."
   def delete_bucket(conn, %{"bucket_name" => name}) do
@@ -205,6 +222,7 @@ defmodule AvelineWeb.Api.ViewController do
     %{
       name: bucket.name,
       kind: bucket.kind,
+      visibility: bucket.visibility,
       owner: bucket.owner_id && owner_username(bucket),
       members: members
     }

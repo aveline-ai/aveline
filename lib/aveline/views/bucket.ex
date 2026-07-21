@@ -21,6 +21,10 @@ defmodule Aveline.Views.Bucket do
   schema "view_buckets" do
     field :name, :string
     field :kind, :string
+    # The docs' enum, reused: private (owner + members) | workspace
+    # (everyone, current and future). Fixed for team (workspace) and
+    # personal (private) by CHECK; project buckets choose.
+    field :visibility, :string, default: "private"
     field :deleted_at, :utc_datetime_usec
 
     belongs_to :workspace, Workspace, type: :binary_id
@@ -33,8 +37,9 @@ defmodule Aveline.Views.Bucket do
 
   def changeset(bucket, attrs) do
     bucket
-    |> cast(attrs, [:workspace_id, :name, :kind, :owner_id])
+    |> cast(attrs, [:workspace_id, :name, :kind, :visibility, :owner_id])
     |> validate_required([:workspace_id, :name, :kind])
+    |> validate_inclusion(:visibility, ~w(private workspace))
     |> update_change(:name, fn n ->
       if is_binary(n), do: n |> String.trim() |> String.downcase(), else: n
     end)
