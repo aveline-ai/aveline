@@ -78,6 +78,29 @@ defmodule Aveline.ViewPermissionsTest do
     assert msg =~ "private"
   end
 
+  test "sidebar sections: team pins, yours, shared with you", %{
+    owner: owner,
+    other: other,
+    ws: ws,
+    view: view
+  } do
+    {:ok, team} = Views.create(ws.id, "tickets-board", "The team ticket board.", %{}, other.id)
+    {:ok, _} = Views.set_pinned(team, true)
+
+    {:ok, view} = Views.set_visibility(view, "private", owner.id)
+    {:ok, _} = Views.share_view(view, other.id, "viewer", owner.id)
+
+    owner_sections = Views.sidebar_sections(ws.id, owner.id)
+    assert Enum.map(owner_sections.team, & &1.name) == ["tickets-board"]
+    assert Enum.map(owner_sections.yours, & &1.name) == ["my-daily"]
+    assert owner_sections.shared == []
+
+    other_sections = Views.sidebar_sections(ws.id, other.id)
+    assert Enum.map(other_sections.team, & &1.name) == ["tickets-board"]
+    assert other_sections.yours == []
+    assert Enum.map(other_sections.shared, & &1.name) == ["my-daily"]
+  end
+
   test "visibility and owner carry across versions", %{owner: owner, view: view} do
     {:ok, view} = Views.set_visibility(view, "private", owner.id)
     {:ok, v2} = Views.edit(view, %{description: "Still my private daily view."}, owner.id)

@@ -64,16 +64,40 @@
             <span class="count">{@total_count}</span>
           <% end %>
         </.link>
-        <div :if={assigns[:sidebar_views] && @sidebar_views != []} class="sidebar-views">
-          <.link
-            :for={v <- @sidebar_views}
-            navigate={~p"/w/#{@workspace.slug}/v/#{v.name}"}
-            class={"sidebar-item " <> if assigns[:nav_active] == {:view, v.name}, do: "active", else: ""}
-            title={v.description}
-          >
-            <span class="label">{v.name}</span>
-          </.link>
-        </div>
+        <%= if sections = assigns[:sidebar_views] do %>
+          <div :if={sections.team != []} class="sidebar-views">
+            <.link
+              :for={v <- sections.team}
+              navigate={~p"/w/#{@workspace.slug}/v/#{v.name}"}
+              class={"sidebar-item " <> if assigns[:nav_active] == {:view, v.name}, do: "active", else: ""}
+              title={v.description}
+            >
+              <span class="label">{v.name}</span>
+            </.link>
+          </div>
+          <div :if={sections.yours != []} class="sidebar-views sidebar-views-scoped">
+            <div class="sidebar-label">Yours</div>
+            <.link
+              :for={v <- sections.yours}
+              navigate={~p"/w/#{@workspace.slug}/v/#{v.name}"}
+              class={"sidebar-item " <> if assigns[:nav_active] == {:view, v.name}, do: "active", else: ""}
+              title={v.description}
+            >
+              <span class="label">{v.name}</span>
+            </.link>
+          </div>
+          <div :if={sections.shared != []} class="sidebar-views sidebar-views-scoped">
+            <div class="sidebar-label">Shared with you</div>
+            <.link
+              :for={v <- sections.shared}
+              navigate={~p"/w/#{@workspace.slug}/v/#{v.name}"}
+              class={"sidebar-item " <> if assigns[:nav_active] == {:view, v.name}, do: "active", else: ""}
+              title={v.description}
+            >
+              <span class="label">{v.name}</span>
+            </.link>
+          </div>
+        <% end %>
         <.link
           navigate={~p"/w/#{@workspace.slug}/data-sources"}
           class={"sidebar-item " <> if assigns[:nav_active] == :data_sources, do: "active", else: ""}

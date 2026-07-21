@@ -27,7 +27,7 @@ defmodule AvelineWeb.TeamLive do
            current_user: user,
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
-           sidebar_views: Aveline.Views.list_pinned(ws.id),
+           sidebar_views: Aveline.Views.sidebar_sections(ws.id, user.id),
            total_count: length(items),
            topbar_title: "Team",
            nav_active: :team,

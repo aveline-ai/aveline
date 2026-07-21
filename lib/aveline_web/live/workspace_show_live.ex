@@ -22,7 +22,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
            current_user: user,
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
-           sidebar_views: Aveline.Views.list_pinned(ws.id),
+           sidebar_views: Aveline.Views.sidebar_sections(ws.id, user.id),
            workspace_tags: Docs.list_workspace_tags(ws.id),
            tag_colors: tag_colors(ws.id),
            # Every workspace member appears as a chip — non-owners just
@@ -511,6 +511,65 @@ defmodule AvelineWeb.WorkspaceShowLive do
     """
   end
 
+  # The switcher's three sections: team (workspace-visible), yours
+  # (private, owned), shared with you (private, opened by a share).
+  # Headers only render when a personal section exists.
+  defp view_sections(views, user_id) do
+    {team, personal} = Enum.split_with(views, &(&1.visibility == "workspace"))
+    {yours, shared} = Enum.split_with(personal, &(&1.owner_id == user_id))
+    {team, yours, shared}
+  end
+
+  attr :v, :map, required: true
+  attr :workspace, :map, required: true
+  attr :current_view, :any, required: true
+
+  defp vmenu_view_row(assigns) do
+    ~H"""
+    <.link
+      patch={~p"/w/#{@workspace.slug}/v/#{@v.name}"}
+      phx-click={JS.hide(to: "#fdd-view-menu")}
+      class="vmenu-item"
+    >
+      <span class={"fdd-check fdd-radio " <> if @current_view && @current_view.name == @v.name, do: "on", else: ""}></span>
+      <span class="vmenu-body">
+        <span class="vmenu-name">
+          {@v.name}
+          <svg
+            :if={@v.visibility == "private"}
+            class="doc-lock"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <title>Private view: only you and people it's shared with</title>
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <svg
+            :if={@v.pinned}
+            class="vmenu-pin"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <title>Pinned to sidebar</title>
+            <path d="M12 17v5" />
+            <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1z" />
+          </svg>
+        </span>
+        <span class="vmenu-desc">{@v.description}</span>
+      </span>
+    </.link>
+    """
+  end
+
   # Plain tags first, then one section per scope (status, priority, …).
   defp grouped_tags(tags) do
     {plain, scoped} = Enum.split_with(tags, &is_nil(Tags.scope_of(&1)))
@@ -577,48 +636,29 @@ defmodule AvelineWeb.WorkspaceShowLive do
                   <span class="vmenu-desc">Everything written in this workspace.</span>
                 </span>
               </.link>
-              <.link
-                :for={v <- @views}
-                patch={~p"/w/#{@workspace.slug}/v/#{v.name}"}
-                phx-click={JS.hide(to: "#fdd-view-menu")}
-                class="vmenu-item"
-              >
-                <span class={"fdd-check fdd-radio " <> if @current_view && @current_view.name == v.name, do: "on", else: ""}></span>
-                <span class="vmenu-body">
-                  <span class="vmenu-name">
-                    {v.name}
-                    <svg
-                      :if={v.visibility == "private"}
-                      class="doc-lock"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <title>Private view: only you and people it's shared with</title>
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </svg>
-                    <svg
-                      :if={v.pinned}
-                      class="vmenu-pin"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <title>Pinned to sidebar</title>
-                      <path d="M12 17v5" />
-                      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1z" />
-                    </svg>
-                  </span>
-                  <span class="vmenu-desc">{v.description}</span>
-                </span>
-              </.link>
+              <% {team_views, your_views, shared_views} = view_sections(@views, @current_user.id) %>
+              <% section_headers? = your_views != [] or shared_views != [] %>
+              <div :if={section_headers? and team_views != []} class="fdd-section">Team</div>
+              <.vmenu_view_row
+                :for={v <- team_views}
+                v={v}
+                workspace={@workspace}
+                current_view={@current_view}
+              />
+              <div :if={your_views != []} class="fdd-section">Yours</div>
+              <.vmenu_view_row
+                :for={v <- your_views}
+                v={v}
+                workspace={@workspace}
+                current_view={@current_view}
+              />
+              <div :if={shared_views != []} class="fdd-section">Shared with you</div>
+              <.vmenu_view_row
+                :for={v <- shared_views}
+                v={v}
+                workspace={@workspace}
+                current_view={@current_view}
+              />
             </div>
           </div>
         <% end %>

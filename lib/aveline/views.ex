@@ -163,6 +163,23 @@ defmodule Aveline.Views do
     end
   end
 
+  @doc """
+  The sidebar's three sections, one query: team (pinned workspace
+  views — shared placement, unchanged), yours (private views you own),
+  shared (private views a live share opened to you). Sections are
+  derivable from the row alone: HOW you can see a private view is
+  exactly ownership vs share.
+  """
+  def sidebar_sections(workspace_id, user_id) do
+    views = list_for_workspace(workspace_id, viewer: user_id)
+
+    %{
+      team: Enum.filter(views, & &1.pinned),
+      yours: Enum.filter(views, &(&1.visibility == "private" and &1.owner_id == user_id)),
+      shared: Enum.filter(views, &(&1.visibility == "private" and &1.owner_id != user_id))
+    }
+  end
+
   def list_pinned(workspace_id) do
     from(v in base_query(), where: v.workspace_id == ^workspace_id and v.pinned, order_by: v.name)
     |> Repo.all()

@@ -1062,9 +1062,12 @@
       }
       .group-dot-sm { width: 7px; height: 7px; }
 
-      /* Sidebar pinned views: expanded mode only. */
+      /* Sidebar views: expanded mode only. Three sections — team pins
+         (unlabeled, the default), then Yours (your private views) and
+         Shared with you, each under a quiet label. */
       .sidebar-views { display: flex; flex-direction: column; }
       .sidebar-views .sidebar-item { padding-left: 34px; font-size: 12.5px; }
+      .sidebar-views-scoped .sidebar-label { padding: 8px 8px 3px 34px; }
       html.sidebar-collapsed .sidebar-views { display: none; }
 
       /* ===== Access gate (private /w/* URLs) ===== */
