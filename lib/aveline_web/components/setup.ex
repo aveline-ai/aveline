@@ -183,19 +183,17 @@ defmodule AvelineWeb.Setup do
             </p>
           <% end %>
 
-          <div class="welcome-proof">
+          <div :if={@inhabited?} class="welcome-proof">
             <span :if={@others != []} class="welcome-facepile">
               <span :for={name <- Enum.take(@others, 5)} class={"wb-face welcome-face #{hue_class(name)}"}>
                 {String.first(name)}
               </span>
             </span>
             <span><b>{names_sentence(@others)}</b></span>
-            <%= if @inhabited? do %>
-              <span class="welcome-sep">·</span>
-              <span><b>{@doc_count}</b> docs</span>
-              <span class="welcome-sep">·</span>
-              <span><b>{@view_count}</b> saved views</span>
-            <% end %>
+            <span class="welcome-sep">·</span>
+            <span><b>{@doc_count}</b> docs</span>
+            <span class="welcome-sep">·</span>
+            <span><b>{@view_count}</b> saved views</span>
           </div>
 
           <div class="welcome-setup">
