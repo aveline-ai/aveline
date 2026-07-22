@@ -258,9 +258,11 @@ defmodule AvelineWeb.Setup do
                 </li>
                 <li>
                   <span class="mono">aveline use-workspace {@workspace.slug}</span>
+                  to make this workspace the default
                 </li>
                 <li>
                   <span class="mono">aveline get-orientation</span>
+                  to learn how the team organizes its knowledge
                 </li>
               </ol>
               <pre class="welcome-snippet-source" aria-hidden="true"><code id={@id <> "-snippet"}>{@prompt}</code></pre>
