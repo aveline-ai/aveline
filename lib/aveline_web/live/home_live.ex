@@ -20,10 +20,11 @@ defmodule AvelineWeb.HomeLive do
 
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
-        # Agent-connected is a state, not a screen: unconnected users
-        # get the setup card at the top of home, polling the same
-        # orientation-read signal the signup screen watches. The card
-        # (and its poll) exists only until the first connect.
+        # Agent-connected is a state, not a screen. Home de-escalates:
+        # hero (front and center) until the user connects or skips;
+        # after a skip, the compact card at the top; after connect,
+        # nothing. Poll the same orientation-read signal the signup
+        # screen watches, only while unconnected.
         agent_connected? = Aveline.Onboarding.agent_connected?(ws.id, user.id)
 
         if connected?(socket) and not agent_connected? do
@@ -33,6 +34,7 @@ defmodule AvelineWeb.HomeLive do
         {:ok,
          assign(socket,
            show_setup?: not agent_connected?,
+           setup_hero?: not agent_connected? and not Workspaces.setup_skipped?(ws.id, user.id),
            setup_done: agent_connected?,
            setup_prompt: AvelineWeb.Setup.prompt(ws, :existing_user),
            page_title: "Aveline · #{ws.name}",
@@ -71,6 +73,12 @@ defmodule AvelineWeb.HomeLive do
   end
 
   @impl true
+  def handle_event("skip_setup", _, socket) do
+    %{workspace: ws, current_user: user} = socket.assigns
+    {:ok, _} = Workspaces.skip_setup(ws.id, user.id)
+    {:noreply, assign(socket, setup_hero?: false)}
+  end
+
   def handle_event("glossary_toggle", %{"slug" => slug}, socket) do
     open = if socket.assigns.glossary_open == slug, do: nil, else: slug
     {:noreply, assign(socket, glossary_open: open)}
@@ -106,13 +114,23 @@ defmodule AvelineWeb.HomeLive do
     <div class="content home-content">
       <h1 class="page-title home-title">Welcome back, {display_name(@current_user)}</h1>
 
-      <AvelineWeb.Setup.setup_card
-        :if={@show_setup?}
-        id="home-setup"
-        workspace={@workspace}
-        prompt={@setup_prompt}
-        setup_done={@setup_done}
-      />
+      <%= if @show_setup? do %>
+        <%= if @setup_hero? do %>
+          <AvelineWeb.Setup.setup_hero
+            id="home-setup"
+            workspace={@workspace}
+            prompt={@setup_prompt}
+            setup_done={@setup_done}
+          />
+        <% else %>
+          <AvelineWeb.Setup.setup_card
+            id="home-setup"
+            workspace={@workspace}
+            prompt={@setup_prompt}
+            setup_done={@setup_done}
+          />
+        <% end %>
+      <% end %>
 
       <section :if={@pinned_docs != [] or @orientation} class="shelf">
         <div class="shelf-head">

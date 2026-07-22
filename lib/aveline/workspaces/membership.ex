@@ -8,6 +8,9 @@ defmodule Aveline.Workspaces.Membership do
 
   schema "workspace_memberships" do
     field :role, :string, default: "member"
+    # Onboarding: user clicked "skip for now" on the setup hero; the
+    # card collapses to its compact form until an agent connects.
+    field :setup_skipped_at, :utc_datetime_usec
 
     belongs_to :workspace, Workspace, type: :binary_id
     belongs_to :user, User, type: :binary_id

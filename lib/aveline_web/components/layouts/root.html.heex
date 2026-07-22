@@ -3094,6 +3094,101 @@
       .setup-card-foot { flex-wrap: wrap; }
       .setup-prompt-details[open] { flex-basis: 100%; }
       .setup-prompt-details .snippet { margin-top: 8px; }
+      /* Hero: the first-run experience home leads with until the user
+         connects an agent or skips. Half-page presence, one warm serif
+         headline, three directed steps (the third is the live status),
+         and a terminal vignette showing the product doing its thing. */
+      .setup-hero {
+        padding: 40px 44px;
+        min-height: 46vh;
+        display: flex; align-items: center;
+        background:
+          radial-gradient(ellipse 80% 110% at 12% 0%, rgba(59,130,246,0.09), transparent 60%),
+          radial-gradient(ellipse 60% 90% at 95% 100%, rgba(59,130,246,0.05), transparent 65%),
+          var(--bg-card);
+        border-color: var(--accent-dim);
+      }
+      .hero-grid {
+        display: grid; grid-template-columns: 1.1fr 0.9fr;
+        gap: 44px; align-items: center; width: 100%;
+      }
+      .hero-title {
+        font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
+        font-size: 30px; font-weight: 500; letter-spacing: -0.015em;
+        line-height: 1.18; margin: 0 0 12px;
+      }
+      .hero-sub {
+        font-size: 14px; color: var(--text-secondary); line-height: 1.6;
+        margin: 0 0 22px; max-width: 480px;
+      }
+      .hero-steps {
+        list-style: none; margin: 0 0 24px;
+        display: flex; flex-direction: column; gap: 11px;
+      }
+      .hero-steps li {
+        display: flex; align-items: baseline; gap: 11px;
+        font-size: 13.5px; color: var(--text);
+      }
+      .hero-step-num {
+        flex: none;
+        width: 21px; height: 21px; border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 11px; font-weight: 600;
+        color: var(--accent); background: var(--accent-dim);
+        transform: translateY(3px);
+      }
+      .hero-step-waiting { color: var(--text-secondary); }
+      .hero-step-waiting .setup-pulse { margin-right: 6px; }
+      .hero-step-done { color: var(--text); }
+      .hero-step-done .hero-step-num { color: #4ADE80; background: rgba(74,222,128,0.14); }
+      .hero-cta-row {
+        display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+      }
+      .hero-cta-row .setup-skip { margin-left: auto; padding: 0; font-size: 11.5px; }
+      .hero-cta-row .setup-prompt-details[open] { flex-basis: 100%; order: 3; }
+      /* The terminal vignette. Show, don't tell. */
+      .hero-term {
+        background: #0A0A0C;
+        border: 1px solid var(--border-strong);
+        border-radius: 10px;
+        box-shadow: 0 18px 44px rgba(0,0,0,0.45);
+        overflow: hidden;
+      }
+      .hero-term-bar {
+        display: flex; align-items: center; gap: 6px;
+        padding: 9px 12px;
+        background: rgba(255,255,255,0.03);
+        border-bottom: 1px solid var(--border);
+      }
+      .hero-term-bar > span:not(.hero-term-title) {
+        width: 9px; height: 9px; border-radius: 50%;
+        background: rgba(255,255,255,0.12);
+      }
+      .hero-term-title {
+        margin-left: 8px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px; color: var(--text-muted);
+      }
+      .hero-term-body {
+        padding: 14px 16px 16px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px; line-height: 1.9;
+        overflow-x: hidden; white-space: nowrap;
+      }
+      .ht-you { color: var(--text-secondary); font-style: italic; }
+      .ht-cmd { color: var(--text); }
+      .ht-cmd::first-letter { color: var(--text-muted); }
+      .ht-ok { color: #4ADE80; opacity: 0.85; }
+      .ht-cursor {
+        color: var(--accent);
+        animation: setup-pulse 1.2s ease-in-out infinite;
+      }
+      @media (max-width: 980px) {
+        .hero-grid { grid-template-columns: 1fr; gap: 28px; }
+        .hero-side { display: none; }
+        .setup-hero { padding: 28px 26px; min-height: 0; }
+        .hero-title { font-size: 24px; }
+      }
       .setup-reconnect { margin-top: 10px; }
       .setup-reconnect > summary::-webkit-details-marker { display: none; }
       .setup-reconnect > summary { list-style: none; text-decoration: underline; text-underline-offset: 2px; }

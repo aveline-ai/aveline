@@ -93,4 +93,108 @@ defmodule AvelineWeb.Setup do
     </div>
     """
   end
+
+  attr :id, :string, required: true
+  attr :workspace, :map, required: true
+  attr :prompt, :string, required: true
+  attr :setup_done, :boolean, default: false
+
+  @doc """
+  The first-run hero: home leads with this until the user connects an
+  agent or skips. Left column sells and directs (headline, pitch,
+  three steps where the third IS the live status); right column shows
+  the product doing its thing in a small terminal vignette. Skip
+  collapses to the compact card via the parent's "skip_setup" event.
+  """
+  def setup_hero(assigns) do
+    ~H"""
+    <div class="setup-card setup-hero" id={@id}>
+      <div class="hero-grid">
+        <div class="hero-main">
+          <h2 class="hero-title">Your team's knowledge, written by your agents</h2>
+          <p class="hero-sub">
+            Aveline is the shared knowledge base you and your AI agents keep
+            together. Agents do the reading, writing, and filing; you review,
+            comment, and steer.
+          </p>
+          <ol class="hero-steps">
+            <li>
+              <span class="hero-step-num">1</span>
+              <span>Copy the setup prompt</span>
+            </li>
+            <li>
+              <span class="hero-step-num">2</span>
+              <span>Paste it into Claude Code and follow along</span>
+            </li>
+            <%= if @setup_done do %>
+              <li class="hero-step-done">
+                <span class="hero-step-num">✓</span>
+                <span>
+                  Connected. Your agent read how
+                  <span class="mono">{@workspace.slug}</span> works.
+                </span>
+              </li>
+            <% else %>
+              <li class="hero-step-waiting">
+                <span class="hero-step-num">3</span>
+                <span>
+                  <span class="setup-pulse" aria-hidden="true"></span>
+                  Watch this flip the moment your agent reads the orientation doc
+                </span>
+              </li>
+            <% end %>
+          </ol>
+          <div class="hero-cta-row">
+            <button
+              type="button"
+              id={@id <> "-copy"}
+              class="setup-card-cta"
+              phx-hook="CopyToken"
+              data-target={"##{@id}-snippet"}
+              title="Copy the setup prompt"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="12" height="12" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              <span class="token-field-copy-label">Copy setup prompt</span>
+            </button>
+            <details class="setup-prompt-details">
+              <summary>view the prompt</summary>
+              <div class="snippet">
+                <pre><code id={@id <> "-snippet"}>{@prompt}</code></pre>
+              </div>
+            </details>
+            <button
+              :if={not @setup_done}
+              type="button"
+              class="setup-skip"
+              phx-click="skip_setup"
+            >
+              skip for now
+            </button>
+          </div>
+        </div>
+        <div class="hero-side" aria-hidden="true">
+          <div class="hero-term">
+            <div class="hero-term-bar">
+              <span></span><span></span><span></span>
+              <span class="hero-term-title">claude · your project</span>
+            </div>
+            <div class="hero-term-body">
+              <div class="ht-line ht-you">you: file yesterday's decisions in aveline</div>
+              <div class="ht-line ht-cmd">$ aveline get-orientation</div>
+              <div class="ht-line ht-ok">✓ learned how {@workspace.slug} works</div>
+              <div class="ht-line ht-cmd">$ aveline create-doc --title "why-we-picked-postgres"</div>
+              <div class="ht-line ht-ok">✓ doc created</div>
+              <div class="ht-line ht-cmd">$ aveline set-doc-visibility why-we-picked-postgres workspace</div>
+              <div class="ht-line ht-ok">✓ published to the team</div>
+              <div class="ht-line ht-cursor">▊</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
 end

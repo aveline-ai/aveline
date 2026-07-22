@@ -43,14 +43,28 @@ defmodule AvelineWeb.OnboardingLiveTest do
     assert Onboarding.agent_connected?(ws.id, owner.id)
   end
 
-  test "home shows the setup card until connected, flips live, gone next visit", %{
+  test "home leads with the hero, skip collapses it durably, connect removes it", %{
     conn: conn,
     ws: ws,
     owner: owner
   } do
     {:ok, lv, html} = live(conn, "/w/#{ws.slug}")
 
+    # Hero state: front and center, skippable.
+    assert html =~ "setup-card setup-hero"
+    assert html =~ "skip for now"
+
+    # Skip: collapses now and stays collapsed on the next visit.
+    render_click(element(lv, ".setup-skip"))
+    refute render(lv) =~ "setup-card setup-hero"
+    assert render(lv) =~ "Connect your agent"
+
+    {:ok, _lv, html} = live(conn, "/w/#{ws.slug}")
+    refute html =~ "setup-card setup-hero"
     assert html =~ "Connect your agent"
+    assert Aveline.Workspaces.setup_skipped?(ws.id, owner.id)
+
+    {:ok, lv, html} = live(conn, "/w/#{ws.slug}")
     assert html =~ "Waiting for your agent to read the orientation doc"
     assert html =~ "aveline get-orientation"
 
@@ -74,7 +88,8 @@ defmodule AvelineWeb.OnboardingLiveTest do
       |> Plug.Conn.put_session(:user_id, invitee.id)
 
     {:ok, _lv, html} = live(conn, "/w/#{ws.slug}")
-    assert html =~ "Connect your agent"
+    assert html =~ "setup-card setup-hero"
+    assert html =~ "written by your agents"
     # Existing-user variant: login is conditional, never demanded.
     assert html =~ "If it errors, ask me to run"
   end
