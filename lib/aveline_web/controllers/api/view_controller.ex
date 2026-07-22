@@ -28,10 +28,13 @@ defmodule AvelineWeb.Api.ViewController do
     user = conn.assigns.current_user
     name = params["name"] |> to_string() |> String.trim() |> String.downcase()
 
+    # Low-spam default: no bucket means YOUR bucket, not the team's.
+    # Publishing to everyone is an explicit --bucket team.
     bucket_result =
       case params["bucket"] do
-        nil -> {:ok, nil}
+        nil -> {:ok, Views.ensure_personal_bucket(ws.id, user.id)}
         "yours" -> {:ok, Views.ensure_personal_bucket(ws.id, user.id)}
+        "team" -> {:ok, Views.ensure_team_bucket(ws.id)}
         b -> fetch_bucket(ws, user, b)
       end
 
@@ -183,6 +186,7 @@ defmodule AvelineWeb.Api.ViewController do
     bucket_result =
       case bucket_name do
         "yours" -> {:ok, Views.ensure_personal_bucket(ws.id, user.id)}
+        "team" -> {:ok, Views.ensure_team_bucket(ws.id)}
         b -> fetch_bucket(ws, user, b)
       end
 

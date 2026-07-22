@@ -146,14 +146,13 @@ defmodule AvelineWeb.Api.DocPermissionsApiTest do
     assert other_conn |> get(~p"/api/workspaces/#{ws.slug}/docs/#{doc.slug}") |> json_response(404)
   end
 
-  test "create-doc accepts visibility: private is born hidden", ctx do
+  test "create-doc DEFAULTS to private: the zero-effort path is the quiet one", ctx do
     %{owner_conn: owner_conn, other_conn: other_conn, ws: ws} = ctx
 
     created =
       owner_conn
       |> post(~p"/api/workspaces/#{ws.slug}/docs", %{
         "title" => "Born secret",
-        "visibility" => "private",
         "blocks" => [%{"type" => "paragraph", "content" => [%{"text" => "shh"}]}],
         "intent" => "test"
       })
@@ -163,6 +162,52 @@ defmodule AvelineWeb.Api.DocPermissionsApiTest do
 
     assert owner_conn |> get(~p"/api/workspaces/#{ws.slug}/docs/#{slug}") |> json_response(200)
     assert other_conn |> get(~p"/api/workspaces/#{ws.slug}/docs/#{slug}") |> json_response(404)
+
+    # Publishing to the team is the explicit act.
+    published =
+      owner_conn
+      |> post(~p"/api/workspaces/#{ws.slug}/docs", %{
+        "title" => "For everyone",
+        "visibility" => "workspace",
+        "blocks" => [%{"type" => "paragraph", "content" => [%{"text" => "hi team"}]}],
+        "intent" => "test"
+      })
+      |> json_response(200)
+
+    assert other_conn
+           |> get(~p"/api/workspaces/#{ws.slug}/docs/#{published["slug"]}")
+           |> json_response(200)
+  end
+
+  test "create-view defaults into your personal bucket; --bucket team publishes", ctx do
+    %{owner_conn: owner_conn, other_conn: other_conn, ws: ws} = ctx
+
+    created =
+      owner_conn
+      |> post(~p"/api/workspaces/#{ws.slug}/views", %{
+        "name" => "my-quiet-view",
+        "description" => "Default-bucket test view, should be personal."
+      })
+      |> json_response(200)
+
+    assert created["view"]["bucket"]["kind"] == "personal"
+
+    other_list = other_conn |> get(~p"/api/workspaces/#{ws.slug}/views") |> json_response(200)
+    refute Enum.any?(other_list["views"], &(&1["name"] == "my-quiet-view"))
+
+    team_created =
+      owner_conn
+      |> post(~p"/api/workspaces/#{ws.slug}/views", %{
+        "name" => "loud-view",
+        "description" => "Explicitly published team view.",
+        "bucket" => "team"
+      })
+      |> json_response(200)
+
+    assert team_created["view"]["bucket"]["kind"] == "team"
+
+    other_list = other_conn |> get(~p"/api/workspaces/#{ws.slug}/views") |> json_response(200)
+    assert Enum.any?(other_list["views"], &(&1["name"] == "loud-view"))
   end
 
   test "events feed hides the private doc's trail", ctx do

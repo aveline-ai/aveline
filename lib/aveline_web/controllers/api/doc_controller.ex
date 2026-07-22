@@ -186,7 +186,10 @@ defmodule AvelineWeb.Api.DocController do
       actor_user_id: user.id,
       actor_type: params["actor"] || "agent",
       intent: params["intent"],
-      visibility: params["visibility"] || "workspace"
+      # Low-spam default: docs are born private; publishing to the
+      # workspace is an explicit act (agents pass whatever gets the
+      # thing done, so the zero-effort path must be the quiet one).
+      visibility: params["visibility"] || "private"
     }
 
     with {:ok, item} <- Docs.create_doc(attrs) do
