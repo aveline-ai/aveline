@@ -20,11 +20,19 @@ defmodule AvelineWeb.SettingsLive do
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
         items = Docs.list_current(ws.id, viewer: user.id)
+        agent_connected? = Aveline.Onboarding.agent_connected?(ws.id, user.id)
+
+        if connected?(socket) and not agent_connected? do
+          Process.send_after(self(), :check_setup, 2_000)
+        end
 
         {:ok,
          assign(socket,
            page_title: "Aveline · Settings",
            current_user: user,
+           agent_connected?: agent_connected?,
+           setup_done: agent_connected?,
+           setup_prompt: AvelineWeb.Setup.prompt(ws, :existing_user),
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
            sidebar_views: Aveline.Views.sidebar_sections(ws.id, user.id),
@@ -136,6 +144,18 @@ defmodule AvelineWeb.SettingsLive do
       base <> " If this browser signed in with it, your session cookie keeps working."
     else
       base
+    end
+  end
+
+  @impl true
+  def handle_info(:check_setup, socket) do
+    %{workspace: ws, current_user: user} = socket.assigns
+
+    if Aveline.Onboarding.agent_connected?(ws.id, user.id) do
+      {:noreply, assign(socket, setup_done: true, agent_connected?: true)}
+    else
+      Process.send_after(self(), :check_setup, 2_000)
+      {:noreply, socket}
     end
   end
 
@@ -261,6 +281,32 @@ defmodule AvelineWeb.SettingsLive do
         with <span class="mono">/login/&lt;key&gt;</span>, or point the CLI at one via
         <span class="mono">aveline login</span>.
       </div>
+
+      <div class="section-label" style="margin-top:32px">Connect your agent</div>
+      <%= if @agent_connected? and @setup_done do %>
+        <p class="setup-status setup-status-done">
+          ✓ Connected. An agent on your account has read this workspace's orientation doc.
+        </p>
+        <details class="setup-reconnect">
+          <summary class="auth-hint" style="cursor:pointer">
+            Setting up another machine? Get the prompt again.
+          </summary>
+          <AvelineWeb.Setup.setup_card
+            id="settings-setup"
+            workspace={@workspace}
+            prompt={@setup_prompt}
+            setup_done={true}
+            show_pitch={false}
+          />
+        </details>
+      <% else %>
+        <AvelineWeb.Setup.setup_card
+          id="settings-setup"
+          workspace={@workspace}
+          prompt={@setup_prompt}
+          setup_done={@setup_done}
+        />
+      <% end %>
     </div>
     """
   end

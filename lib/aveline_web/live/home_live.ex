@@ -20,8 +20,21 @@ defmodule AvelineWeb.HomeLive do
 
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
+        # Agent-connected is a state, not a screen: unconnected users
+        # get the setup card at the top of home, polling the same
+        # orientation-read signal the signup screen watches. The card
+        # (and its poll) exists only until the first connect.
+        agent_connected? = Aveline.Onboarding.agent_connected?(ws.id, user.id)
+
+        if connected?(socket) and not agent_connected? do
+          Process.send_after(self(), :check_setup, 2_000)
+        end
+
         {:ok,
          assign(socket,
+           show_setup?: not agent_connected?,
+           setup_done: agent_connected?,
+           setup_prompt: AvelineWeb.Setup.prompt(ws, :existing_user),
            page_title: "Aveline · #{ws.name}",
            current_user: user,
            workspace: ws,
@@ -76,10 +89,30 @@ defmodule AvelineWeb.HomeLive do
   end
 
   @impl true
+  def handle_info(:check_setup, socket) do
+    %{workspace: ws, current_user: user} = socket.assigns
+
+    if Aveline.Onboarding.agent_connected?(ws.id, user.id) do
+      {:noreply, assign(socket, setup_done: true)}
+    else
+      Process.send_after(self(), :check_setup, 2_000)
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="content home-content">
       <h1 class="page-title home-title">Welcome back, {display_name(@current_user)}</h1>
+
+      <AvelineWeb.Setup.setup_card
+        :if={@show_setup?}
+        id="home-setup"
+        workspace={@workspace}
+        prompt={@setup_prompt}
+        setup_done={@setup_done}
+      />
 
       <section :if={@pinned_docs != [] or @orientation} class="shelf">
         <div class="shelf-head">

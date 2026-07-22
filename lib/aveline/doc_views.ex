@@ -31,7 +31,7 @@ defmodule Aveline.DocViews do
   def record(workspace_id, base_doc_id, user_id, actor_type)
       when is_binary(workspace_id) and is_binary(base_doc_id) and
              is_binary(user_id) and actor_type in ["human", "agent"] do
-    if recent_view?(base_doc_id, user_id) do
+    if recent_view?(base_doc_id, user_id, actor_type) do
       :ok
     else
       Repo.insert!(%DocView{
@@ -71,7 +71,10 @@ defmodule Aveline.DocViews do
     })
   end
 
-  defp recent_view?(base_doc_id, user_id) do
+  # Deduped per actor type: a human browsing the doc must not swallow
+  # their agent's first read (the setup card's connected signal), and
+  # vice versa.
+  defp recent_view?(base_doc_id, user_id, actor_type) do
     cutoff =
       DateTime.utc_now()
       |> DateTime.add(-@dedup_window_minutes * 60, :second)
@@ -80,6 +83,7 @@ defmodule Aveline.DocViews do
       where:
         v.base_doc_id == ^base_doc_id and
           v.user_id == ^user_id and
+          v.actor_type == ^actor_type and
           v.viewed_at > ^cutoff,
       select: 1,
       limit: 1
