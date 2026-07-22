@@ -194,6 +194,44 @@ defmodule Aveline.DocPermissionsTest do
       assert doc.base_doc_id in owner_targets
       refute doc.base_doc_id in other_targets
     end
+
+    test "comment events on a private doc hide too — no title leak via the feed", %{
+      owner: owner,
+      other: other,
+      ws: ws
+    } do
+      doc = doc_fixture(ws, owner, title: "Secret", visibility: "private")
+
+      {:ok, _comment} =
+        Aveline.Comments.create_comment(%{
+          "doc_id" => doc.id,
+          "body" => "note to self",
+          "actor_user_id" => owner.id,
+          "actor_type" => "human"
+        })
+
+      labels = fn viewer ->
+        Events.list_for_workspace(ws.id, viewer: viewer)
+        |> Enum.filter(&(&1.target_kind == "comment"))
+        |> Enum.map(& &1.target_label)
+      end
+
+      assert "Secret" in labels.(owner.id)
+      refute "Secret" in labels.(other.id)
+
+      # Comment events on workspace docs still flow to everyone.
+      open_doc = doc_fixture(ws, owner, title: "Open doc")
+
+      {:ok, _} =
+        Aveline.Comments.create_comment(%{
+          "doc_id" => open_doc.id,
+          "body" => "hello team",
+          "actor_user_id" => owner.id,
+          "actor_type" => "human"
+        })
+
+      assert "Open doc" in labels.(other.id)
+    end
   end
 
   describe "doc links" do

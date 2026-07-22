@@ -81,9 +81,11 @@ defmodule Aveline.Events do
 
   # A private doc's whole event trail vanishes from the feed along with
   # the doc: exclude doc-targeted events whose CURRENT version is
-  # private and neither owned by nor shared with the viewer. Historical
-  # events for docs that later went private disappear too — visibility
-  # is evaluated now, not at record time. `viewer: nil` fails closed.
+  # private and neither owned by nor shared with the viewer — and
+  # comment events too, which carry the doc's title and reference it
+  # via data->doc_base_id. Historical events for docs that later went
+  # private disappear as well: visibility is evaluated now, not at
+  # record time. `viewer: nil` fails closed.
   defp hide_unreadable_doc_events(query, viewer) do
     hidden =
       from d in Aveline.Docs.Doc,
@@ -106,7 +108,12 @@ defmodule Aveline.Events do
       end
 
     from e in query,
-      where: e.target_kind != "doc" or is_nil(e.target_id) or e.target_id not in subquery(hidden)
+      where:
+        (e.target_kind != "doc" or is_nil(e.target_id) or
+           e.target_id not in subquery(hidden)) and
+          (e.target_kind != "comment" or
+             is_nil(fragment("?->>'doc_base_id'", e.data)) or
+             fragment("(?->>'doc_base_id')::uuid", e.data) not in subquery(hidden))
   end
 
   defp apply_before(q, %DateTime{} = dt), do: from(e in q, where: e.inserted_at < ^dt)
