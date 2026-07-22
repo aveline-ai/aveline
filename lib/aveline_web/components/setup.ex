@@ -249,30 +249,38 @@ defmodule AvelineWeb.Setup do
               <div class="welcome-steps-box">
                 <details class="welcome-step" name="welcome-steps" open>
                   <summary class="welcome-step-title">Install the CLI</summary>
-                  <a
-                    href="https://github.com/aveline-ai/cli/releases/latest"
-                    target="_blank"
-                    rel="noopener"
-                    class="welcome-step-line welcome-step-line-link"
-                  >github.com/aveline-ai/cli/releases/latest ↗</a>
-                  <div class="welcome-step-note">put it on your PATH</div>
+                  <div class="welcome-step-body">
+                    <a
+                      href="https://github.com/aveline-ai/cli/releases/latest"
+                      target="_blank"
+                      rel="noopener"
+                      class="welcome-step-line welcome-step-line-link"
+                    >github.com/aveline-ai/cli/releases/latest ↗</a>
+                    <div class="welcome-step-note">put it on your PATH</div>
+                  </div>
                 </details>
                 <details class="welcome-step" name="welcome-steps">
                   <summary class="welcome-step-title">Log in</summary>
-                  <div class="welcome-step-line">aveline login<%= if base = api_base_override() do %> --api-url {base}<% end %></div>
-                  <div class="welcome-step-note">
-                    asks for your API key. Lost it? Mint a new one in
-                    <.link navigate={~p"/w/#{@workspace.slug}/settings"} class="welcome-step-link">Settings</.link>.
+                  <div class="welcome-step-body">
+                    <div class="welcome-step-line">aveline login<%= if base = api_base_override() do %> --api-url {base}<% end %></div>
+                    <div class="welcome-step-note">
+                      asks for your API key. Lost it? Mint a new one in
+                      <.link navigate={~p"/w/#{@workspace.slug}/settings"} class="welcome-step-link">Settings</.link>.
+                    </div>
                   </div>
                 </details>
                 <details class="welcome-step" name="welcome-steps">
                   <summary class="welcome-step-title">Set your workspace</summary>
-                  <div class="welcome-step-line">aveline use-workspace {@workspace.slug}</div>
+                  <div class="welcome-step-body">
+                    <div class="welcome-step-line">aveline use-workspace {@workspace.slug}</div>
+                  </div>
                 </details>
                 <details class="welcome-step" name="welcome-steps">
                   <summary class="welcome-step-title">Get oriented</summary>
-                  <div class="welcome-step-line">aveline get-orientation</div>
-                  <div class="welcome-step-note">how the team organizes its knowledge</div>
+                  <div class="welcome-step-body">
+                    <div class="welcome-step-line">aveline get-orientation</div>
+                    <div class="welcome-step-note">how the team organizes its knowledge</div>
+                  </div>
                 </details>
               </div>
 
