@@ -3329,15 +3329,31 @@
         border-radius: 8px;
         font-size: 12.5px; color: var(--text-secondary);
       }
-      /* One anatomy for every row: title, full-width mono line, note. */
-      .welcome-step {
-        padding: 11px 14px 12px;
-      }
+      /* One anatomy for every row: title, full-width mono line, note.
+         Native exclusive accordion (details[name]): one step open at a
+         time, titles always scannable. */
+      .welcome-step { padding: 0 0 0; }
       .welcome-step + .welcome-step { border-top: 1px solid var(--border); }
-      .welcome-step-title {
+      .welcome-step > summary.welcome-step-title {
+        list-style: none;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 11px 14px;
         font-size: 12.5px; font-weight: 600; color: var(--text);
-        margin-bottom: 6px;
+        cursor: pointer;
+        margin: 0;
       }
+      .welcome-step > summary.welcome-step-title::-webkit-details-marker { display: none; }
+      .welcome-step > summary.welcome-step-title::after {
+        content: "▸";
+        color: var(--text-muted); font-size: 11px;
+        transition: transform 0.12s ease;
+      }
+      .welcome-step[open] > summary.welcome-step-title::after { transform: rotate(90deg); }
+      .welcome-step > summary.welcome-step-title:hover { color: var(--text); background: rgba(255,255,255,0.02); }
+      .welcome-step[open] { padding-bottom: 12px; }
+      .welcome-step[open] > summary.welcome-step-title { padding-bottom: 7px; }
+      .welcome-step .welcome-step-line { margin: 0 14px; }
+      .welcome-step .welcome-step-note { margin: 6px 14px 0; }
       .welcome-step-line {
         display: block;
         font-family: 'JetBrains Mono', monospace; font-size: 11.5px;

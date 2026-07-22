@@ -247,8 +247,8 @@ defmodule AvelineWeb.Setup do
                 <span></span>or do it yourself<span></span>
               </div>
               <div class="welcome-steps-box">
-                <div class="welcome-step">
-                  <div class="welcome-step-title">Install the CLI</div>
+                <details class="welcome-step" name="welcome-steps" open>
+                  <summary class="welcome-step-title">Install the CLI</summary>
                   <a
                     href="https://github.com/aveline-ai/cli/releases/latest"
                     target="_blank"
@@ -256,24 +256,24 @@ defmodule AvelineWeb.Setup do
                     class="welcome-step-line welcome-step-line-link"
                   >github.com/aveline-ai/cli/releases/latest ↗</a>
                   <div class="welcome-step-note">put it on your PATH</div>
-                </div>
-                <div class="welcome-step">
-                  <div class="welcome-step-title">Log in</div>
+                </details>
+                <details class="welcome-step" name="welcome-steps">
+                  <summary class="welcome-step-title">Log in</summary>
                   <div class="welcome-step-line">aveline login<%= if base = api_base_override() do %> --api-url {base}<% end %></div>
                   <div class="welcome-step-note">
                     asks for your API key. Lost it? Mint a new one in
                     <.link navigate={~p"/w/#{@workspace.slug}/settings"} class="welcome-step-link">Settings</.link>.
                   </div>
-                </div>
-                <div class="welcome-step">
-                  <div class="welcome-step-title">Set your workspace</div>
+                </details>
+                <details class="welcome-step" name="welcome-steps">
+                  <summary class="welcome-step-title">Set your workspace</summary>
                   <div class="welcome-step-line">aveline use-workspace {@workspace.slug}</div>
-                </div>
-                <div class="welcome-step">
-                  <div class="welcome-step-title">Get oriented</div>
+                </details>
+                <details class="welcome-step" name="welcome-steps">
+                  <summary class="welcome-step-title">Get oriented</summary>
                   <div class="welcome-step-line">aveline get-orientation</div>
                   <div class="welcome-step-note">how the team organizes its knowledge</div>
-                </div>
+                </details>
               </div>
 
               <pre class="welcome-snippet-source" aria-hidden="true"><code id={@id <> "-snippet"}>{@prompt}</code></pre>
