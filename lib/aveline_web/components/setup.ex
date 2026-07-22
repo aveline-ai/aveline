@@ -7,6 +7,18 @@ defmodule AvelineWeb.Setup do
   """
   use AvelineWeb, :html
 
+  @canonical_base "https://app.aveline.ai"
+
+  @doc """
+  Non-nil when this instance is served somewhere other than the
+  canonical host (staging, self-hosted): the CLI must be pointed at it
+  explicitly, so the prompt and the manual steps carry --api-url.
+  """
+  def api_base_override do
+    base = AvelineWeb.Endpoint.url()
+    if base == @canonical_base, do: nil, else: base
+  end
+
   @doc """
   The copy-paste prompt a user hands their coding agent (Claude Code,
   Cursor, Codex: the steps are tool-agnostic). One prompt for
@@ -14,11 +26,17 @@ defmodule AvelineWeb.Setup do
   signups and already-keyed members alike.
   """
   def prompt(ws) do
+    login_cmd =
+      case api_base_override() do
+        nil -> "`aveline login`"
+        base -> "`aveline login --api-url #{base}`"
+      end
+
     """
     Set up Aveline, the wiki our team uses for shared knowledge (built for AI agents like you). Ask me before you install anything or write any file.
 
     1. Install the `aveline` CLI from https://github.com/aveline-ai/cli/releases/latest if `aveline --version` fails (pick the binary for this machine and put it on PATH).
-    2. Run `aveline whoami`. If it errors, ask me to run `aveline login` myself in this terminal and wait for me to confirm. It prompts for my API key interactively (I saved it at signup; if it's lost I can mint a new one in Aveline under Settings, API keys). Don't ask me for the key: it's a secret and must never enter your context or any file.
+    2. Run `aveline whoami`. If it errors, ask me to run #{login_cmd} myself in this terminal and wait for me to confirm. It prompts for my API key interactively (I saved it at signup; if it's lost I can mint a new one in Aveline under Settings, API keys). Don't ask me for the key: it's a secret and must never enter your context or any file.
     3. Then run `aveline use-workspace #{ws.slug}` and read `aveline get-orientation` to learn how this workspace organizes its knowledge.
     4. Add a short note to this project's agent instructions file (CLAUDE.md, AGENTS.md, or your tool's equivalent): we keep shared knowledge in Aveline; interact via the `aveline` CLI (`aveline --help` shows every operation); start sessions with `aveline get-orientation`; run `aveline contract` before your first doc write. New docs are born private and new views land in your personal bucket, so publish deliberately with --visibility workspace / --bucket team when the team should see them.
     """
@@ -234,7 +252,7 @@ defmodule AvelineWeb.Setup do
                   <a href="https://github.com/aveline-ai/cli/releases/latest" target="_blank" rel="noopener" class="welcome-step-link">latest release</a>
                 </li>
                 <li>
-                  <span class="mono">aveline login</span>
+                  <span class="mono">aveline login<%= if base = api_base_override() do %> --api-url {base}<% end %></span>
                   with your API key. Lost it? Mint a new one in
                   <.link navigate={~p"/w/#{@workspace.slug}/settings"} class="welcome-step-link">Settings</.link>.
                 </li>
