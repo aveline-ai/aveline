@@ -283,7 +283,6 @@ defmodule AvelineWeb.Setup do
                   </div>
                 </div>
               </div>
-              </div>
 
               <pre class="welcome-snippet-source" aria-hidden="true"><code id={@id <> "-snippet"}>{@prompt}</code></pre>
             <% end %>
