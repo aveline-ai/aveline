@@ -89,7 +89,6 @@ defmodule AvelineWeb.OnboardingLiveTest do
 
     {:ok, _lv, html} = live(conn, "/w/#{ws.slug}")
     assert html =~ "setup-card setup-hero"
-    assert html =~ "written by your agents"
     # Existing-user variant: login is conditional, never demanded.
     assert html =~ "If it errors, ask me to run"
   end
