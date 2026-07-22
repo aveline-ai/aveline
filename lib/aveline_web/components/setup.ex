@@ -235,8 +235,8 @@ defmodule AvelineWeb.Setup do
                 </li>
                 <li>
                   <span class="mono">aveline login</span>
-                  with your API key. It was shown once at signup; lost it?
-                  Mint a new one in Settings under API keys.
+                  with your API key. Lost it? Mint a new one in Settings
+                  under API keys.
                 </li>
                 <li>
                   <span class="mono">aveline use-workspace {@workspace.slug}</span>
