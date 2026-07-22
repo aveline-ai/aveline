@@ -246,25 +246,33 @@ defmodule AvelineWeb.Setup do
               <div class="welcome-or" aria-hidden="true">
                 <span></span>or do it yourself<span></span>
               </div>
-              <ol class="welcome-steps-box">
-                <li>
-                  Install the CLI:
-                  <a href="https://github.com/aveline-ai/cli/releases/latest" target="_blank" rel="noopener" class="welcome-step-link">latest release</a>
-                </li>
-                <li>
-                  <span class="mono">aveline login<%= if base = api_base_override() do %> --api-url {base}<% end %></span>
-                  with your API key. Lost it? Mint a new one in
-                  <.link navigate={~p"/w/#{@workspace.slug}/settings"} class="welcome-step-link">Settings</.link>.
-                </li>
-                <li>
-                  <span class="mono">aveline use-workspace {@workspace.slug}</span>
-                  to make this workspace the default
-                </li>
-                <li>
-                  <span class="mono">aveline get-orientation</span>
-                  to learn how the team organizes its knowledge
-                </li>
-              </ol>
+              <div class="welcome-steps-box">
+                <div class="welcome-step">
+                  <a
+                    href="https://github.com/aveline-ai/cli/releases/latest"
+                    target="_blank"
+                    rel="noopener"
+                    class="welcome-step-cmd welcome-step-cmd-link"
+                  >install the CLI ↗</a>
+                  <span class="welcome-step-desc">the latest release, on your PATH</span>
+                </div>
+                <div class="welcome-step">
+                  <span class="welcome-step-cmd">aveline login<%= if base = api_base_override() do %> --api-url {base}<% end %></span>
+                  <span class="welcome-step-desc">
+                    with your API key. Lost it? Mint a new one in
+                    <.link navigate={~p"/w/#{@workspace.slug}/settings"} class="welcome-step-link">Settings</.link>.
+                  </span>
+                </div>
+                <div class="welcome-step">
+                  <span class="welcome-step-cmd">aveline use-workspace {@workspace.slug}</span>
+                  <span class="welcome-step-desc">make this workspace the default</span>
+                </div>
+                <div class="welcome-step">
+                  <span class="welcome-step-cmd">aveline get-orientation</span>
+                  <span class="welcome-step-desc">learn how the team organizes its knowledge</span>
+                </div>
+              </div>
+
               <pre class="welcome-snippet-source" aria-hidden="true"><code id={@id <> "-snippet"}>{@prompt}</code></pre>
             <% end %>
           </div>
