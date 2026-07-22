@@ -203,47 +203,46 @@ defmodule AvelineWeb.Setup do
                 Take me in →
               </button>
             <% else %>
-              <div class="welcome-setup-main">
-                <button
-                  type="button"
-                  id={@id <> "-copy"}
-                  class="welcome-cta"
-                  phx-hook="CopyToken"
-                  data-target={"##{@id}-snippet"}
-                  title="Copy the setup prompt"
-                >
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
-                    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-                    <path d="M10.5 3.5v-.75A1.25 1.25 0 009.25 1.5h-6A1.25 1.25 0 002 2.75v6A1.25 1.25 0 003.25 10H4" />
-                  </svg>
-                  <span class="token-field-copy-label">Copy setup prompt</span>
-                </button>
-                <span class="welcome-cta-micro">
-                  paste it into your coding agent. Claude Code, Cursor, and Codex all work.
-                </span>
-              </div>
-              <div class="welcome-steps">
-                <div class="welcome-steps-label">The prompt walks your agent through these, or do them yourself:</div>
-                <ol>
-                  <li>
-                    Install the CLI:
-                    <a href="https://github.com/aveline-ai/cli/releases/latest" target="_blank" rel="noopener" class="welcome-step-link">latest release</a>
-                  </li>
-                  <li>
-                    <span class="mono">aveline login</span>
-                    with your API key, found in Settings under API keys
-                  </li>
-                  <li>
-                    <span class="mono">aveline use-workspace {@workspace.slug}</span>
-                    then <span class="mono">aveline get-orientation</span>.
-                    The moment it runs, this page lets you in.
-                  </li>
-                </ol>
-              </div>
+              <p class="welcome-setup-lead">
+                One prompt sets everything up. Paste it into your coding
+                agent: Claude Code, Cursor, and Codex all work.
+              </p>
+              <button
+                type="button"
+                id={@id <> "-copy"}
+                class="welcome-cta"
+                phx-hook="CopyToken"
+                data-target={"##{@id}-snippet"}
+                title="Copy the setup prompt"
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+                  <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+                  <path d="M10.5 3.5v-.75A1.25 1.25 0 009.25 1.5h-6A1.25 1.25 0 002 2.75v6A1.25 1.25 0 003.25 10H4" />
+                </svg>
+                <span class="token-field-copy-label">Copy setup prompt</span>
+              </button>
               <div class="welcome-status">
                 <span class="welcome-ping" aria-hidden="true"></span>
                 Listening for your agent…
               </div>
+              <div class="welcome-or" aria-hidden="true">
+                <span></span>or do it yourself<span></span>
+              </div>
+              <ol class="welcome-steps-box">
+                <li>
+                  Install the CLI:
+                  <a href="https://github.com/aveline-ai/cli/releases/latest" target="_blank" rel="noopener" class="welcome-step-link">latest release</a>
+                </li>
+                <li>
+                  <span class="mono">aveline login</span>
+                  with your API key, found in Settings under API keys
+                </li>
+                <li>
+                  <span class="mono">aveline use-workspace {@workspace.slug}</span>
+                  then <span class="mono">aveline get-orientation</span>.
+                  The moment it runs, this page lets you in.
+                </li>
+              </ol>
               <pre class="welcome-snippet-source" aria-hidden="true"><code id={@id <> "-snippet"}>{@prompt}</code></pre>
             <% end %>
           </div>
