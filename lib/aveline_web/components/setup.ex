@@ -258,8 +258,9 @@ defmodule AvelineWeb.Setup do
                 </li>
                 <li>
                   <span class="mono">aveline use-workspace {@workspace.slug}</span>
-                  then <span class="mono">aveline get-orientation</span>.
-                  The moment it runs, this page lets you in.
+                </li>
+                <li>
+                  <span class="mono">aveline get-orientation</span>
                 </li>
               </ol>
               <pre class="welcome-snippet-source" aria-hidden="true"><code id={@id <> "-snippet"}>{@prompt}</code></pre>
