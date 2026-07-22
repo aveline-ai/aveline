@@ -235,8 +235,8 @@ defmodule AvelineWeb.Setup do
                 </li>
                 <li>
                   <span class="mono">aveline login</span>
-                  with your API key. Lost it? Mint a new one in Settings
-                  under API keys.
+                  with your API key. Lost it? Mint a new one in
+                  <.link navigate={~p"/w/#{@workspace.slug}/settings"} class="welcome-step-link">Settings</.link>.
                 </li>
                 <li>
                   <span class="mono">aveline use-workspace {@workspace.slug}</span>
