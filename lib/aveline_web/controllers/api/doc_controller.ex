@@ -192,15 +192,27 @@ defmodule AvelineWeb.Api.DocController do
       visibility: params["visibility"] || "private"
     }
 
-    with {:ok, item} <- Docs.create_doc(attrs) do
-      Envelope.ok(conn, %{
-        slug: item.slug,
-        doc_id: item.base_doc_id,
-        version_id: item.id,
-        version_number: item.version_number
-      })
+    case Docs.create_doc(attrs) do
+      {:ok, item} ->
+        Envelope.ok(conn, %{
+          slug: item.slug,
+          doc_id: item.base_doc_id,
+          version_id: item.id,
+          version_number: item.version_number
+        })
+
+      other ->
+        with_contract_hint(other)
     end
   end
+
+  # Block/op validation failures are where cold agents flail: meet them
+  # at the failure point with the pointer to the write contract.
+  defp with_contract_hint({:error, msg}) when is_binary(msg) do
+    {:error, msg <> " Run `aveline contract` for every block type and op with a valid example."}
+  end
+
+  defp with_contract_hint(other), do: other
 
   @doc """
   Ship a new version of an existing doc. Two input modes (send one, not
@@ -272,13 +284,17 @@ defmodule AvelineWeb.Api.DocController do
           )
         end
 
-      with {:ok, item} <- result do
-        Envelope.ok(conn, %{
-          slug: item.slug,
-          doc_id: item.base_doc_id,
-          version_id: item.id,
-          version_number: item.version_number
-        })
+      case result do
+        {:ok, item} ->
+          Envelope.ok(conn, %{
+            slug: item.slug,
+            doc_id: item.base_doc_id,
+            version_id: item.id,
+            version_number: item.version_number
+          })
+
+        other ->
+          with_contract_hint(other)
       end
     end
   end
