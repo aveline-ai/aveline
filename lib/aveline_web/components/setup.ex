@@ -169,10 +169,10 @@ defmodule AvelineWeb.Setup do
 
           <%= if @inhabited? do %>
             <p class="welcome-lede">
-              Everything drifting behind this panel is the team's knowledge
-              base: decisions, runbooks, tickets. Connect your agent and it
-              inherits all of it, plus everything written next. You review,
-              comment, and steer. About two minutes.
+              This workspace already knows things: decisions, runbooks,
+              tickets. Connect your agent and it inherits all of it, plus
+              everything written next. You review, comment, and steer. About
+              two minutes.
             </p>
           <% else %>
             <p class="welcome-lede">
