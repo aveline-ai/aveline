@@ -3120,6 +3120,16 @@
           radial-gradient(900px 480px at 50% -10%, rgba(59,130,246,0.055), transparent 70%),
           var(--bg);
       }
+      /* Fresh workspaces: nothing to show yet, so warmth comes from
+         light instead. The backdrop hides and an aurora breathes. */
+      .welcome-stage-fresh .wb-backdrop, .welcome-stage-fresh .wb-veil { display: none; }
+      .welcome-stage-fresh {
+        background:
+          radial-gradient(ellipse 75% 85% at 30% 0%, rgba(59,130,246,0.10), transparent 62%),
+          radial-gradient(ellipse 55% 70% at 82% 18%, rgba(186,140,99,0.05), transparent 65%),
+          radial-gradient(ellipse 70% 90% at 60% 105%, rgba(59,130,246,0.06), transparent 60%),
+          var(--bg);
+      }
       .wb-backdrop { position: absolute; inset: 0; z-index: 0; }
       .wb-card {
         position: absolute;
@@ -3286,12 +3296,48 @@
       .welcome-cta svg { width: 14px; height: 14px; }
       .welcome-cta.copied { background: var(--accent-dim); color: var(--accent); box-shadow: none; }
       .welcome-cta-micro { font-size: 12px; color: var(--text-muted); margin-top: 10px; }
+      /* The distinct setup zone: full-bleed band inside the panel,
+         steps visible up front so nothing is mysterious. */
+      .welcome-setup {
+        margin: 26px -60px 0;
+        padding: 22px 60px 20px;
+        border-top: 1px solid var(--border);
+        background: rgba(255,255,255,0.018);
+        text-align: left;
+      }
+      .welcome-setup-main {
+        display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+      .welcome-steps-label {
+        font-size: 11px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.06em;
+        color: var(--text-muted);
+        margin-bottom: 8px;
+      }
+      .welcome-steps ol {
+        margin: 0 0 0 18px; padding: 0;
+        font-size: 12.5px; color: var(--text-secondary); line-height: 1.7;
+      }
+      .welcome-steps li { margin-bottom: 3px; }
+      .welcome-steps li::marker { color: var(--text-muted); }
+      .welcome-steps .mono {
+        font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+        color: var(--text);
+        background: rgba(255,255,255,0.05);
+        border: 1px solid var(--border);
+        border-radius: 4px; padding: 0 5px;
+      }
+      .welcome-step-link { color: var(--accent); }
+      .welcome-step-link:hover { color: var(--accent-hover); }
+      /* Copy source for the CTA: present for the hook, never rendered. */
+      .welcome-snippet-source { display: none; }
       /* The listening line appears only once the prompt is copied:
          before any action there is nothing to wait for. */
       .welcome-status {
         display: none;
-        align-items: center; justify-content: center; gap: 8px;
-        margin-top: 24px;
+        align-items: center; gap: 8px;
+        margin-top: 16px;
         font-size: 12.5px; color: var(--text-secondary);
       }
       .welcome-panel:has(.welcome-cta.copied) .welcome-status { display: flex; }
@@ -3309,7 +3355,8 @@
         0% { transform: scale(1); opacity: 0.5; }
         70%, 100% { transform: scale(2.8); opacity: 0; }
       }
-      .welcome-done { margin: 8px 0 14px; font-size: 13px; }
+      .welcome-setup .welcome-done { margin: 0 0 12px; font-size: 13px; text-align: center; }
+      .welcome-setup:has(.welcome-enter) { text-align: center; }
       .welcome-enter {
         font-size: 14px; font-weight: 600; color: #fff;
         background: var(--accent);
@@ -3320,50 +3367,8 @@
           0 6px 22px rgba(59,130,246,0.28);
       }
       .welcome-enter:hover { background: var(--accent-hover); }
-      .welcome-quiet-links {
-        margin-top: 12px;
-        display: flex; align-items: baseline; justify-content: center; gap: 8px;
-        font-size: 12.5px; color: var(--text-muted);
-      }
-      .welcome-quiet-links .setup-skip { padding: 0; font-size: 12.5px; }
-      .welcome-quiet-links .setup-prompt-details > summary {
-        list-style: none; cursor: pointer;
-        color: var(--text-muted);
-        text-decoration: underline;
-        text-decoration-color: rgba(255,255,255,0.18);
-        text-underline-offset: 3px;
-      }
-      .welcome-quiet-links .setup-prompt-details > summary::-webkit-details-marker { display: none; }
-      .welcome-quiet-links .setup-prompt-details > summary:hover { color: var(--text-secondary); }
-      .welcome-quiet-links .setup-prompt-details[open] .snippet {
-        margin-top: 14px; text-align: left; max-width: 500px;
-        max-height: 220px; overflow-y: auto;
-      }
-      .welcome-what-list {
-        margin: 12px auto 0; text-align: left; max-width: 400px;
-        font-size: 12px; color: var(--text-secondary); line-height: 1.6;
-        padding-left: 18px;
-      }
-      .welcome-what-list li { margin-bottom: 4px; }
-      .welcome-what-list .mono {
-        font-family: 'JetBrains Mono', monospace; font-size: 11px;
-        color: var(--text);
-        background: rgba(255,255,255,0.05);
-        border: 1px solid var(--border);
-        border-radius: 4px; padding: 0 4px;
-      }
-      .welcome-browse { color: var(--text-muted); font-size: 12.5px; }
-      .welcome-browse-link {
-        color: var(--text-muted);
-        text-decoration: underline;
-        text-decoration-color: rgba(255,255,255,0.18);
-        text-underline-offset: 3px;
-      }
-      .welcome-browse-link:hover { color: var(--text-secondary); }
-      .welcome-quiet-links { flex-wrap: wrap; }
-      .welcome-quiet-links .setup-prompt-details[open] { flex-basis: 100%; }
       .welcome-start {
-        margin: 30px -60px 0;
+        margin: 0 -60px 0;
         border-top: 1px solid var(--border);
         padding: 15px 60px 17px;
         display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -3386,30 +3391,8 @@
       @media (max-width: 980px) {
         .wb-backdrop { display: none; }
         .welcome-panel { padding: 34px 28px 0; }
-        .welcome-what-list {
-        margin: 12px auto 0; text-align: left; max-width: 400px;
-        font-size: 12px; color: var(--text-secondary); line-height: 1.6;
-        padding-left: 18px;
-      }
-      .welcome-what-list li { margin-bottom: 4px; }
-      .welcome-what-list .mono {
-        font-family: 'JetBrains Mono', monospace; font-size: 11px;
-        color: var(--text);
-        background: rgba(255,255,255,0.05);
-        border: 1px solid var(--border);
-        border-radius: 4px; padding: 0 4px;
-      }
-      .welcome-browse { color: var(--text-muted); font-size: 12.5px; }
-      .welcome-browse-link {
-        color: var(--text-muted);
-        text-decoration: underline;
-        text-decoration-color: rgba(255,255,255,0.18);
-        text-underline-offset: 3px;
-      }
-      .welcome-browse-link:hover { color: var(--text-secondary); }
-      .welcome-quiet-links { flex-wrap: wrap; }
-      .welcome-quiet-links .setup-prompt-details[open] { flex-basis: 100%; }
-      .welcome-start { margin: 26px -28px 0; padding: 13px 28px 15px; }
+        .welcome-start { margin: 0 -28px 0; padding: 13px 28px 15px; }
+        .welcome-setup { margin: 22px -28px 0; padding: 18px 28px 16px; }
         .welcome-h1 { font-size: 27px; }
       }
       .setup-reconnect { margin-top: 10px; }

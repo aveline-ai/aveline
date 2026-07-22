@@ -47,11 +47,13 @@ defmodule AvelineWeb.OnboardingLiveTest do
   } do
     {:ok, _lv, html} = live(conn, "/w/#{ws.slug}/welcome")
 
-    assert html =~ ~s(class="welcome-stage")
+    assert html =~ ~s(class="welcome-stage)
     assert html =~ "Welcome to"
     assert html =~ "starts here"
-    assert html =~ "what will it do?"
-    assert html =~ "Your API key is in Settings"
+    # Steps are visible up front: nothing hides behind toggles.
+    refute html =~ "view the prompt"
+    assert html =~ "or do them yourself"
+    assert html =~ "found in Settings under API keys"
     assert html =~ "look around"
     # The status line exists but only shows after copy (CSS gated).
     assert html =~ "Listening for your agent"
@@ -61,7 +63,7 @@ defmodule AvelineWeb.OnboardingLiveTest do
     assert html =~ "Welcome back,"
     assert html =~ "Connect your agent"
     assert html =~ "/w/#{ws.slug}/welcome"
-    refute html =~ ~s(class="welcome-stage")
+    refute html =~ ~s(class="welcome-stage)
   end
 
   test "connecting on the welcome page offers Take me in; connected users bounce", %{
@@ -96,11 +98,11 @@ defmodule AvelineWeb.OnboardingLiveTest do
       |> Plug.Conn.put_session(:user_id, invitee.id)
 
     {:ok, _lv, html} = live(conn, "/w/#{ws.slug}/welcome")
-    assert html =~ ~s(class="welcome-stage")
+    assert html =~ ~s(class="welcome-stage)
     assert html =~ "saved you a seat"
     assert html =~ "is here"
     assert html =~ "Start with"
-    # Prompt is tool-agnostic and locates the key for the human.
+    # Prompt is tool-agnostic and stays in the DOM as the copy source.
     assert html =~ "Claude Code, Cursor, and Codex all work"
     assert html =~ "If it errors, ask me to run"
   end

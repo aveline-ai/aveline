@@ -110,14 +110,20 @@ defmodule AvelineWeb.Setup do
   ]
 
   def welcome(assigns) do
+    # Two seductions: an inhabited workspace sells its inheritance (the
+    # real docs drifting behind the panel); a fresh one has nothing to
+    # show, so it sells what compounds, on an aurora instead of a void.
+    inhabited? = length(assigns.backdrop_docs) > 1 or assigns.member_names != []
+
     assigns =
       assign(assigns,
         placed_docs: Enum.zip(Enum.take(assigns.backdrop_docs, 10), @backdrop_slots),
-        others: assigns.member_names
+        others: assigns.member_names,
+        inhabited?: inhabited?
       )
 
     ~H"""
-    <div class="welcome-stage" id={@id}>
+    <div class={"welcome-stage " <> if @inhabited?, do: "", else: "welcome-stage-fresh"} id={@id}>
       <div class="wb-backdrop" aria-hidden="true">
         <div
           :for={{doc, {pos, tier, drift}} <- @placed_docs}
@@ -159,14 +165,21 @@ defmodule AvelineWeb.Setup do
             <% end %>
           </h1>
 
-          <p class="welcome-lede">
-            This is the team's knowledge base. AI agents write and read it;
-            you review and steer. One pasted prompt connects yours: it
-            installs the small <span class="mono">aveline</span> CLI, pauses
-            for you to log in, and learns how
-            <span class="mono">{@workspace.slug}</span> works. About two
-            minutes.
-          </p>
+          <%= if @inhabited? do %>
+            <p class="welcome-lede">
+              Everything drifting behind this panel is the team's knowledge
+              base: decisions, runbooks, tickets. Connect your agent and it
+              inherits all of it, plus everything written next. You review,
+              comment, and steer. About two minutes.
+            </p>
+          <% else %>
+            <p class="welcome-lede">
+              Every decision, runbook, and ticket your agents file here
+              compounds. In a month, a new teammate's agent can learn the
+              whole system in one read. It starts with yours. About two
+              minutes.
+            </p>
+          <% end %>
 
           <div class="welcome-proof">
             <span :if={@others != []} class="welcome-facepile">
@@ -181,71 +194,74 @@ defmodule AvelineWeb.Setup do
             <span><b>{@view_count}</b> saved views</span>
           </div>
 
-          <%= if @setup_done do %>
-            <p class="setup-status setup-status-done welcome-done">✓ Your agent is in.</p>
-            <button type="button" class="welcome-enter" phx-click="enter_home">
-              Take me in →
-            </button>
-          <% else %>
-            <button
-              type="button"
-              id={@id <> "-copy"}
-              class="welcome-cta"
-              phx-hook="CopyToken"
-              data-target={"##{@id}-snippet"}
-              title="Copy the setup prompt"
-            >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
-                <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-                <path d="M10.5 3.5v-.75A1.25 1.25 0 009.25 1.5h-6A1.25 1.25 0 002 2.75v6A1.25 1.25 0 003.25 10H4" />
-              </svg>
-              <span class="token-field-copy-label">Copy setup prompt</span>
-            </button>
-            <div class="welcome-cta-micro">
-              then paste it into your coding agent. Claude Code, Cursor, and Codex all work.
-            </div>
-
-            <div class="welcome-status">
-              <span class="welcome-ping" aria-hidden="true"></span>
-              Listening for your agent. This flips the moment it checks in,
-              usually within a minute or two.
-            </div>
-          <% end %>
-
-          <div class="welcome-quiet-links">
-            <details class="setup-prompt-details">
-              <summary>view the prompt</summary>
-              <div class="snippet">
-                <pre><code id={@id <> "-snippet"}>{@prompt}</code></pre>
+          <div class="welcome-setup">
+            <%= if @setup_done do %>
+              <p class="setup-status setup-status-done welcome-done">✓ Your agent is in.</p>
+              <button type="button" class="welcome-enter" phx-click="enter_home">
+                Take me in →
+              </button>
+            <% else %>
+              <div class="welcome-setup-main">
+                <button
+                  type="button"
+                  id={@id <> "-copy"}
+                  class="welcome-cta"
+                  phx-hook="CopyToken"
+                  data-target={"##{@id}-snippet"}
+                  title="Copy the setup prompt"
+                >
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+                    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+                    <path d="M10.5 3.5v-.75A1.25 1.25 0 009.25 1.5h-6A1.25 1.25 0 002 2.75v6A1.25 1.25 0 003.25 10H4" />
+                  </svg>
+                  <span class="token-field-copy-label">Copy setup prompt</span>
+                </button>
+                <span class="welcome-cta-micro">
+                  paste it into your coding agent. Claude Code, Cursor, and Codex all work.
+                </span>
               </div>
-            </details>
-            <span class="welcome-sep">·</span>
-            <details class="setup-prompt-details welcome-what-next">
-              <summary>what will it do?</summary>
-              <ol class="welcome-what-list">
-                <li>Installs the <span class="mono">aveline</span> CLI, a single small binary. It asks first.</li>
-                <li>Pauses and asks you to run <span class="mono">aveline login</span>. Your API key is in Settings, under API keys.</li>
-                <li>Reads the team's orientation doc. When it does, this page lets you in.</li>
-              </ol>
-            </details>
-            <%= if not @setup_done do %>
-              <span class="welcome-sep">·</span>
-              <span class="welcome-browse">
-                no agent yet? You can read and comment right in the browser:
-                <.link navigate={~p"/w/#{@workspace.slug}"} class="welcome-browse-link">look around</.link>
-              </span>
+              <div class="welcome-steps">
+                <div class="welcome-steps-label">The prompt walks your agent through these, or do them yourself:</div>
+                <ol>
+                  <li>
+                    Install the CLI:
+                    <a href="https://github.com/aveline-ai/cli/releases/latest" target="_blank" rel="noopener" class="welcome-step-link">latest release</a>
+                  </li>
+                  <li>
+                    <span class="mono">aveline login</span>
+                    with your API key, found in Settings under API keys
+                  </li>
+                  <li>
+                    <span class="mono">aveline use-workspace {@workspace.slug}</span>
+                    then <span class="mono">aveline get-orientation</span>.
+                    The moment it runs, this page lets you in.
+                  </li>
+                </ol>
+              </div>
+              <div class="welcome-status">
+                <span class="welcome-ping" aria-hidden="true"></span>
+                Listening for your agent…
+              </div>
+              <pre class="welcome-snippet-source" aria-hidden="true"><code id={@id <> "-snippet"}>{@prompt}</code></pre>
             <% end %>
           </div>
 
-          <div :if={@orientation} class="welcome-start">
-            Start with
-            <span aria-hidden="true">→</span>
-            <.link navigate={~p"/w/#{@workspace.slug}/d/#{@orientation.slug}"} class="welcome-start-doc">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
-                <path d="M4 2h5.5L13 5.5V13a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" />
-                <path d="M9.5 2v3.5H13" />
-              </svg>
-              {@orientation.title}
+          <div class="welcome-start">
+            <%= if @orientation do %>
+              Start with
+              <span aria-hidden="true">→</span>
+              <.link navigate={~p"/w/#{@workspace.slug}/d/#{@orientation.slug}"} class="welcome-start-doc">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+                  <path d="M4 2h5.5L13 5.5V13a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" />
+                  <path d="M9.5 2v3.5H13" />
+                </svg>
+                {@orientation.title}
+              </.link>
+              <span class="welcome-sep">·</span>
+            <% end %>
+            <.link navigate={~p"/w/#{@workspace.slug}"} class="welcome-start-doc">
+              or look around
+              <span aria-hidden="true">→</span>
             </.link>
           </div>
         </section>
