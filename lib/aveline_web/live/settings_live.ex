@@ -32,7 +32,7 @@ defmodule AvelineWeb.SettingsLive do
            current_user: user,
            agent_connected?: agent_connected?,
            setup_done: agent_connected?,
-           setup_prompt: AvelineWeb.Setup.prompt(ws, :existing_user),
+           setup_prompt: AvelineWeb.Setup.prompt(ws),
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
            sidebar_views: Aveline.Views.sidebar_sections(ws.id, user.id),

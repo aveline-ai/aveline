@@ -51,21 +51,22 @@ defmodule AvelineWeb.OnboardingLiveTest do
     {:ok, lv, html} = live(conn, "/w/#{ws.slug}")
 
     # The vestibule replaces home: welcome, one action, no shelves.
-    assert html =~ ~s(class="welcome-vestibule")
-    assert html =~ "Welcome to #{ws.name}"
+    assert html =~ ~s(class="welcome-stage")
+    assert html =~ "Welcome to"
+    assert html =~ "starts here"
     assert html =~ "or look around first"
     refute html =~ "Welcome back,"
 
     # Look around first = skip: the dashboard appears, compact card on top.
     render_click(element(lv, ".setup-skip"))
-    refute render(lv) =~ ~s(class="welcome-vestibule")
+    refute render(lv) =~ ~s(class="welcome-stage")
     assert render(lv) =~ "Welcome back,"
     assert render(lv) =~ "Connect your agent"
     assert Aveline.Workspaces.setup_skipped?(ws.id, owner.id)
 
     # Durable across visits.
     {:ok, lv, html} = live(conn, "/w/#{ws.slug}")
-    refute html =~ ~s(class="welcome-vestibule")
+    refute html =~ ~s(class="welcome-stage")
     assert html =~ "Connect your agent"
     assert html =~ "Waiting for your agent to read the orientation doc"
 
@@ -95,7 +96,7 @@ defmodule AvelineWeb.OnboardingLiveTest do
     render_click(element(lv, ".welcome-enter"))
     html = render(lv)
     assert html =~ "Welcome back,"
-    refute html =~ ~s(class="welcome-vestibule")
+    refute html =~ ~s(class="welcome-stage")
   end
 
   test "an invited member landing on home gets the card too", %{ws: ws} do
@@ -108,9 +109,9 @@ defmodule AvelineWeb.OnboardingLiveTest do
       |> Plug.Conn.put_session(:user_id, invitee.id)
 
     {:ok, _lv, html} = live(conn, "/w/#{ws.slug}")
-    assert html =~ ~s(class="welcome-vestibule")
+    assert html =~ ~s(class="welcome-stage")
     # Proof of life: the team and the one pointer doc.
-    assert html =~ "are here"
+    assert html =~ "is here"
     assert html =~ "Start with"
     # Existing-user variant: login is conditional, never demanded.
     assert html =~ "If it errors, ask me to run"

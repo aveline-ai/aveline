@@ -33,26 +33,35 @@ defmodule AvelineWeb.HomeLive do
 
         vestibule? = not agent_connected? and not Workspaces.setup_skipped?(ws.id, user.id)
 
+        # The vestibule's backdrop and proof-of-life come from one read
+        # of the real workspace: honest life, nothing staged.
+        vestibule_docs =
+          (vestibule? && Docs.list_current(ws.id, viewer: user.id, sort: :recent)) || []
+
         {:ok,
          assign(socket,
            show_setup?: not agent_connected?,
            setup_hero?: vestibule?,
            setup_done: agent_connected?,
-           setup_prompt: AvelineWeb.Setup.prompt(ws, :existing_user),
-           welcome_doc_count:
-             (vestibule? && length(Docs.list_current(ws.id, viewer: user.id))) || 0,
+           setup_prompt: AvelineWeb.Setup.prompt(ws),
+           welcome_backdrop_docs: Enum.take(vestibule_docs, 10),
+           welcome_doc_count: length(vestibule_docs),
            welcome_view_count:
              (vestibule? && length(Aveline.Views.list_for_workspace(ws.id, viewer: user.id))) ||
                0,
            welcome_member_names:
              (vestibule? &&
-                Workspaces.list_members(ws.id) |> Enum.map(& &1.user.username) |> Enum.sort()) ||
+                Workspaces.list_members(ws.id)
+                |> Enum.map(& &1.user.username)
+                |> Enum.reject(&(&1 == user.username))
+                |> Enum.sort()) ||
                [],
            page_title: "Aveline · #{ws.name}",
            current_user: user,
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
            sidebar_views: Aveline.Views.sidebar_sections(ws.id, user.id),
+           agent_connected?: agent_connected?,
            nav_active: :home,
            topbar_title: "Home",
            orientation: Docs.get_orientation(ws.id),
@@ -128,18 +137,17 @@ defmodule AvelineWeb.HomeLive do
   def render(assigns) do
     ~H"""
     <%= if @show_setup? and @setup_hero? do %>
-      <div class="content welcome-content">
-        <AvelineWeb.Setup.welcome
-          id="home-setup"
-          workspace={@workspace}
-          prompt={@setup_prompt}
-          setup_done={@setup_done}
-          doc_count={@welcome_doc_count}
-          view_count={@welcome_view_count}
-          member_names={@welcome_member_names}
-          orientation={@orientation}
-        />
-      </div>
+      <AvelineWeb.Setup.welcome
+        id="home-setup"
+        workspace={@workspace}
+        prompt={@setup_prompt}
+        setup_done={@setup_done}
+        doc_count={@welcome_doc_count}
+        view_count={@welcome_view_count}
+        member_names={@welcome_member_names}
+        orientation={@orientation}
+        backdrop_docs={@welcome_backdrop_docs}
+      />
     <% else %>
     <div class="content home-content">
       <h1 class="page-title home-title">Welcome back, {display_name(@current_user)}</h1>

@@ -14,8 +14,6 @@ defmodule AvelineWeb.SignupLive do
 
   alias Aveline.Accounts
   alias Aveline.Slug
-  alias Aveline.Docs
-  alias Aveline.DocViews
   alias Aveline.Tokens
 
   @impl true
@@ -44,6 +42,9 @@ defmodule AvelineWeb.SignupLive do
      assign(socket,
        page_title: "Aveline · Sign up",
        state: :form,
+       signup_token: nil,
+       post_login_next: nil,
+       trigger_submit: false,
        username: "",
        workspace_name: "",
        error: nil,
@@ -104,14 +105,15 @@ defmodule AvelineWeb.SignupLive do
                "workspace_name" => workspace_name,
                "plaintext_token" => socket.assigns.preview_token
              }) do
-          {:ok, %{user: user, workspace: ws, token: plaintext}} ->
-            if connected?(socket), do: Process.send_after(self(), :check_setup, 2_000)
-
+          {:ok, %{user: _user, workspace: ws, token: plaintext}} ->
+            # One door for everyone: auto-login and land on home, where
+            # the vestibule takes over (the key was already shown, with
+            # its copy gate, in the form above).
             {:noreply,
              assign(socket,
-               state: :show_token,
-               setup_done: false,
-               result: %{user: user, workspace: ws, token: plaintext}
+               signup_token: plaintext,
+               post_login_next: "/w/#{ws.slug}",
+               trigger_submit: true
              )}
 
           {:error, %Ecto.Changeset{} = cs} ->
@@ -122,23 +124,6 @@ defmodule AvelineWeb.SignupLive do
         end
     end
   end
-
-  # Setup detection: the moment the user's Claude reads the orientation
-  # doc over the API (an agent DocView), the Continue button unlocks.
-  @impl true
-  def handle_info(:check_setup, %{assigns: %{state: :show_token}} = socket) do
-    %{user: user, workspace: ws} = socket.assigns.result
-    orientation = Docs.get_orientation(ws.id)
-
-    if orientation && DocViews.agent_viewed?(orientation.base_doc_id, user.id) do
-      {:noreply, assign(socket, setup_done: true)}
-    else
-      Process.send_after(self(), :check_setup, 2_000)
-      {:noreply, socket}
-    end
-  end
-
-  def handle_info(:check_setup, socket), do: {:noreply, socket}
 
   defp check_username(raw) do
     username =
@@ -276,74 +261,16 @@ defmodule AvelineWeb.SignupLive do
           Already have a token?
           <.link navigate={~p"/login"} class="auth-link">Log in</.link>
         </div>
-      </div>
-    </div>
-    """
-  end
 
-  def render(%{state: :show_token, result: %{user: user, workspace: ws, token: plaintext}} = assigns) do
-    assigns =
-      assign(assigns,
-        user: user,
-        workspace: ws,
-        plaintext: plaintext,
-        setup_prompt: AvelineWeb.Setup.prompt(ws, :new_user)
-      )
-
-    ~H"""
-    <div class="auth-shell">
-      <AvelineWeb.AuthBg.split />
-      <div class="auth-card auth-card-wide">
-        <div class="auth-brand auth-brand-hero">
-          <span class="nav-brand-mark" style="width:36px;height:36px">A</span>
-          <span class="auth-brand-name" style="font-size:26px">aveline</span>
-        </div>
-
-        <h1 class="auth-title">You're in, {@user.username}</h1>
-        <div class="onboarding-step">
-          <div class="onboarding-step-body">
-            <p class="onboarding-step-desc">
-              Paste this prompt into Claude Code. It installs the
-              <code>aveline</code> CLI, signs in, and teaches your project to
-              use Aveline for knowledge management.
-            </p>
-            <div class="snippet">
-              <pre><code id="claude-snippet">{@setup_prompt}</code></pre>
-              <button
-                type="button"
-                id="claude-snippet-copy"
-                class="snippet-copy"
-                phx-hook="CopyToken"
-                data-target="#claude-snippet"
-                title="Copy"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="9" y="9" width="12" height="12" rx="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-                <span class="token-field-copy-label">Copy</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <form action={~p"/login"} method="post" id="continue-form" class="auth-form" style="margin-top:8px">
+        <form
+          :if={@signup_token}
+          id="auto-login-form"
+          action={"/login?next=" <> @post_login_next}
+          method="post"
+          phx-trigger-action={@trigger_submit}
+        >
           <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
-          <input type="hidden" name="token" value={@plaintext} />
-          <%= if assigns[:setup_done] do %>
-            <p class="setup-status setup-status-done">
-              ✓ Your Claude just read the orientation doc. You're set up.
-            </p>
-            <button id="continue-btn" type="submit" class="auth-submit">
-              Continue to {@workspace.name}
-            </button>
-          <% else %>
-            <p class="setup-status">
-              <span class="setup-pulse" aria-hidden="true"></span>
-              Waiting for your Claude to read the orientation doc…
-            </p>
-            <button type="submit" class="setup-skip">skip for now</button>
-          <% end %>
+          <input type="hidden" name="token" value={@signup_token} />
         </form>
       </div>
     </div>
@@ -351,3 +278,4 @@ defmodule AvelineWeb.SignupLive do
   end
 
 end
+
