@@ -113,7 +113,9 @@ defmodule AvelineWeb.Setup do
     # Two seductions: an inhabited workspace sells its inheritance (the
     # real docs drifting behind the panel); a fresh one has nothing to
     # show, so it sells what compounds, on an aurora instead of a void.
-    inhabited? = length(assigns.backdrop_docs) > 1 or assigns.member_names != []
+    # Inhabited means PEOPLE: seed docs alone must never trigger the
+    # inheritance pitch over template filler.
+    inhabited? = assigns.member_names != []
 
     assigns =
       assign(assigns,
@@ -124,7 +126,7 @@ defmodule AvelineWeb.Setup do
 
     ~H"""
     <div class={"welcome-stage " <> if @inhabited?, do: "", else: "welcome-stage-fresh"} id={@id}>
-      <div class="wb-backdrop" aria-hidden="true">
+      <div :if={@inhabited?} class="wb-backdrop" aria-hidden="true">
         <div
           :for={{doc, {pos, tier, drift}} <- @placed_docs}
           class={"wb-card #{pos} #{tier} #{drift}"}
@@ -188,10 +190,12 @@ defmodule AvelineWeb.Setup do
               </span>
             </span>
             <span><b>{names_sentence(@others)}</b></span>
-            <span class="welcome-sep">·</span>
-            <span><b>{@doc_count}</b> docs</span>
-            <span class="welcome-sep">·</span>
-            <span><b>{@view_count}</b> saved views</span>
+            <%= if @inhabited? do %>
+              <span class="welcome-sep">·</span>
+              <span><b>{@doc_count}</b> docs</span>
+              <span class="welcome-sep">·</span>
+              <span><b>{@view_count}</b> saved views</span>
+            <% end %>
           </div>
 
           <div class="welcome-setup">

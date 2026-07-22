@@ -24,6 +24,8 @@ defmodule AvelineWeb.WelcomeLive do
           if connected?(socket), do: Process.send_after(self(), :check_setup, 2_000)
 
           docs = Docs.list_current(ws.id, viewer: user.id, sort: :recent)
+          # Template docs are scaffolding, not life: never backdrop material.
+          backdrop = Enum.reject(docs, &("template" in (&1.tags || [])))
 
           {:ok,
            assign(socket,
@@ -38,7 +40,7 @@ defmodule AvelineWeb.WelcomeLive do
              setup_done: false,
              setup_prompt: AvelineWeb.Setup.prompt(ws),
              orientation: Docs.get_orientation(ws.id),
-             welcome_backdrop_docs: Enum.take(docs, 10),
+             welcome_backdrop_docs: Enum.take(backdrop, 10),
              welcome_doc_count: length(docs),
              welcome_view_count:
                length(Aveline.Views.list_for_workspace(ws.id, viewer: user.id)),
