@@ -50,6 +50,7 @@ defmodule AvelineWeb.Router do
     pipe_through [:browser, :workspace_gate]
 
     live "/w/:slug", HomeLive, :index
+    live "/w/:slug/welcome", WelcomeLive, :index
     live "/w/:slug/docs", WorkspaceShowLive, :index
     live "/w/:slug/v/:view_name", WorkspaceShowLive, :view
     live "/w/:slug/d/:doc_slug", DocShowLive, :show

@@ -3286,11 +3286,15 @@
       .welcome-cta svg { width: 14px; height: 14px; }
       .welcome-cta.copied { background: var(--accent-dim); color: var(--accent); box-shadow: none; }
       .welcome-cta-micro { font-size: 12px; color: var(--text-muted); margin-top: 10px; }
+      /* The listening line appears only once the prompt is copied:
+         before any action there is nothing to wait for. */
       .welcome-status {
-        display: flex; align-items: center; justify-content: center; gap: 8px;
+        display: none;
+        align-items: center; justify-content: center; gap: 8px;
         margin-top: 24px;
         font-size: 12.5px; color: var(--text-secondary);
       }
+      .welcome-panel:has(.welcome-cta.copied) .welcome-status { display: flex; }
       .welcome-ping {
         position: relative; width: 7px; height: 7px; border-radius: 50%;
         background: #4ADE80; flex: none;
@@ -3335,6 +3339,29 @@
         margin-top: 14px; text-align: left; max-width: 500px;
         max-height: 220px; overflow-y: auto;
       }
+      .welcome-what-list {
+        margin: 12px auto 0; text-align: left; max-width: 400px;
+        font-size: 12px; color: var(--text-secondary); line-height: 1.6;
+        padding-left: 18px;
+      }
+      .welcome-what-list li { margin-bottom: 4px; }
+      .welcome-what-list .mono {
+        font-family: 'JetBrains Mono', monospace; font-size: 11px;
+        color: var(--text);
+        background: rgba(255,255,255,0.05);
+        border: 1px solid var(--border);
+        border-radius: 4px; padding: 0 4px;
+      }
+      .welcome-browse { color: var(--text-muted); font-size: 12.5px; }
+      .welcome-browse-link {
+        color: var(--text-muted);
+        text-decoration: underline;
+        text-decoration-color: rgba(255,255,255,0.18);
+        text-underline-offset: 3px;
+      }
+      .welcome-browse-link:hover { color: var(--text-secondary); }
+      .welcome-quiet-links { flex-wrap: wrap; }
+      .welcome-quiet-links .setup-prompt-details[open] { flex-basis: 100%; }
       .welcome-start {
         margin: 30px -60px 0;
         border-top: 1px solid var(--border);
@@ -3359,7 +3386,30 @@
       @media (max-width: 980px) {
         .wb-backdrop { display: none; }
         .welcome-panel { padding: 34px 28px 0; }
-        .welcome-start { margin: 26px -28px 0; padding: 13px 28px 15px; }
+        .welcome-what-list {
+        margin: 12px auto 0; text-align: left; max-width: 400px;
+        font-size: 12px; color: var(--text-secondary); line-height: 1.6;
+        padding-left: 18px;
+      }
+      .welcome-what-list li { margin-bottom: 4px; }
+      .welcome-what-list .mono {
+        font-family: 'JetBrains Mono', monospace; font-size: 11px;
+        color: var(--text);
+        background: rgba(255,255,255,0.05);
+        border: 1px solid var(--border);
+        border-radius: 4px; padding: 0 4px;
+      }
+      .welcome-browse { color: var(--text-muted); font-size: 12.5px; }
+      .welcome-browse-link {
+        color: var(--text-muted);
+        text-decoration: underline;
+        text-decoration-color: rgba(255,255,255,0.18);
+        text-underline-offset: 3px;
+      }
+      .welcome-browse-link:hover { color: var(--text-secondary); }
+      .welcome-quiet-links { flex-wrap: wrap; }
+      .welcome-quiet-links .setup-prompt-details[open] { flex-basis: 100%; }
+      .welcome-start { margin: 26px -28px 0; padding: 13px 28px 15px; }
         .welcome-h1 { font-size: 27px; }
       }
       .setup-reconnect { margin-top: 10px; }

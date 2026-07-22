@@ -112,7 +112,7 @@ defmodule AvelineWeb.SignupLive do
             {:noreply,
              assign(socket,
                signup_token: plaintext,
-               post_login_next: "/w/#{ws.slug}",
+               post_login_next: "/w/#{ws.slug}/welcome",
                trigger_submit: true
              )}
 

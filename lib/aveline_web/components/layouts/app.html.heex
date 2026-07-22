@@ -139,8 +139,8 @@
       <div class="sidebar-section sidebar-section-bottom">
         <.link
           :if={assigns[:agent_connected?] == false}
-          navigate={~p"/w/#{@workspace.slug}"}
-          class="sidebar-item sidebar-connect"
+          navigate={~p"/w/#{@workspace.slug}/welcome"}
+          class={"sidebar-item sidebar-connect " <> if assigns[:nav_active] == :connect, do: "active", else: ""}
           title="Connect your agent to this workspace"
         >
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">

@@ -275,7 +275,7 @@ defmodule AvelineWeb.InviteLive do
           </div>
         <% else %>
           <form
-            action={~p"/login?next=#{"/w/#{@workspace.slug}"}"}
+            action={~p"/login?next=#{"/w/#{@workspace.slug}/welcome"}"}
             method="post"
             phx-change="validate"
             phx-submit="submit"

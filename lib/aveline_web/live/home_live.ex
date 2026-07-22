@@ -20,48 +20,14 @@ defmodule AvelineWeb.HomeLive do
 
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
-        # Agent-connected is a state, not a screen. Home de-escalates:
-        # hero (front and center) until the user connects or skips;
-        # after a skip, the compact card at the top; after connect,
-        # nothing. Poll the same orientation-read signal the signup
-        # screen watches, only while unconnected.
-        agent_connected? = Aveline.Onboarding.agent_connected?(ws.id, user.id)
-
-        if connected?(socket) and not agent_connected? do
-          Process.send_after(self(), :check_setup, 2_000)
-        end
-
-        vestibule? = not agent_connected? and not Workspaces.setup_skipped?(ws.id, user.id)
-
-        # The vestibule's backdrop and proof-of-life come from one read
-        # of the real workspace: honest life, nothing staged.
-        vestibule_docs =
-          (vestibule? && Docs.list_current(ws.id, viewer: user.id, sort: :recent)) || []
-
         {:ok,
          assign(socket,
-           show_setup?: not agent_connected?,
-           setup_hero?: vestibule?,
-           setup_done: agent_connected?,
-           setup_prompt: AvelineWeb.Setup.prompt(ws),
-           welcome_backdrop_docs: Enum.take(vestibule_docs, 10),
-           welcome_doc_count: length(vestibule_docs),
-           welcome_view_count:
-             (vestibule? && length(Aveline.Views.list_for_workspace(ws.id, viewer: user.id))) ||
-               0,
-           welcome_member_names:
-             (vestibule? &&
-                Workspaces.list_members(ws.id)
-                |> Enum.map(& &1.user.username)
-                |> Enum.reject(&(&1 == user.username))
-                |> Enum.sort()) ||
-               [],
            page_title: "Aveline · #{ws.name}",
            current_user: user,
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
            sidebar_views: Aveline.Views.sidebar_sections(ws.id, user.id),
-           agent_connected?: agent_connected?,
+           agent_connected?: Aveline.Onboarding.agent_connected?(ws.id, user.id),
            nav_active: :home,
            topbar_title: "Home",
            orientation: Docs.get_orientation(ws.id),
@@ -93,17 +59,6 @@ defmodule AvelineWeb.HomeLive do
   end
 
   @impl true
-  def handle_event("skip_setup", _, socket) do
-    %{workspace: ws, current_user: user} = socket.assigns
-    {:ok, _} = Workspaces.skip_setup(ws.id, user.id)
-    {:noreply, assign(socket, setup_hero?: false)}
-  end
-
-  # Connected inside the vestibule: "Take me in" opens the real home.
-  def handle_event("enter_home", _, socket) do
-    {:noreply, assign(socket, setup_hero?: false, show_setup?: false)}
-  end
-
   def handle_event("glossary_toggle", %{"slug" => slug}, socket) do
     open = if socket.assigns.glossary_open == slug, do: nil, else: slug
     {:noreply, assign(socket, glossary_open: open)}
@@ -122,43 +77,10 @@ defmodule AvelineWeb.HomeLive do
   end
 
   @impl true
-  def handle_info(:check_setup, socket) do
-    %{workspace: ws, current_user: user} = socket.assigns
-
-    if Aveline.Onboarding.agent_connected?(ws.id, user.id) do
-      {:noreply, assign(socket, setup_done: true)}
-    else
-      Process.send_after(self(), :check_setup, 2_000)
-      {:noreply, socket}
-    end
-  end
-
-  @impl true
   def render(assigns) do
     ~H"""
-    <%= if @show_setup? and @setup_hero? do %>
-      <AvelineWeb.Setup.welcome
-        id="home-setup"
-        workspace={@workspace}
-        prompt={@setup_prompt}
-        setup_done={@setup_done}
-        doc_count={@welcome_doc_count}
-        view_count={@welcome_view_count}
-        member_names={@welcome_member_names}
-        orientation={@orientation}
-        backdrop_docs={@welcome_backdrop_docs}
-      />
-    <% else %>
     <div class="content home-content">
       <h1 class="page-title home-title">Welcome back, {display_name(@current_user)}</h1>
-
-      <AvelineWeb.Setup.setup_card
-        :if={@show_setup?}
-        id="home-setup"
-        workspace={@workspace}
-        prompt={@setup_prompt}
-        setup_done={@setup_done}
-      />
 
       <section :if={@pinned_docs != [] or @orientation} class="shelf">
         <div class="shelf-head">
@@ -319,7 +241,6 @@ defmodule AvelineWeb.HomeLive do
         </div>
       <% end %>
     </div>
-    <% end %>
     """
   end
 end

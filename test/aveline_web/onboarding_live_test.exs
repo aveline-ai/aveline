@@ -1,10 +1,8 @@
 defmodule AvelineWeb.OnboardingLiveTest do
   @moduledoc """
-  Agent-connected is a state, not a screen: the setup card follows the
-  user across home and settings until an agent under their account
-  reads the orientation doc, then evaporates. Closes the invited-users
-  gap by construction: joiners land on home, home covers anyone
-  unconnected.
+  The vestibule as a place: /w/:slug/welcome. Joining flows land there
+  once; the sidebar's Connect CTA is the way back from anywhere;
+  leaving is just navigation. Home is always home.
   """
   use AvelineWeb.ConnCase, async: false
 
@@ -43,49 +41,35 @@ defmodule AvelineWeb.OnboardingLiveTest do
     assert Onboarding.agent_connected?(ws.id, owner.id)
   end
 
-  test "home is the vestibule until connect or skip; skip drops into the dashboard", %{
+  test "welcome renders the vestibule; home stays home; sidebar carries the CTA", %{
     conn: conn,
-    ws: ws,
-    owner: owner
+    ws: ws
   } do
-    {:ok, lv, html} = live(conn, "/w/#{ws.slug}")
+    {:ok, _lv, html} = live(conn, "/w/#{ws.slug}/welcome")
 
-    # The vestibule replaces home: welcome, one action, no shelves.
     assert html =~ ~s(class="welcome-stage")
     assert html =~ "Welcome to"
     assert html =~ "starts here"
-    assert html =~ "or look around first"
-    refute html =~ "Welcome back,"
+    assert html =~ "what will it do?"
+    assert html =~ "Your API key is in Settings"
+    assert html =~ "look around"
+    # The status line exists but only shows after copy (CSS gated).
+    assert html =~ "Listening for your agent"
 
-    # Look around first = skip: the dashboard appears, compact card on top.
-    render_click(element(lv, ".setup-skip"))
-    refute render(lv) =~ ~s(class="welcome-stage")
-    assert render(lv) =~ "Welcome back,"
-    assert render(lv) =~ "Connect your agent"
-    assert Aveline.Workspaces.setup_skipped?(ws.id, owner.id)
-
-    # Durable across visits.
-    {:ok, lv, html} = live(conn, "/w/#{ws.slug}")
-    refute html =~ ~s(class="welcome-stage")
-    assert html =~ "Connect your agent"
-    assert html =~ "Waiting for your agent to read the orientation doc"
-
-    # Agent connects; the poll tick flips the card to its done state.
-    connect_agent(ws, owner)
-    send(lv.pid, :check_setup)
-    assert render(lv) =~ "You&#39;re connected"
-
-    # Next visit: no setup surface at all.
+    # Home is a normal dashboard with the sidebar CTA, no setup card.
     {:ok, _lv, html} = live(conn, "/w/#{ws.slug}")
-    refute html =~ "Connect your agent"
+    assert html =~ "Welcome back,"
+    assert html =~ "Connect your agent"
+    assert html =~ "/w/#{ws.slug}/welcome"
+    refute html =~ ~s(class="welcome-stage")
   end
 
-  test "connecting inside the vestibule offers Take me in", %{
+  test "connecting on the welcome page offers Take me in; connected users bounce", %{
     conn: conn,
     ws: ws,
     owner: owner
   } do
-    {:ok, lv, _html} = live(conn, "/w/#{ws.slug}")
+    {:ok, lv, _html} = live(conn, "/w/#{ws.slug}/welcome")
 
     connect_agent(ws, owner)
     send(lv.pid, :check_setup)
@@ -93,13 +77,16 @@ defmodule AvelineWeb.OnboardingLiveTest do
     assert html =~ "Your agent is in"
     assert html =~ "Take me in"
 
-    render_click(element(lv, ".welcome-enter"))
-    html = render(lv)
-    assert html =~ "Welcome back,"
-    refute html =~ ~s(class="welcome-stage")
+    # Once connected, /welcome bounces straight home and the sidebar
+    # CTA is gone everywhere.
+    {:error, {:live_redirect, %{to: to}}} = live(conn, "/w/#{ws.slug}/welcome")
+    assert to == "/w/#{ws.slug}"
+
+    {:ok, _lv, html} = live(conn, "/w/#{ws.slug}")
+    refute html =~ "Connect your agent"
   end
 
-  test "an invited member landing on home gets the card too", %{ws: ws} do
+  test "an invited member gets the same welcome, with the team visible", %{ws: ws} do
     invitee = Fixtures.user_fixture()
     {:ok, _} = Aveline.Workspaces.ensure_member(ws.id, invitee.id)
 
@@ -108,12 +95,13 @@ defmodule AvelineWeb.OnboardingLiveTest do
       |> Plug.Test.init_test_session(%{})
       |> Plug.Conn.put_session(:user_id, invitee.id)
 
-    {:ok, _lv, html} = live(conn, "/w/#{ws.slug}")
+    {:ok, _lv, html} = live(conn, "/w/#{ws.slug}/welcome")
     assert html =~ ~s(class="welcome-stage")
-    # Proof of life: the team and the one pointer doc.
+    assert html =~ "saved you a seat"
     assert html =~ "is here"
     assert html =~ "Start with"
-    # Existing-user variant: login is conditional, never demanded.
+    # Prompt is tool-agnostic and locates the key for the human.
+    assert html =~ "Claude Code, Cursor, and Codex all work"
     assert html =~ "If it errors, ask me to run"
   end
 
@@ -124,7 +112,7 @@ defmodule AvelineWeb.OnboardingLiveTest do
   } do
     {:ok, _lv, html} = live(conn, "/w/#{ws.slug}/settings")
     assert html =~ "Connect your agent"
-    assert html =~ "Waiting for your agent to read the orientation doc"
+    assert html =~ "Listening for your agent"
 
     connect_agent(ws, owner)
 
@@ -132,6 +120,6 @@ defmodule AvelineWeb.OnboardingLiveTest do
     assert html =~ "Connect your agent"
     assert html =~ "✓ Connected"
     assert html =~ "Setting up another machine?"
-    refute html =~ "Waiting for your agent to read the orientation doc"
+    refute html =~ "Listening for your agent…"
   end
 end

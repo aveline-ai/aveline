@@ -8,21 +8,19 @@ defmodule AvelineWeb.Setup do
   use AvelineWeb, :html
 
   @doc """
-  The copy-paste prompt a user hands their Claude.
-
-    * `:new_user` — fresh account holding a fresh API key: the login
-      step is unconditional.
-    * `:existing_user` — someone already keyed (invitees, second
-      machines, skipped setups): login only if `whoami` fails.
+  The copy-paste prompt a user hands their coding agent (Claude Code,
+  Cursor, Codex: the steps are tool-agnostic). One prompt for
+  everyone; the login step is conditional so it works for fresh
+  signups and already-keyed members alike.
   """
   def prompt(ws) do
     """
-    Set up Aveline, the wiki our team uses for shared knowledge (built for AI agents like you):
+    Set up Aveline, the wiki our team uses for shared knowledge (built for AI agents like you). Ask me before you install anything or write any file.
 
     1. Install the `aveline` CLI from https://github.com/aveline-ai/cli/releases/latest if `aveline --version` fails (pick the binary for this machine and put it on PATH).
-    2. Run `aveline whoami`. If it errors, ask me to run `aveline login` myself in this terminal and wait for me to confirm. It prompts for my API key interactively. Don't ask me for the key: it's a secret and must never enter your context or any file.
+    2. Run `aveline whoami`. If it errors, ask me to run `aveline login` myself in this terminal and wait for me to confirm. It prompts for my API key interactively (my key is in Aveline under Settings, API keys). Don't ask me for the key: it's a secret and must never enter your context or any file.
     3. Then run `aveline use-workspace #{ws.slug}` and read `aveline get-orientation` to learn how this workspace organizes its knowledge.
-    4. Add a short note to this project's CLAUDE.md: we keep shared knowledge in Aveline; interact via the `aveline` CLI (`aveline --help` shows every operation); start sessions with `aveline get-orientation`; run `aveline contract` before your first doc write (it shows every block type and edit op with a valid example); new docs are born private and new views land in your personal bucket, so publish deliberately with --visibility workspace / --bucket team when the team should see them.
+    4. Add a short note to this project's agent instructions file (CLAUDE.md, AGENTS.md, or your tool's equivalent): we keep shared knowledge in Aveline; interact via the `aveline` CLI (`aveline --help` shows every operation); start sessions with `aveline get-orientation`; run `aveline contract` before your first doc write. New docs are born private and new views land in your personal bucket, so publish deliberately with --visibility workspace / --bucket team when the team should see them.
     """
   end
 
@@ -40,7 +38,7 @@ defmodule AvelineWeb.Setup do
           <div class="setup-card-title">Connect your agent</div>
           <p :if={@show_pitch} class="setup-card-pitch">
             Your AI agents read and write this workspace's knowledge; you review
-            and comment. Copy the prompt into Claude Code once and your agent
+            and comment. Copy the prompt into your coding agent once and it
             learns how <span class="mono">{@workspace.slug}</span> works.
           </p>
         </div>
@@ -67,7 +65,7 @@ defmodule AvelineWeb.Setup do
         <% else %>
           <p class="setup-status">
             <span class="setup-pulse" aria-hidden="true"></span>
-            Waiting for your agent to read the orientation doc…
+            Listening for your agent…
           </p>
         <% end %>
         <details class="setup-prompt-details">
@@ -162,9 +160,12 @@ defmodule AvelineWeb.Setup do
           </h1>
 
           <p class="welcome-lede">
-            This is the team's shared knowledge base. Your AI agents read and
-            write it, you review, comment, and steer. Connecting your agent
-            teaches it how <span class="mono">{@workspace.slug}</span> works.
+            This is the team's knowledge base. AI agents write and read it;
+            you review and steer. One pasted prompt connects yours: it
+            installs the small <span class="mono">aveline</span> CLI, pauses
+            for you to log in, and learns how
+            <span class="mono">{@workspace.slug}</span> works. About two
+            minutes.
           </p>
 
           <div class="welcome-proof">
@@ -177,7 +178,7 @@ defmodule AvelineWeb.Setup do
             <span class="welcome-sep">·</span>
             <span><b>{@doc_count}</b> docs</span>
             <span class="welcome-sep">·</span>
-            <span><b>{@view_count}</b> views</span>
+            <span><b>{@view_count}</b> saved views</span>
           </div>
 
           <%= if @setup_done do %>
@@ -200,11 +201,14 @@ defmodule AvelineWeb.Setup do
               </svg>
               <span class="token-field-copy-label">Copy setup prompt</span>
             </button>
-            <div class="welcome-cta-micro">then paste it into <span class="mono">Claude Code</span></div>
+            <div class="welcome-cta-micro">
+              then paste it into your coding agent. Claude Code, Cursor, and Codex all work.
+            </div>
 
             <div class="welcome-status">
               <span class="welcome-ping" aria-hidden="true"></span>
-              Waiting for your agent to read the orientation doc…
+              Listening for your agent. This flips the moment it checks in,
+              usually within a minute or two.
             </div>
           <% end %>
 
@@ -215,15 +219,22 @@ defmodule AvelineWeb.Setup do
                 <pre><code id={@id <> "-snippet"}>{@prompt}</code></pre>
               </div>
             </details>
-            <span :if={not @setup_done} class="welcome-sep">·</span>
-            <button
-              :if={not @setup_done}
-              type="button"
-              class="setup-skip"
-              phx-click="skip_setup"
-            >
-              or look around first
-            </button>
+            <span class="welcome-sep">·</span>
+            <details class="setup-prompt-details welcome-what-next">
+              <summary>what will it do?</summary>
+              <ol class="welcome-what-list">
+                <li>Installs the <span class="mono">aveline</span> CLI, a single small binary. It asks first.</li>
+                <li>Pauses and asks you to run <span class="mono">aveline login</span>. Your API key is in Settings, under API keys.</li>
+                <li>Reads the team's orientation doc. When it does, this page lets you in.</li>
+              </ol>
+            </details>
+            <%= if not @setup_done do %>
+              <span class="welcome-sep">·</span>
+              <span class="welcome-browse">
+                no agent yet? You can read and comment right in the browser:
+                <.link navigate={~p"/w/#{@workspace.slug}"} class="welcome-browse-link">look around</.link>
+              </span>
+            <% end %>
           </div>
 
           <div :if={@orientation} class="welcome-start">
