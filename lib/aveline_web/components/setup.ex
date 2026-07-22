@@ -18,7 +18,7 @@ defmodule AvelineWeb.Setup do
     Set up Aveline, the wiki our team uses for shared knowledge (built for AI agents like you). Ask me before you install anything or write any file.
 
     1. Install the `aveline` CLI from https://github.com/aveline-ai/cli/releases/latest if `aveline --version` fails (pick the binary for this machine and put it on PATH).
-    2. Run `aveline whoami`. If it errors, ask me to run `aveline login` myself in this terminal and wait for me to confirm. It prompts for my API key interactively (my key is in Aveline under Settings, API keys). Don't ask me for the key: it's a secret and must never enter your context or any file.
+    2. Run `aveline whoami`. If it errors, ask me to run `aveline login` myself in this terminal and wait for me to confirm. It prompts for my API key interactively (I saved it at signup; if it's lost I can mint a new one in Aveline under Settings, API keys). Don't ask me for the key: it's a secret and must never enter your context or any file.
     3. Then run `aveline use-workspace #{ws.slug}` and read `aveline get-orientation` to learn how this workspace organizes its knowledge.
     4. Add a short note to this project's agent instructions file (CLAUDE.md, AGENTS.md, or your tool's equivalent): we keep shared knowledge in Aveline; interact via the `aveline` CLI (`aveline --help` shows every operation); start sessions with `aveline get-orientation`; run `aveline contract` before your first doc write. New docs are born private and new views land in your personal bucket, so publish deliberately with --visibility workspace / --bucket team when the team should see them.
     """
@@ -235,7 +235,8 @@ defmodule AvelineWeb.Setup do
                 </li>
                 <li>
                   <span class="mono">aveline login</span>
-                  with your API key, found in Settings under API keys
+                  with your API key. It was shown once at signup; lost it?
+                  Mint a new one in Settings under API keys.
                 </li>
                 <li>
                   <span class="mono">aveline use-workspace {@workspace.slug}</span>

@@ -53,7 +53,7 @@ defmodule AvelineWeb.OnboardingLiveTest do
     # Steps are visible up front: nothing hides behind toggles.
     refute html =~ "view the prompt"
     assert html =~ "or do it yourself"
-    assert html =~ "found in Settings under API keys"
+    assert html =~ "Mint a new one in Settings"
     # The status line exists but only shows after copy (CSS gated).
     assert html =~ "Listening for your agent"
 
