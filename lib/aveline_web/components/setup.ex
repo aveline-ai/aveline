@@ -247,22 +247,15 @@ defmodule AvelineWeb.Setup do
             <% end %>
           </div>
 
-          <div class="welcome-start">
-            <%= if @orientation do %>
-              Start with
-              <span aria-hidden="true">→</span>
-              <.link navigate={~p"/w/#{@workspace.slug}/d/#{@orientation.slug}"} class="welcome-start-doc">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
-                  <path d="M4 2h5.5L13 5.5V13a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" />
-                  <path d="M9.5 2v3.5H13" />
-                </svg>
-                {@orientation.title}
-              </.link>
-              <span class="welcome-sep">·</span>
-            <% end %>
-            <.link navigate={~p"/w/#{@workspace.slug}"} class="welcome-start-doc">
-              or look around
-              <span aria-hidden="true">→</span>
+          <div :if={@orientation} class="welcome-start">
+            Start with
+            <span aria-hidden="true">→</span>
+            <.link navigate={~p"/w/#{@workspace.slug}/d/#{@orientation.slug}"} class="welcome-start-doc">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round">
+                <path d="M4 2h5.5L13 5.5V13a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" />
+                <path d="M9.5 2v3.5H13" />
+              </svg>
+              {@orientation.title}
             </.link>
           </div>
         </section>

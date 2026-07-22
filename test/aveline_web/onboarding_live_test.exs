@@ -54,7 +54,6 @@ defmodule AvelineWeb.OnboardingLiveTest do
     refute html =~ "view the prompt"
     assert html =~ "or do it yourself"
     assert html =~ "found in Settings under API keys"
-    assert html =~ "look around"
     # The status line exists but only shows after copy (CSS gated).
     assert html =~ "Listening for your agent"
 
