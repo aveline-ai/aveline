@@ -182,12 +182,12 @@ defmodule AvelineWeb.Setup do
               <span class="hero-term-title">claude · your project</span>
             </div>
             <div class="hero-term-body">
-              <div class="ht-line ht-you">you: file yesterday's decisions in aveline</div>
+              <div class="ht-line ht-you">you: file yesterday's decisions</div>
               <div class="ht-line ht-cmd">$ aveline get-orientation</div>
               <div class="ht-line ht-ok">✓ learned how {@workspace.slug} works</div>
-              <div class="ht-line ht-cmd">$ aveline create-doc --title "why-we-picked-postgres"</div>
+              <div class="ht-line ht-cmd">$ aveline create-doc --title "deploy-notes"</div>
               <div class="ht-line ht-ok">✓ doc created</div>
-              <div class="ht-line ht-cmd">$ aveline set-doc-visibility why-we-picked-postgres workspace</div>
+              <div class="ht-line ht-cmd">$ aveline set-doc-visibility deploy-notes workspace</div>
               <div class="ht-line ht-ok">✓ published to the team</div>
               <div class="ht-line ht-cursor">▊</div>
             </div>
