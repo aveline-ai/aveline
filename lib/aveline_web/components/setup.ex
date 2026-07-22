@@ -94,107 +94,103 @@ defmodule AvelineWeb.Setup do
     """
   end
 
+  @doc """
+  The vestibule: while a member is unconnected and hasn't skipped,
+  home IS this page. Nearly empty on purpose: a welcome in the
+  product's own quiet voice, one action, a pulse of proof-of-life,
+  and the orientation doc as the single pointer (the same doc their
+  agent is about to read). "Look around first" is the skip. The
+  confidence of an almost-empty page is the design.
+  """
   attr :id, :string, required: true
   attr :workspace, :map, required: true
   attr :prompt, :string, required: true
   attr :setup_done, :boolean, default: false
+  attr :doc_count, :integer, required: true
+  attr :view_count, :integer, required: true
+  attr :member_names, :list, required: true
+  attr :orientation, :any, required: true
 
-  @doc """
-  The first-run hero: home leads with this until the user connects an
-  agent or skips. Left column sells and directs (headline, pitch,
-  three steps where the third IS the live status); right column shows
-  the product doing its thing in a small terminal vignette. Skip
-  collapses to the compact card via the parent's "skip_setup" event.
-  """
-  def setup_hero(assigns) do
+  def welcome(assigns) do
     ~H"""
-    <div class="setup-card setup-hero" id={@id}>
-      <div class="hero-grid">
-        <div class="hero-main">
-          <h2 class="hero-title">Your team's knowledge, written by your agents</h2>
-          <p class="hero-sub">
-            Aveline is the shared knowledge base you and your AI agents keep
-            together. Agents do the reading, writing, and filing; you review,
-            comment, and steer.
+    <div class="welcome-vestibule" id={@id}>
+      <h1 class="welcome-title">Welcome to {@workspace.name}.</h1>
+      <p class="welcome-body">
+        This is your team's shared knowledge base: docs, tickets, and views
+        kept together by the people here and their AI agents. Connect your
+        agent and it learns how <span class="mono">{@workspace.slug}</span>
+        works, then does the reading and filing for you.
+      </p>
+      <p class="welcome-life">
+        {@doc_count} docs · {@view_count} views · {names_sentence(@member_names)}
+      </p>
+
+      <div class="welcome-action">
+        <%= if @setup_done do %>
+          <p class="setup-status setup-status-done">✓ Your agent is in.</p>
+          <button type="button" class="welcome-enter" phx-click="enter_home">
+            Take me in →
+          </button>
+        <% else %>
+          <button
+            type="button"
+            id={@id <> "-copy"}
+            class="setup-card-cta welcome-cta"
+            phx-hook="CopyToken"
+            data-target={"##{@id}-snippet"}
+            title="Copy the setup prompt"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="12" height="12" rx="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+            <span class="token-field-copy-label">Copy setup prompt</span>
+          </button>
+          <p class="welcome-hint">then paste it into Claude Code</p>
+          <p class="setup-status">
+            <span class="setup-pulse" aria-hidden="true"></span>
+            Waiting for your agent to read the orientation doc…
           </p>
-          <ol class="hero-steps">
-            <li>
-              <span class="hero-step-num">1</span>
-              <span>Copy the setup prompt</span>
-            </li>
-            <li>
-              <span class="hero-step-num">2</span>
-              <span>Paste it into Claude Code and follow along</span>
-            </li>
-            <%= if @setup_done do %>
-              <li class="hero-step-done">
-                <span class="hero-step-num">✓</span>
-                <span>
-                  Connected. Your agent read how
-                  <span class="mono">{@workspace.slug}</span> works.
-                </span>
-              </li>
-            <% else %>
-              <li class="hero-step-waiting">
-                <span class="hero-step-num">3</span>
-                <span>
-                  <span class="setup-pulse" aria-hidden="true"></span>
-                  Watch this flip the moment your agent reads the orientation doc
-                </span>
-              </li>
-            <% end %>
-          </ol>
-          <div class="hero-cta-row">
-            <button
-              type="button"
-              id={@id <> "-copy"}
-              class="setup-card-cta"
-              phx-hook="CopyToken"
-              data-target={"##{@id}-snippet"}
-              title="Copy the setup prompt"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="9" width="12" height="12" rx="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-              <span class="token-field-copy-label">Copy setup prompt</span>
-            </button>
-            <details class="setup-prompt-details">
-              <summary>view the prompt</summary>
-              <div class="snippet">
-                <pre><code id={@id <> "-snippet"}>{@prompt}</code></pre>
-              </div>
-            </details>
-            <button
-              :if={not @setup_done}
-              type="button"
-              class="setup-skip"
-              phx-click="skip_setup"
-            >
-              skip for now
-            </button>
-          </div>
-        </div>
-        <div class="hero-side" aria-hidden="true">
-          <div class="hero-term">
-            <div class="hero-term-bar">
-              <span></span><span></span><span></span>
-              <span class="hero-term-title">claude · your project</span>
-            </div>
-            <div class="hero-term-body">
-              <div class="ht-line ht-you">you: file yesterday's decisions</div>
-              <div class="ht-line ht-cmd">$ aveline get-orientation</div>
-              <div class="ht-line ht-ok">✓ learned how {@workspace.slug} works</div>
-              <div class="ht-line ht-cmd">$ aveline create-doc --title "deploy-notes"</div>
-              <div class="ht-line ht-ok">✓ doc created</div>
-              <div class="ht-line ht-cmd">$ aveline set-doc-visibility deploy-notes workspace</div>
-              <div class="ht-line ht-ok">✓ published to the team</div>
-              <div class="ht-line ht-cursor">▊</div>
-            </div>
-          </div>
-        </div>
+        <% end %>
       </div>
+
+      <div class="welcome-links">
+        <details class="setup-prompt-details">
+          <summary>view the prompt</summary>
+          <div class="snippet">
+            <pre><code id={@id <> "-snippet"}>{@prompt}</code></pre>
+          </div>
+        </details>
+        <button
+          :if={not @setup_done}
+          type="button"
+          class="setup-skip"
+          phx-click="skip_setup"
+        >
+          or look around first
+        </button>
+      </div>
+
+      <.link
+        :if={@orientation}
+        navigate={~p"/w/#{@workspace.slug}/d/#{@orientation.slug}"}
+        class="welcome-orientation"
+      >
+        <span class="welcome-orientation-label">Start with</span>
+        <span class="welcome-orientation-title">{@orientation.title}</span>
+        <span aria-hidden="true">→</span>
+      </.link>
     </div>
     """
+  end
+
+  # "alice", "alice and bob", "alice, bob, and carol are here"
+  defp names_sentence([]), do: "your team is on the way"
+  defp names_sentence([a]), do: "#{a} is here"
+  defp names_sentence([a, b]), do: "#{a} and #{b} are here"
+
+  defp names_sentence(names) do
+    {rest, [last]} = Enum.split(names, -1)
+    Enum.join(rest, ", ") <> ", and " <> last <> " are here"
   end
 end

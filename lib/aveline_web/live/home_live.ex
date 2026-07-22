@@ -31,12 +31,23 @@ defmodule AvelineWeb.HomeLive do
           Process.send_after(self(), :check_setup, 2_000)
         end
 
+        vestibule? = not agent_connected? and not Workspaces.setup_skipped?(ws.id, user.id)
+
         {:ok,
          assign(socket,
            show_setup?: not agent_connected?,
-           setup_hero?: not agent_connected? and not Workspaces.setup_skipped?(ws.id, user.id),
+           setup_hero?: vestibule?,
            setup_done: agent_connected?,
            setup_prompt: AvelineWeb.Setup.prompt(ws, :existing_user),
+           welcome_doc_count:
+             (vestibule? && length(Docs.list_current(ws.id, viewer: user.id))) || 0,
+           welcome_view_count:
+             (vestibule? && length(Aveline.Views.list_for_workspace(ws.id, viewer: user.id))) ||
+               0,
+           welcome_member_names:
+             (vestibule? &&
+                Workspaces.list_members(ws.id) |> Enum.map(& &1.user.username) |> Enum.sort()) ||
+               [],
            page_title: "Aveline · #{ws.name}",
            current_user: user,
            workspace: ws,
@@ -79,6 +90,11 @@ defmodule AvelineWeb.HomeLive do
     {:noreply, assign(socket, setup_hero?: false)}
   end
 
+  # Connected inside the vestibule: "Take me in" opens the real home.
+  def handle_event("enter_home", _, socket) do
+    {:noreply, assign(socket, setup_hero?: false, show_setup?: false)}
+  end
+
   def handle_event("glossary_toggle", %{"slug" => slug}, socket) do
     open = if socket.assigns.glossary_open == slug, do: nil, else: slug
     {:noreply, assign(socket, glossary_open: open)}
@@ -111,26 +127,30 @@ defmodule AvelineWeb.HomeLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <%= if @show_setup? and @setup_hero? do %>
+      <div class="content welcome-content">
+        <AvelineWeb.Setup.welcome
+          id="home-setup"
+          workspace={@workspace}
+          prompt={@setup_prompt}
+          setup_done={@setup_done}
+          doc_count={@welcome_doc_count}
+          view_count={@welcome_view_count}
+          member_names={@welcome_member_names}
+          orientation={@orientation}
+        />
+      </div>
+    <% else %>
     <div class="content home-content">
       <h1 class="page-title home-title">Welcome back, {display_name(@current_user)}</h1>
 
-      <%= if @show_setup? do %>
-        <%= if @setup_hero? do %>
-          <AvelineWeb.Setup.setup_hero
-            id="home-setup"
-            workspace={@workspace}
-            prompt={@setup_prompt}
-            setup_done={@setup_done}
-          />
-        <% else %>
-          <AvelineWeb.Setup.setup_card
-            id="home-setup"
-            workspace={@workspace}
-            prompt={@setup_prompt}
-            setup_done={@setup_done}
-          />
-        <% end %>
-      <% end %>
+      <AvelineWeb.Setup.setup_card
+        :if={@show_setup?}
+        id="home-setup"
+        workspace={@workspace}
+        prompt={@setup_prompt}
+        setup_done={@setup_done}
+      />
 
       <section :if={@pinned_docs != [] or @orientation} class="shelf">
         <div class="shelf-head">
@@ -291,6 +311,7 @@ defmodule AvelineWeb.HomeLive do
         </div>
       <% end %>
     </div>
+    <% end %>
     """
   end
 end

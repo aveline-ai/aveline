@@ -43,39 +43,59 @@ defmodule AvelineWeb.OnboardingLiveTest do
     assert Onboarding.agent_connected?(ws.id, owner.id)
   end
 
-  test "home leads with the hero, skip collapses it durably, connect removes it", %{
+  test "home is the vestibule until connect or skip; skip drops into the dashboard", %{
     conn: conn,
     ws: ws,
     owner: owner
   } do
     {:ok, lv, html} = live(conn, "/w/#{ws.slug}")
 
-    # Hero state: front and center, skippable.
-    assert html =~ "setup-card setup-hero"
-    assert html =~ "skip for now"
+    # The vestibule replaces home: welcome, one action, no shelves.
+    assert html =~ ~s(class="welcome-vestibule")
+    assert html =~ "Welcome to #{ws.name}"
+    assert html =~ "or look around first"
+    refute html =~ "Welcome back,"
 
-    # Skip: collapses now and stays collapsed on the next visit.
+    # Look around first = skip: the dashboard appears, compact card on top.
     render_click(element(lv, ".setup-skip"))
-    refute render(lv) =~ "setup-card setup-hero"
+    refute render(lv) =~ ~s(class="welcome-vestibule")
+    assert render(lv) =~ "Welcome back,"
     assert render(lv) =~ "Connect your agent"
-
-    {:ok, _lv, html} = live(conn, "/w/#{ws.slug}")
-    refute html =~ "setup-card setup-hero"
-    assert html =~ "Connect your agent"
     assert Aveline.Workspaces.setup_skipped?(ws.id, owner.id)
 
+    # Durable across visits.
     {:ok, lv, html} = live(conn, "/w/#{ws.slug}")
+    refute html =~ ~s(class="welcome-vestibule")
+    assert html =~ "Connect your agent"
     assert html =~ "Waiting for your agent to read the orientation doc"
-    assert html =~ "aveline get-orientation"
 
     # Agent connects; the poll tick flips the card to its done state.
     connect_agent(ws, owner)
     send(lv.pid, :check_setup)
     assert render(lv) =~ "You&#39;re connected"
 
-    # Next visit: no card at all.
+    # Next visit: no setup surface at all.
     {:ok, _lv, html} = live(conn, "/w/#{ws.slug}")
     refute html =~ "Connect your agent"
+  end
+
+  test "connecting inside the vestibule offers Take me in", %{
+    conn: conn,
+    ws: ws,
+    owner: owner
+  } do
+    {:ok, lv, _html} = live(conn, "/w/#{ws.slug}")
+
+    connect_agent(ws, owner)
+    send(lv.pid, :check_setup)
+    html = render(lv)
+    assert html =~ "Your agent is in"
+    assert html =~ "Take me in"
+
+    render_click(element(lv, ".welcome-enter"))
+    html = render(lv)
+    assert html =~ "Welcome back,"
+    refute html =~ ~s(class="welcome-vestibule")
   end
 
   test "an invited member landing on home gets the card too", %{ws: ws} do
@@ -88,7 +108,10 @@ defmodule AvelineWeb.OnboardingLiveTest do
       |> Plug.Conn.put_session(:user_id, invitee.id)
 
     {:ok, _lv, html} = live(conn, "/w/#{ws.slug}")
-    assert html =~ "setup-card setup-hero"
+    assert html =~ ~s(class="welcome-vestibule")
+    # Proof of life: the team and the one pointer doc.
+    assert html =~ "are here"
+    assert html =~ "Start with"
     # Existing-user variant: login is conditional, never demanded.
     assert html =~ "If it errors, ask me to run"
   end
