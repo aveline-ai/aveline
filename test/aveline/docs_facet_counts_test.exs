@@ -64,4 +64,59 @@ defmodule Aveline.DocsFacetCountsTest do
     assert facets.tags == %{"product" => 1}
     assert facets.owners == %{owner.id => 1}
   end
+
+  test "two selected tags AND together; remaining counts reflect the intersection", %{
+    owner: owner,
+    ws: ws
+  } do
+    {:ok, _} = Aveline.Tags.create(ws.id, "planning", "Planning docs.", owner.id)
+    {:ok, _} = Aveline.Tags.create(ws.id, "ops", "Ops docs.", owner.id)
+
+    Fixtures.doc_fixture(ws, owner, slug: "both", tags: ["product", "planning"])
+    Fixtures.doc_fixture(ws, owner, slug: "both-plus", tags: ["product", "planning", "ops"])
+    Fixtures.doc_fixture(ws, owner, slug: "prod-only", tags: ["product"])
+    Fixtures.doc_fixture(ws, owner, slug: "plan-only", tags: ["planning"])
+
+    # One tag selected: the other chips count docs that ALSO carry it.
+    facets = Docs.facet_counts(ws.id, viewer: owner.id, tags: ["product"])
+    assert facets.tags == %{"product" => 3, "planning" => 2, "ops" => 1}
+
+    # Two selected: intersection only. Selected chips read the corpus
+    # size; "ops" reads 1 (the doc carrying all three); absent keys
+    # (count 0) are what the UI renders disabled.
+    facets = Docs.facet_counts(ws.id, viewer: owner.id, tags: ["product", "planning"])
+    assert facets.tags == %{"product" => 2, "planning" => 2, "ops" => 1}
+    assert facets.owners == %{owner.id => 2}
+  end
+
+  test "facets narrow each other across categories", %{owner: owner, ws: ws} do
+    other = Fixtures.user_fixture()
+    {:ok, _} = Workspaces.ensure_member(ws.id, other.id)
+    {:ok, _} = Aveline.Tags.create(ws.id, "ops", "Ops docs.", owner.id)
+
+    Fixtures.doc_fixture(ws, owner, slug: "mine-prod", tags: ["product"])
+    Fixtures.doc_fixture(ws, other, slug: "theirs-prod", tags: ["product"])
+    Fixtures.doc_fixture(ws, other, slug: "theirs-ops", tags: ["ops"])
+
+    # Author filter scopes the tag counts.
+    facets = Docs.facet_counts(ws.id, viewer: owner.id, owner_ids: [other.id])
+    assert facets.tags == %{"product" => 1, "ops" => 1}
+    assert facets.owners == %{other.id => 2}
+
+    # Tag filter scopes the author counts.
+    facets = Docs.facet_counts(ws.id, viewer: owner.id, tags: ["ops"])
+    assert facets.owners == %{other.id => 1}
+
+    # Both at once, and every doc-list opt combines the same way.
+    facets =
+      Docs.facet_counts(ws.id,
+        viewer: owner.id,
+        tags: ["product"],
+        owner_ids: [other.id],
+        updated: "7d"
+      )
+
+    assert facets.tags == %{"product" => 1}
+    assert facets.owners == %{other.id => 1}
+  end
 end
