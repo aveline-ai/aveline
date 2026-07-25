@@ -143,29 +143,6 @@ defmodule Aveline.Workspaces do
     )
   end
 
-  @doc "Mark the setup hero skipped for this member (idempotent)."
-  def skip_setup(workspace_id, user_id) do
-    case get_membership(workspace_id, user_id) do
-      nil ->
-        {:error, :not_member}
-
-      %{setup_skipped_at: %DateTime{}} = m ->
-        {:ok, m}
-
-      m ->
-        m
-        |> Ecto.Changeset.change(%{setup_skipped_at: DateTime.utc_now()})
-        |> Repo.update()
-    end
-  end
-
-  def setup_skipped?(workspace_id, user_id) do
-    case get_membership(workspace_id, user_id) do
-      %{setup_skipped_at: %DateTime{}} -> true
-      _ -> false
-    end
-  end
-
   def get_membership(workspace_id, user_id) do
     Repo.get_by(Membership, workspace_id: workspace_id, user_id: user_id)
   end
