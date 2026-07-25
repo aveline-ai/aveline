@@ -275,8 +275,9 @@ defmodule AvelineWeb.Setup do
                   <div class="welcome-step-body">
                     <div class="welcome-step-line">aveline use-workspace {@workspace.slug}</div>
                     <div class="welcome-step-note">
-                      Makes <span class="mono">{@workspace.slug}</span> the
-                      default, so every command points here.
+                      Points every command at
+                      <span class="mono">{@workspace.slug}</span> by default,
+                      so nothing needs a workspace flag.
                     </div>
                   </div>
                 </details>
@@ -285,9 +286,8 @@ defmodule AvelineWeb.Setup do
                   <div class="welcome-step-body">
                     <div class="welcome-step-line">CLAUDE.md: start sessions with aveline get-orientation</div>
                     <div class="welcome-step-note">
-                      Add that note to your agent instructions file. Your
-                      agent connects the first time it reads the orientation
-                      doc.
+                      Add that line to your agent instructions file. Your
+                      agent connects when it first reads the doc.
                     </div>
                   </div>
                 </details>
