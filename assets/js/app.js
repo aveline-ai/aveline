@@ -712,6 +712,14 @@ const Hooks = {
   },
 }
 
+// Welcome accordion: exclusive AND always-one-open. Clicking the
+// already-open step's title would self-close it (native details
+// behavior); swallow that so exactly one step is always expanded.
+document.addEventListener("click", (e) => {
+  const summary = e.target.closest("details.welcome-step[open] > summary")
+  if (summary) e.preventDefault()
+})
+
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: { _csrf_token: csrfToken },

@@ -3351,7 +3351,8 @@
       .welcome-step[open] > summary.welcome-step-title::after { transform: rotate(90deg); }
       .welcome-step > summary.welcome-step-title:hover { color: var(--text); background: rgba(255,255,255,0.02); }
       .welcome-step[open] { padding-bottom: 12px; }
-      .welcome-step[open] > summary.welcome-step-title { padding-bottom: 7px; }
+      .welcome-step[open] > summary.welcome-step-title { padding-bottom: 7px; cursor: default; }
+      .welcome-step[open] > summary.welcome-step-title:hover { background: none; color: var(--text); }
       /* Every expanded body reserves the same height (tallest case:
          line + one note), so the box never jumps as you click through. */
       .welcome-step-body { min-height: 54px; padding: 0 14px; }
