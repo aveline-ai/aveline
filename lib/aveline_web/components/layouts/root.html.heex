@@ -1539,16 +1539,21 @@
       }
 
       .shelf { margin-top: 34px; }
-      /* Whichever shelf renders first sits flush under the title. */
-      .home-content .shelf:first-of-type { margin-top: 0; }
-      /* Two shelves sharing one band, a column each; collapses to one
-         column when narrow or when only one shelf has content. */
+      /* The first top-level shelf sits flush under the title. Direct
+         children only, so the band's internal shelves are exempt. */
+      .home-content > .shelf:first-of-type { margin-top: 0; }
+      /* Two shelves sharing one band, a column each. The band owns the
+         vertical rhythm; the shelves inside all start at the same
+         line. auto-fit stacks to one column when narrow and lets a
+         lone shelf take the full width. */
       .home-duo {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 0 36px;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 34px 40px;
         align-items: start;
+        margin-top: 34px;
       }
+      .home-duo > .shelf { margin-top: 0; min-width: 0; }
       /* Quiet footer link under a shelf's list ("View all … →"). */
       .shelf-more {
         display: inline-block; margin-top: 8px; padding: 2px 4px;
