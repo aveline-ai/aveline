@@ -254,8 +254,8 @@ defmodule AvelineWeb.Setup do
                     >github.com/aveline-ai/cli/releases/latest ↗</a>
                     <div class="welcome-step-note">
                       Your agent talks to Aveline through the
-                      <span class="mono">aveline</span> CLI. Grab the binary
-                      and put it on your PATH.
+                      <span class="mono">aveline</span> CLI. Grab the latest
+                      binary for this machine and put it on your PATH.
                     </div>
                   </div>
                 </details>
@@ -277,7 +277,7 @@ defmodule AvelineWeb.Setup do
                     <div class="welcome-step-note">
                       Points every command at
                       <span class="mono">{@workspace.slug}</span> by default,
-                      so nothing needs a workspace flag.
+                      so nothing you or your agent runs needs a workspace flag.
                     </div>
                   </div>
                 </details>
@@ -287,7 +287,8 @@ defmodule AvelineWeb.Setup do
                     <div class="welcome-step-line">CLAUDE.md: start sessions with aveline get-orientation</div>
                     <div class="welcome-step-note">
                       Add that line to your agent instructions file. Your
-                      agent connects when it first reads the doc.
+                      agent connects the moment it first reads the
+                      orientation doc.
                     </div>
                   </div>
                 </details>
