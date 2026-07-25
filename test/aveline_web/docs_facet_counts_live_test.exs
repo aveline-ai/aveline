@@ -27,4 +27,15 @@ defmodule AvelineWeb.DocsFacetCountsLiveTest do
     render_click(lv, "load_more", %{})
     assert has_element?(lv, count_sel, "#{total}")
   end
+
+  test "a tag no doc carries still appears in the dropdown, count 0", %{conn: conn} do
+    owner = Fixtures.user_fixture()
+    ws = Fixtures.workspace_fixture(owner)
+    {:ok, _} = Aveline.Tags.create(ws.id, "unused", "No docs carry this.", owner.id)
+
+    conn = conn |> Plug.Test.init_test_session(%{}) |> Plug.Conn.put_session(:user_id, owner.id)
+    {:ok, lv, _html} = live(conn, "/w/#{ws.slug}/docs")
+
+    assert has_element?(lv, ~s(#fdd-tag button[phx-value-tag="unused"] .fdd-item-count), "0")
+  end
 end

@@ -23,7 +23,10 @@ defmodule AvelineWeb.WorkspaceShowLive do
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
            sidebar_views: Aveline.Views.sidebar_sections(ws.id, user.id),
-           workspace_tags: Docs.list_workspace_tags(ws.id),
+           # Every live workspace tag appears as a chip, even ones no doc
+           # carries yet — unused ones just read count 0. Registry order
+           # (sort_key, then slug), same as the Tags page.
+           workspace_tags: Tags.list_slugs(ws.id),
            tag_colors: tag_colors(ws.id),
            # Every workspace member appears as a chip — non-owners just
            # render disabled (count 0). Mirrors tag chip behaviour.

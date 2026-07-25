@@ -268,20 +268,6 @@ defmodule Aveline.Docs do
     end
   end
 
-  # Distinct LIVE tags across all current (non-deleted) docs in a
-  # workspace, sorted alphabetically. Feeds the Docs filter dropdowns.
-  def list_workspace_tags(workspace_id) do
-    live = Tags.live_slug_set(workspace_id)
-
-    from(d in base_query(),
-      where: d.workspace_id == ^workspace_id,
-      select: fragment("DISTINCT UNNEST(?)", d.tags)
-    )
-    |> Repo.all()
-    |> Enum.filter(&MapSet.member?(live, &1))
-    |> Enum.sort()
-  end
-
   def list_versions(base_doc_id) when is_binary(base_doc_id) do
     from(d in Doc,
       where: d.base_doc_id == ^base_doc_id,

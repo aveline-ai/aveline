@@ -83,7 +83,7 @@ defmodule Aveline.TagVersioningTest do
 
       # Invisible everywhere...
       assert Tags.get(ws.id, "deploys") == nil
-      refute "deploys" in Docs.list_workspace_tags(ws.id)
+      refute "deploys" in Tags.list_slugs(ws.id)
       assert Docs.get_current_by_slug(ws.id, doc.slug).tags == []
 
       # ...but the doc row still carries the slug, so restore is total.

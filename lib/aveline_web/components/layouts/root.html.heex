@@ -1780,7 +1780,10 @@
         border-radius: 9px;
         padding: 5px;
         box-shadow: 0 12px 28px rgba(0,0,0,0.55);
+        /* Still scrolls past max-height; the bar itself is just hidden. */
+        scrollbar-width: none;
       }
+      .fdd-menu::-webkit-scrollbar { display: none; }
       .fdd-item {
         display: flex; align-items: center; gap: 9px;
         width: 100%; text-align: left;
