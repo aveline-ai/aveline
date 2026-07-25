@@ -264,8 +264,8 @@ defmodule AvelineWeb.Setup do
                   <div class="welcome-step-body">
                     <div class="welcome-step-line">aveline login<%= if base = api_base_override() do %> --api-url {base}<% end %></div>
                     <div class="welcome-step-note">
-                      Authenticates the CLI with your API key. Lost yours?
-                      Mint a new one in
+                      Authenticates the CLI as you with your API key. Lost
+                      track of yours? Mint a fresh one anytime in
                       <.link navigate={~p"/w/#{@workspace.slug}/settings"} class="welcome-step-link">Settings</.link>.
                     </div>
                   </div>
