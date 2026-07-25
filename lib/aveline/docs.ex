@@ -37,33 +37,70 @@ defmodule Aveline.Docs do
   end
 
   def list_current(workspace_id, opts \\ []) do
-    tags = Keyword.get(opts, :tags, []) || []
-    owner_ids = Keyword.get(opts, :owner_ids, []) || []
     search = (Keyword.get(opts, :search) || "") |> to_string() |> String.trim()
     # No explicit sort + a search query → relevance; recency otherwise.
     sort = Keyword.get(opts, :sort) || if(search == "", do: :recent, else: :relevance)
-    updated = Keyword.get(opts, :updated)
     limit = Keyword.get(opts, :limit)
     offset = Keyword.get(opts, :offset, 0)
 
-    base =
-      from d in base_query(),
-        where: d.workspace_id == ^workspace_id
-
-    base
-    # `:viewer` is who is asking. Callers must pass it; omitting it
-    # fails closed (private docs hidden from everyone).
-    |> where_readable(Keyword.get(opts, :viewer))
-    |> maybe_filter_tags(tags)
-    |> maybe_filter_owners(owner_ids)
-    |> maybe_filter_search(search)
-    |> maybe_filter_updated(updated)
+    filtered_query(workspace_id, opts)
     |> apply_sort(sort, search)
     |> maybe_select_snippet(search)
     |> maybe_paginate(limit, offset)
     |> Repo.all()
     |> Repo.preload([:owner, :actor_user])
     |> scrub_deleted_tags(workspace_id)
+  end
+
+  # The filter half of list_current — everything before sort/limit/offset —
+  # shared with facet_counts so the counts and the list can't drift apart.
+  defp filtered_query(workspace_id, opts) do
+    tags = Keyword.get(opts, :tags, []) || []
+    owner_ids = Keyword.get(opts, :owner_ids, []) || []
+    search = (Keyword.get(opts, :search) || "") |> to_string() |> String.trim()
+
+    from(d in base_query(), where: d.workspace_id == ^workspace_id)
+    # `:viewer` is who is asking. Callers must pass it; omitting it
+    # fails closed (private docs hidden from everyone).
+    |> where_readable(Keyword.get(opts, :viewer))
+    |> maybe_filter_tags(tags)
+    |> maybe_filter_owners(owner_ids)
+    |> maybe_filter_search(search)
+    |> maybe_filter_updated(Keyword.get(opts, :updated))
+  end
+
+  @doc """
+  Facet counts for the docs filter dropdowns: how many docs under the
+  current filter (same opts as `list_current`, minus pagination) carry
+  each tag / each owner. Counts cover the whole filtered corpus, never
+  just the rendered page.
+
+  Returns `%{tags: %{slug => count}, owners: %{owner_id => count}}`.
+
+  Tag counts may include soft-deleted tag slugs (the aggregate reads raw
+  rows; `list_current` scrubs at the read boundary). Harmless: dropdowns
+  render only live workspace tags, so dead keys are never looked up.
+  """
+  def facet_counts(workspace_id, opts \\ []) do
+    filtered = filtered_query(workspace_id, opts)
+
+    tags =
+      from(s in subquery(from(d in filtered, select: %{tag: fragment("unnest(?)", d.tags)})),
+        group_by: s.tag,
+        select: {s.tag, count(s.tag)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    owners =
+      from(d in filtered,
+        group_by: d.owner_id,
+        select: {d.owner_id, count(d.id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    %{tags: tags, owners: owners}
   end
 
   @doc """

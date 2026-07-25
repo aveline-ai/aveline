@@ -156,15 +156,24 @@ defmodule AvelineWeb.WorkspaceShowLive do
 
     base_ids = Enum.map(items, & &1.base_doc_id)
     # Facet-style chip counts. For each tag/author, how many docs in the
-    # CURRENT filter set also carry it. Selected entries trivially match
-    # every doc; unselected ones with count 0 mean "no overlap — adding
-    # this would empty the page," and we render those disabled.
-    chip_counts = items |> Enum.flat_map(& &1.tags) |> Enum.frequencies()
+    # CURRENT filter set (the whole filtered corpus, not just the rendered
+    # page) also carry it. Selected entries trivially match every doc;
+    # unselected ones with count 0 mean "no overlap — adding this would
+    # empty the page," and we render those disabled. Counted in SQL so
+    # pagination can't skew them.
+    facets =
+      Docs.facet_counts(ws.id,
+        viewer: socket.assigns.current_user.id,
+        tags: selected_tags,
+        owner_ids: owner_ids,
+        search: search,
+        updated: edited_within
+      )
 
     author_counts =
-      items
-      |> Enum.flat_map(fn i -> if i.owner, do: [i.owner.username], else: [] end)
-      |> Enum.frequencies()
+      Map.new(socket.assigns.workspace_authors, fn u ->
+        {u.username, Map.get(facets.owners, u.id, 0)}
+      end)
 
     {:noreply,
      assign(socket,
@@ -179,7 +188,7 @@ defmodule AvelineWeb.WorkspaceShowLive do
        sort: sort,
        search: search,
        items: items,
-       chip_counts: chip_counts,
+       chip_counts: facets.tags,
        author_counts: author_counts,
        view_counts: DocViews.counts_by_base(base_ids),
        kudos_counts: Kudos.counts_by_base(base_ids),
@@ -384,11 +393,8 @@ defmodule AvelineWeb.WorkspaceShowLive do
        sections: socket.assigns.group_by && grouped_sections(ws.id, socket.assigns.group_by, socket.assigns.sub_group_by, items),
        view_counts: DocViews.counts_by_base(base_ids),
        kudos_counts: Kudos.counts_by_base(base_ids),
-       chip_counts: items |> Enum.flat_map(& &1.tags) |> Enum.frequencies(),
-       author_counts:
-         items
-         |> Enum.flat_map(fn i -> if i.owner, do: [i.owner.username], else: [] end)
-         |> Enum.frequencies(),
+       # chip_counts/author_counts are corpus-wide (facet_counts) —
+       # loading another page must not touch them.
        has_more?: has_more?
      )}
   end
