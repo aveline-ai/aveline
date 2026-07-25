@@ -1593,30 +1593,6 @@
       }
 
       /* Jump back in — the user's own recent reads, compact */
-      .jump-grid {
-        display: grid; gap: 10px;
-        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-      }
-      .jump-card {
-        display: flex; flex-direction: column; gap: 2px;
-        padding: 10px 14px;
-        background: linear-gradient(180deg, rgba(255,255,255,0.025), transparent), var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        text-decoration: none;
-        transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
-        min-width: 0;
-      }
-      .jump-card:hover {
-        border-color: var(--border-strong);
-        transform: translateY(-1px);
-        box-shadow: 0 6px 18px rgba(0,0,0,0.35);
-      }
-      .jump-card-title {
-        font-size: 13px; font-weight: 500; color: var(--text);
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      }
-      .jump-card-time { font-size: 11px; color: var(--text-muted); }
 
       /* Start here — pinned doc cards, each with its identity hue */
       .story-grid {
