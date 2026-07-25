@@ -45,7 +45,6 @@ defmodule AvelineWeb.DataSourcesLive do
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
            sidebar_views: Aveline.Views.sidebar_sections(ws.id, user.id),
-           agent_connected?: Aveline.Onboarding.agent_connected?(ws.id, user.id),
            nav_active: :data_sources,
            topbar_title: "Data sources",
            sources: sources,

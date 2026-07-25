@@ -1,17 +1,14 @@
 defmodule AvelineWeb.OnboardingLiveTest do
   @moduledoc """
-  The vestibule as a place: /w/:slug/welcome. Joining flows land there
-  once; the sidebar's Connect CTA is the way back from anywhere;
-  leaving is just navigation. Home is always home.
+  The welcome page: a plain destination at /w/:slug/welcome. Joining
+  flows land there; the sidebar's Connect agent item (always present)
+  is the way back; no connected-state machinery anywhere.
   """
   use AvelineWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
 
-  alias Aveline.DocViews
-  alias Aveline.Docs
   alias Aveline.Fixtures
-  alias Aveline.Onboarding
 
   setup %{conn: conn} do
     owner = Fixtures.user_fixture()
@@ -22,26 +19,7 @@ defmodule AvelineWeb.OnboardingLiveTest do
     %{conn: conn, ws: ws, owner: owner}
   end
 
-  defp connect_agent(ws, user) do
-    orientation = Docs.get_orientation(ws.id)
-    DocViews.record(ws.id, orientation.base_doc_id, user.id, "agent")
-  end
-
-  test "connected? derives from an agent orientation read, humans don't count", %{
-    ws: ws,
-    owner: owner
-  } do
-    refute Onboarding.agent_connected?(ws.id, owner.id)
-
-    orientation = Docs.get_orientation(ws.id)
-    DocViews.record(ws.id, orientation.base_doc_id, owner.id, "human")
-    refute Onboarding.agent_connected?(ws.id, owner.id)
-
-    connect_agent(ws, owner)
-    assert Onboarding.agent_connected?(ws.id, owner.id)
-  end
-
-  test "welcome renders the vestibule; home stays home; sidebar carries the CTA", %{
+  test "welcome renders the setup page; home stays home; sidebar always links it", %{
     conn: conn,
     ws: ws
   } do
@@ -50,42 +28,23 @@ defmodule AvelineWeb.OnboardingLiveTest do
     assert html =~ ~s(class="welcome-stage)
     assert html =~ "Welcome to"
     assert html =~ "starts here"
-    # Steps are visible up front: nothing hides behind toggles.
-    refute html =~ "view the prompt"
     assert html =~ "or do it yourself"
     assert html =~ "Mint a fresh one anytime in"
+    assert html =~ "Teach your project"
+    # Tool-agnostic prompt rides along as the hidden copy source.
+    assert html =~ "Claude Code, Cursor, and Codex all work"
+    assert html =~ "If it errors, ask me to run"
 
-    # Home is a normal dashboard with the sidebar CTA, no setup card.
+    # Home is a normal dashboard; the sidebar carries Connect agent
+    # unconditionally.
     {:ok, _lv, html} = live(conn, "/w/#{ws.slug}")
     assert html =~ "Welcome back,"
-    assert html =~ "Connect your agent"
+    assert html =~ "Connect agent"
     assert html =~ "/w/#{ws.slug}/welcome"
     refute html =~ ~s(class="welcome-stage)
   end
 
-  test "connecting on the welcome page offers Take me in; connected users bounce", %{
-    conn: conn,
-    ws: ws,
-    owner: owner
-  } do
-    {:ok, lv, _html} = live(conn, "/w/#{ws.slug}/welcome")
-
-    connect_agent(ws, owner)
-    send(lv.pid, :check_setup)
-    html = render(lv)
-    assert html =~ "Your agent is in"
-    assert html =~ "Take me in"
-
-    # Once connected, /welcome bounces straight home and the sidebar
-    # CTA is gone everywhere.
-    {:error, {:live_redirect, %{to: to}}} = live(conn, "/w/#{ws.slug}/welcome")
-    assert to == "/w/#{ws.slug}"
-
-    {:ok, _lv, html} = live(conn, "/w/#{ws.slug}")
-    refute html =~ "Connect your agent"
-  end
-
-  test "an invited member gets the same welcome, with the team visible", %{ws: ws} do
+  test "an invited member gets the inhabited welcome with the team visible", %{ws: ws} do
     invitee = Fixtures.user_fixture()
     {:ok, _} = Aveline.Workspaces.ensure_member(ws.id, invitee.id)
 
@@ -96,28 +55,20 @@ defmodule AvelineWeb.OnboardingLiveTest do
 
     {:ok, _lv, html} = live(conn, "/w/#{ws.slug}/welcome")
     assert html =~ ~s(class="welcome-stage)
+    assert html =~ "already knows things"
     assert html =~ "is here"
     assert html =~ "Start with"
-    # Prompt is tool-agnostic and stays in the DOM as the copy source.
-    assert html =~ "Claude Code, Cursor, and Codex all work"
-    assert html =~ "If it errors, ask me to run"
+    refute html =~ "starts here"
   end
 
-  test "settings always carries the section: full card before, quiet line + reclaim after", %{
-    conn: conn,
-    ws: ws,
-    owner: owner
-  } do
-    {:ok, _lv, html} = live(conn, "/w/#{ws.slug}/settings")
-    assert html =~ "Connect your agent"
-    assert html =~ "Listening for your agent"
+  test "fresh workspaces sell compounding without fake proof", %{conn: conn, ws: ws} do
+    {:ok, _lv, html} = live(conn, "/w/#{ws.slug}/welcome")
 
-    connect_agent(ws, owner)
-
-    {:ok, _lv, html} = live(conn, "/w/#{ws.slug}/settings")
-    assert html =~ "Connect your agent"
-    assert html =~ "✓ Connected"
-    assert html =~ "Setting up another machine?"
-    refute html =~ "Listening for your agent…"
+    # Solo owner: fresh mode. Compounding pitch, no proof row, no
+    # backdrop cards built from seed docs.
+    assert html =~ "starts here"
+    assert html =~ "compounds"
+    refute html =~ "saved views"
+    refute html =~ ~s(class="wb-card)
   end
 end

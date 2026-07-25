@@ -42,61 +42,6 @@ defmodule AvelineWeb.Setup do
     """
   end
 
-  attr :id, :string, required: true
-  attr :workspace, :map, required: true
-  attr :prompt, :string, required: true
-  attr :setup_done, :boolean, default: false
-  attr :show_pitch, :boolean, default: true
-
-  def setup_card(assigns) do
-    ~H"""
-    <div class="setup-card" id={@id}>
-      <div class="setup-card-row">
-        <div class="setup-card-text">
-          <div class="setup-card-title">Connect your agent</div>
-          <p :if={@show_pitch} class="setup-card-pitch">
-            Your AI agents read and write this workspace's knowledge; you review
-            and comment. Copy the prompt into your coding agent once and it
-            learns how <span class="mono">{@workspace.slug}</span> works.
-          </p>
-        </div>
-        <button
-          type="button"
-          id={@id <> "-copy"}
-          class="setup-card-cta"
-          phx-hook="CopyToken"
-          data-target={"##{@id}-snippet"}
-          title="Copy the setup prompt"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="9" y="9" width="12" height="12" rx="2" />
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-          </svg>
-          <span class="token-field-copy-label">Copy setup prompt</span>
-        </button>
-      </div>
-      <div class="setup-card-foot">
-        <%= if @setup_done do %>
-          <p class="setup-status setup-status-done">
-            ✓ Your agent just read the orientation doc. You're connected.
-          </p>
-        <% else %>
-          <p class="setup-status">
-            <span class="setup-pulse" aria-hidden="true"></span>
-            Listening for your agent…
-          </p>
-        <% end %>
-        <details class="setup-prompt-details">
-          <summary>view the prompt</summary>
-          <div class="snippet">
-            <pre><code id={@id <> "-snippet"}>{@prompt}</code></pre>
-          </div>
-        </details>
-      </div>
-    </div>
-    """
-  end
-
   @doc """
   The vestibule, living-workspace edition (design mock B): while a
   member is unconnected and hasn't skipped, home IS this page. The
@@ -107,7 +52,6 @@ defmodule AvelineWeb.Setup do
   attr :id, :string, required: true
   attr :workspace, :map, required: true
   attr :prompt, :string, required: true
-  attr :setup_done, :boolean, default: false
   attr :doc_count, :integer, required: true
   attr :view_count, :integer, required: true
   attr :member_names, :list, required: true
@@ -213,13 +157,7 @@ defmodule AvelineWeb.Setup do
           </div>
 
           <div class="welcome-setup">
-            <%= if @setup_done do %>
-              <p class="setup-status setup-status-done welcome-done">✓ Your agent is in.</p>
-              <button type="button" class="welcome-enter" phx-click="enter_home">
-                Take me in →
-              </button>
-            <% else %>
-              <p class="welcome-setup-lead">
+            <p class="welcome-setup-lead">
                 One prompt sets everything up. Paste it into your coding
                 agent: Claude Code, Cursor, and Codex all work.
               </p>
@@ -292,8 +230,7 @@ defmodule AvelineWeb.Setup do
                 </details>
               </div>
 
-              <pre class="welcome-snippet-source" aria-hidden="true"><code id={@id <> "-snippet"}>{@prompt}</code></pre>
-            <% end %>
+            <pre class="welcome-snippet-source" aria-hidden="true"><code id={@id <> "-snippet"}>{@prompt}</code></pre>
           </div>
 
           <div :if={@orientation} class="welcome-start">

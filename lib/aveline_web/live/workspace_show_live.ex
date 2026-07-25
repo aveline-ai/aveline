@@ -23,7 +23,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
            sidebar_views: Aveline.Views.sidebar_sections(ws.id, user.id),
-           agent_connected?: Aveline.Onboarding.agent_connected?(ws.id, user.id),
            workspace_tags: Docs.list_workspace_tags(ws.id),
            tag_colors: tag_colors(ws.id),
            # Every workspace member appears as a chip — non-owners just
