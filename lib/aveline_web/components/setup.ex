@@ -177,11 +177,9 @@ defmodule AvelineWeb.Setup do
           <div class="welcome-eyebrow"><span class="welcome-spark">●</span> {@workspace.slug} · aveline</div>
 
           <h1 class="welcome-h1">
-            Welcome to <em>{@workspace.name}</em>.<br />
+            Welcome to <em>{@workspace.name}</em>.
             <%= if @others == [] do %>
-              Your team's shared brain starts here.
-            <% else %>
-              The team saved you a seat.
+              <br />Your team's shared brain starts here.
             <% end %>
           </h1>
 

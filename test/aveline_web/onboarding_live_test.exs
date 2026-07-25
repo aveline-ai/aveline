@@ -96,7 +96,6 @@ defmodule AvelineWeb.OnboardingLiveTest do
 
     {:ok, _lv, html} = live(conn, "/w/#{ws.slug}/welcome")
     assert html =~ ~s(class="welcome-stage)
-    assert html =~ "saved you a seat"
     assert html =~ "is here"
     assert html =~ "Start with"
     # Prompt is tool-agnostic and stays in the DOM as the copy source.
