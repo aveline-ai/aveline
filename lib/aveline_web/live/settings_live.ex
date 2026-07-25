@@ -7,7 +7,6 @@ defmodule AvelineWeb.SettingsLive do
   use AvelineWeb, :live_view
 
   alias Aveline.Accounts.User
-  alias Aveline.Docs
   alias Aveline.Repo
   alias Aveline.Tokens
   alias Aveline.Workspaces
@@ -19,7 +18,6 @@ defmodule AvelineWeb.SettingsLive do
 
     case LiveSession.fetch_workspace_for_user(slug, user) do
       {:ok, ws} ->
-        items = Docs.list_current(ws.id, viewer: user.id)
 
         {:ok,
          assign(socket,
@@ -28,7 +26,6 @@ defmodule AvelineWeb.SettingsLive do
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
            sidebar_views: Aveline.Views.sidebar_sections(ws.id, user.id),
-           total_count: length(items),
            topbar_title: "Settings",
            nav_active: :settings,
            display_name: user.display_name || "",

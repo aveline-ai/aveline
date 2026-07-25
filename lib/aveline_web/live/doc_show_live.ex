@@ -39,8 +39,6 @@ defmodule AvelineWeb.DocShowLive do
               if user, do: DocViews.record(ws.id, current_doc.base_doc_id, user.id, "human")
             end
 
-            all_items = Docs.list_current(ws.id, viewer: user && user.id)
-
             tag_colors =
               ws.id
               |> Aveline.Tags.list_for_workspace()
@@ -99,7 +97,6 @@ defmodule AvelineWeb.DocShowLive do
                 workspace: ws,
                 sidebar_workspaces: Workspaces.list_for_user(user.id),
                 sidebar_views: Aveline.Views.sidebar_sections(ws.id, user.id),
-                total_count: length(all_items),
                 topbar_title: current_doc.title,
                 # `current_doc` is always the latest (for nav, switcher,
                 # comments). `item` is what we actually render — either

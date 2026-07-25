@@ -60,9 +60,6 @@
             <path d="M5 6h6M5 8h6M5 10h4" stroke-linecap="round" />
           </svg>
           <span class="label">Docs</span>
-          <%= if assigns[:total_count] do %>
-            <span class="count">{@total_count}</span>
-          <% end %>
         </.link>
         <%= if sections = assigns[:sidebar_views] do %>
           <div :if={sections.team != []} class="sidebar-views">

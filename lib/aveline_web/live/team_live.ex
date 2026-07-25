@@ -2,7 +2,6 @@ defmodule AvelineWeb.TeamLive do
   @moduledoc false
   use AvelineWeb, :live_view
 
-  alias Aveline.Docs
   alias Aveline.Stats
   alias Aveline.Workspaces
   alias AvelineWeb.LiveSession
@@ -17,7 +16,6 @@ defmodule AvelineWeb.TeamLive do
           Phoenix.PubSub.subscribe(Aveline.PubSub, Workspaces.members_topic(ws.id))
         end
 
-        items = Docs.list_current(ws.id, viewer: user.id)
         invite = Workspaces.get_active_invite_for_workspace(ws.id)
 
         {:ok,
@@ -28,7 +26,6 @@ defmodule AvelineWeb.TeamLive do
            workspace: ws,
            sidebar_workspaces: Workspaces.list_for_user(user.id),
            sidebar_views: Aveline.Views.sidebar_sections(ws.id, user.id),
-           total_count: length(items),
            topbar_title: "Team",
            nav_active: :team,
            invite: invite

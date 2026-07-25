@@ -46,7 +46,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
            items: [],
            view_counts: %{},
            kudos_counts: %{},
-           total_count: 0,
            page_size: Aveline.Pagination.default_page_size(),
            has_more?: false
          )}
@@ -184,7 +183,6 @@ defmodule AvelineWeb.WorkspaceShowLive do
        author_counts: author_counts,
        view_counts: DocViews.counts_by_base(base_ids),
        kudos_counts: Kudos.counts_by_base(base_ids),
-       total_count: length(items),
        has_more?: has_more?,
        # On a view, the sidebar highlights that view's item; otherwise
        # Docs stays highlighted regardless of filter state.
