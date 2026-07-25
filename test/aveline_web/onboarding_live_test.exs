@@ -54,8 +54,6 @@ defmodule AvelineWeb.OnboardingLiveTest do
     refute html =~ "view the prompt"
     assert html =~ "or do it yourself"
     assert html =~ "Mint a new one in"
-    # The status line exists but only shows after copy (CSS gated).
-    assert html =~ "Listening for your agent"
 
     # Home is a normal dashboard with the sidebar CTA, no setup card.
     {:ok, _lv, html} = live(conn, "/w/#{ws.slug}")

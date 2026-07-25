@@ -239,10 +239,6 @@ defmodule AvelineWeb.Setup do
                 </svg>
                 <span class="token-field-copy-label">Copy setup prompt</span>
               </button>
-              <div class="welcome-status">
-                <span class="welcome-ping" aria-hidden="true"></span>
-                Listening for your agent…
-              </div>
               <div class="welcome-or" aria-hidden="true">
                 <span></span>or do it yourself<span></span>
               </div>
