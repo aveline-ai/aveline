@@ -252,7 +252,11 @@ defmodule AvelineWeb.Setup do
                       rel="noopener"
                       class="welcome-step-line welcome-step-line-link"
                     >github.com/aveline-ai/cli/releases/latest ↗</a>
-                    <div class="welcome-step-note">put it on your PATH</div>
+                    <div class="welcome-step-note">
+                      Your agent talks to Aveline through the
+                      <span class="mono">aveline</span> CLI. Grab the binary
+                      and put it on your PATH.
+                    </div>
                   </div>
                 </details>
                 <details class="welcome-step" name="welcome-steps">
@@ -260,7 +264,8 @@ defmodule AvelineWeb.Setup do
                   <div class="welcome-step-body">
                     <div class="welcome-step-line">aveline login<%= if base = api_base_override() do %> --api-url {base}<% end %></div>
                     <div class="welcome-step-note">
-                      asks for your API key. Lost it? Mint a new one in
+                      Authenticates the CLI with your API key. Lost yours?
+                      Mint a new one in
                       <.link navigate={~p"/w/#{@workspace.slug}/settings"} class="welcome-step-link">Settings</.link>.
                     </div>
                   </div>
@@ -269,13 +274,21 @@ defmodule AvelineWeb.Setup do
                   <summary class="welcome-step-title">Set your workspace</summary>
                   <div class="welcome-step-body">
                     <div class="welcome-step-line">aveline use-workspace {@workspace.slug}</div>
+                    <div class="welcome-step-note">
+                      Makes <span class="mono">{@workspace.slug}</span> the
+                      default, so every command points here.
+                    </div>
                   </div>
                 </details>
                 <details class="welcome-step" name="welcome-steps">
-                  <summary class="welcome-step-title">Get oriented</summary>
+                  <summary class="welcome-step-title">Teach your project</summary>
                   <div class="welcome-step-body">
-                    <div class="welcome-step-line">aveline get-orientation</div>
-                    <div class="welcome-step-note">how the team organizes its knowledge</div>
+                    <div class="welcome-step-line">CLAUDE.md: start sessions with aveline get-orientation</div>
+                    <div class="welcome-step-note">
+                      Add that note to your agent instructions file. Your
+                      agent connects the first time it reads the orientation
+                      doc.
+                    </div>
                   </div>
                 </details>
               </div>

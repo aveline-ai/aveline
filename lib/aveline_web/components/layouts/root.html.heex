@@ -3348,7 +3348,7 @@
       .welcome-step[open] > summary.welcome-step-title:hover { background: none; color: var(--text); }
       /* Every expanded body reserves the same height (tallest case:
          line + one note), so the box never jumps as you click through. */
-      .welcome-step-body { min-height: 54px; padding: 0 14px; }
+      .welcome-step-body { min-height: 76px; padding: 0 14px; }
       .welcome-step .welcome-step-line { margin: 0; }
       .welcome-step .welcome-step-note { margin: 6px 0 0; }
       .welcome-step-line {
@@ -3365,6 +3365,10 @@
       .welcome-step-note {
         margin-top: 6px;
         font-size: 12px; color: var(--text-muted); line-height: 1.5;
+      }
+      .welcome-step-note .mono {
+        font-family: 'JetBrains Mono', monospace; font-size: 11px;
+        color: var(--text-secondary);
       }
       .welcome-step-link { color: var(--accent); }
       .welcome-step-link:hover { color: var(--accent-hover); }
