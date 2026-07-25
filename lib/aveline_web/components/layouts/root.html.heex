@@ -231,19 +231,6 @@
         background: var(--accent); flex-shrink: 0;
       }
       .sidebar-spacer { flex: 1; }
-      /* Pre-connect CTA: the one loud thing in the sidebar, and it
-         removes itself the moment an agent connects. */
-      .sidebar-item.sidebar-connect {
-        color: var(--accent);
-        background: var(--accent-dim);
-        margin-bottom: 4px;
-      }
-      .sidebar-item.sidebar-connect .icon { color: var(--accent); }
-      .sidebar-item.sidebar-connect:hover {
-        color: var(--accent-hover);
-        background: rgba(59,130,246,0.2);
-      }
-      html.sidebar-collapsed .sidebar-item.sidebar-connect .label { display: none; }
       .sidebar-footer {
         padding: 8px;
         border-top: 1px solid var(--border);
