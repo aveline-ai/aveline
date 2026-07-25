@@ -147,54 +147,56 @@ defmodule AvelineWeb.HomeLive do
         </div>
       </section>
 
-      <section :if={@recently_viewed != []} class="shelf">
-        <div class="shelf-head">
-          <span class="shelf-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-            </svg>
-          </span>
-          <span class="shelf-label">Recently viewed by you</span>
-        </div>
-        <div class="jump-grid">
-          <.link
-            :for={{d, viewed_at} <- @recently_viewed}
-            navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}"}
-            class="jump-card"
-          >
-            <span class="jump-card-title">{d.title}</span>
-            <span class="jump-card-time" title={absolute_time(viewed_at)}>
-              opened {relative_time(viewed_at)}
+      <div :if={@recently_viewed != [] or @recent_changes != []} class="home-duo">
+        <section :if={@recently_viewed != []} class="shelf">
+          <div class="shelf-head">
+            <span class="shelf-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
             </span>
-          </.link>
-        </div>
-      </section>
+            <span class="shelf-label">Recently viewed by you</span>
+          </div>
+          <div class="recent-list">
+            <.link
+              :for={{d, viewed_at} <- @recently_viewed}
+              navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}"}
+              class="recent-row"
+            >
+              <span class="recent-title">{d.title}</span>
+              <span class="recent-time" title={absolute_time(viewed_at)}>
+                opened {relative_time(viewed_at)}
+              </span>
+            </.link>
+          </div>
+        </section>
 
-      <section :if={@recent_changes != []} class="shelf">
-        <div class="shelf-head">
-          <span class="shelf-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-            </svg>
-          </span>
-          <span class="shelf-label">Recently changed</span>
-        </div>
-        <div class="recent-list">
-          <.link
-            :for={d <- @recent_changes}
-            navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}"}
-            class="recent-row"
-          >
-            <span class="recent-title">{d.title}</span>
-            <span class="recent-version">v{d.version_number}</span>
-            <span :if={d.intent} class="recent-intent">“{d.intent}”</span>
-            <span class="recent-time">{relative_time(d.updated_at)}</span>
+        <section :if={@recent_changes != []} class="shelf">
+          <div class="shelf-head">
+            <span class="shelf-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+            </span>
+            <span class="shelf-label">Recently changed</span>
+          </div>
+          <div class="recent-list">
+            <.link
+              :for={d <- @recent_changes}
+              navigate={~p"/w/#{@workspace.slug}/d/#{d.slug}"}
+              class="recent-row"
+            >
+              <span class="recent-title">{d.title}</span>
+              <span class="recent-version">v{d.version_number}</span>
+              <span :if={d.intent} class="recent-intent">“{d.intent}”</span>
+              <span class="recent-time">{relative_time(d.updated_at)}</span>
+            </.link>
+          </div>
+          <.link navigate={~p"/w/#{@workspace.slug}/activity"} class="shelf-more">
+            View all activity →
           </.link>
-        </div>
-        <.link navigate={~p"/w/#{@workspace.slug}/activity"} class="shelf-more">
-          View all activity →
-        </.link>
-      </section>
+        </section>
+      </div>
 
       <section :if={@tag_stats != []} class="shelf">
         <div class="shelf-head">
