@@ -7,25 +7,20 @@
 # This file is based on these images:
 #
 #   - https://hub.docker.com/r/hexpm/elixir/tags - for the build image
-#   - https://hub.docker.com/_/debian?tab=tags&page=1&name=bullseye-20250113-slim - for the release image
+#   - https://hub.docker.com/_/debian?tab=tags&page=1&name=bookworm-20260610-slim - for the release image
 #   - https://pkgs.org/ - resource for finding needed packages
-#   - Ex: hexpm/elixir:1.18.2-erlang-27.2.1-debian-bullseye-20250113-slim
+#   - Ex: hexpm/elixir:1.18.2-erlang-27.2.1-debian-bookworm-20260610-slim
 #
+# Bookworm, not bullseye: bullseye left LTS in Aug 2026 and mirrors are
+# purging its security packages, which broke image builds with apt 404s.
 ARG ELIXIR_VERSION=1.18.2
 ARG OTP_VERSION=27.2.1
-ARG DEBIAN_VERSION=bullseye-20250113-slim
+ARG DEBIAN_VERSION=bookworm-20260610-slim
 
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
 FROM ${BUILDER_IMAGE} as builder
-
-# Bullseye LTS ended 2026-08-31: packages now live on archive.debian.org
-# (the main mirrors 404). The archive's Release files age out, hence the
-# Check-Valid-Until opt-out. Drop all of this when the base image moves
-# off bullseye.
-RUN printf 'deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n' > /etc/apt/sources.list \
-  && echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99archive
 
 # install build dependencies
 RUN apt-get update -y && apt-get install -y build-essential git curl \
@@ -107,10 +102,6 @@ RUN mix release
 # start a new build stage so that the final image will only contain
 # the compiled release and other runtime necessities
 FROM ${RUNNER_IMAGE}
-
-# Same bullseye-is-archived dance as the builder stage above.
-RUN printf 'deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n' > /etc/apt/sources.list \
-  && echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99archive
 
 RUN apt-get update -y && \
   apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates \
