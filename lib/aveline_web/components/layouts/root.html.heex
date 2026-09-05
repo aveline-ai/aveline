@@ -123,6 +123,11 @@
         height: 100dvh;
         position: sticky; top: 0;
         overflow-y: auto;
+        /* Above the topbar (z:10) and the positioned home-content children so
+           the collapsed-mode switcher menu — fixed, but trapped in this sticky
+           stacking context — isn't painted over; below in-content dropdowns
+           (z:20/30), whose mobile sheets overlap the sidebar strip. */
+        z-index: 15;
       }
       /* ===== Workspace switcher (uses <details> for native click-away) ===== */
       .workspace-switcher { position: relative; }
