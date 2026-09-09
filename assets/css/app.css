@@ -3246,38 +3246,11 @@
         .title-chev { width: 15px; height: 15px; margin-top: 2px; }
       }
 
-      /* ===== Phone sidebar: always-visible handle + overlay drawer =====
-         The edge toggle above is opacity:0 until `.shell-sidebar:hover` —
-         a hover a touch device never fires. Collapsed state happened to
-         force opacity:1, but the moment the user expanded, the handle
-         vanished and the nav was stuck open. On phones we pin it visible
-         in both states and grow it to a real tap target.
-
-         And the expanded 232px column squeezed `.main-wrap` to ~150px on
-         a 390px screen (content ran off the right edge). Take the sidebar
-         out of flow instead: an overlay drawer over the page, matching
-         what the collapsed-mode `.switcher-menu` already does — pop out
-         rather than fight the narrow column. */
+      /* ===== Phone sidebar: rail only, no expand toggle =====
+         On phones the sidebar is always the 56px icon rail — the icons
+         are the nav. The floating edge chevron is a desktop affordance;
+         chrome.js force-collapses below this breakpoint, so the button
+         would be dead weight anyway. */
       @media (max-width: 720px) {
-        .sidebar-edge-toggle {
-          opacity: 1;
-          width: 34px; height: 34px;
-          left: 215px;    /* sidebar 232 − half of 34px button */
-          background: var(--bg-card-hover);
-          border-color: var(--text-muted);
-          color: var(--text);
-        }
-        .sidebar-edge-toggle svg { width: 16px; height: 16px; }
-        html.sidebar-collapsed .sidebar-edge-toggle {
-          left: 39px;     /* collapsed sidebar 56 − 17 */
-        }
-        /* Fixed, so the drawer floats over `.main-wrap` at full width
-           instead of shrinking it. The sidebar is already opaque and
-           z-index:15, above the topbar and content. */
-        html:not(.sidebar-collapsed) .sidebar {
-          position: fixed;
-          top: 0; left: 0;
-          width: 232px;
-          box-shadow: 0 0 24px rgba(0,0,0,0.6);
-        }
+        .sidebar-edge-toggle { display: none; }
       }

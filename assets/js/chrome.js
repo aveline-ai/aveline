@@ -24,9 +24,16 @@ const setCollapsed = (val, persist) => {
   if (persist) localStorage.setItem(KEY, val ? "1" : "0");
 };
 
+// Phones get the rail only (the CSS also hides the toggle below this
+// width) — a stored "expanded" pref from desktop must not squeeze a
+// 390px screen down to a 158px content column.
+const PHONE = 720;
+const phone = () => window.innerWidth <= PHONE;
+
 // Apply saved state at module evaluation — before Elm's first paint.
 const pref = localStorage.getItem(KEY);
-if (pref === "1") setCollapsed(true, false);
+if (phone()) setCollapsed(true, false);
+else if (pref === "1") setCollapsed(true, false);
 else if (pref === "0") setCollapsed(false, false);
 else setCollapsed(window.innerWidth < 1024, false);
 
@@ -38,9 +45,14 @@ document.addEventListener("click", (e) => {
 });
 
 // When the user hasn't set a preference, follow the viewport so
-// resizing across the breakpoint feels right.
+// resizing across the breakpoint feels right. Phone widths always
+// collapse (without persisting — the desktop pref survives).
 window.addEventListener("resize", () => {
-  if (localStorage.getItem(KEY) === null) {
+  if (phone()) {
+    setCollapsed(true, false);
+  } else if (localStorage.getItem(KEY) === null) {
     setCollapsed(window.innerWidth < 1024, false);
+  } else {
+    setCollapsed(localStorage.getItem(KEY) === "1", false);
   }
 });
