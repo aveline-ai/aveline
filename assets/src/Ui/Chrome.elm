@@ -7,6 +7,7 @@ module Ui.Chrome exposing
     , documentTitle
     , navActiveFor
     , sectionsFromViews
+    , switcherClass
     , topbarTitle
     , view
     )
@@ -29,6 +30,11 @@ Notes on parity with the LiveView:
     `[data-sidebar-toggle]` + localStorage persistence). Without that
     import the toggle button is inert and the sidebar stays expanded —
     the chrome degrades gracefully.
+  - The workspace switcher is the opposite case: it is a native
+    `<details>`, but Elm owns its `open` state (see
+    `workspaceSwitcher`) so that navigating — or clicking outside, or
+    Esc — closes it. `Config` therefore carries `switcherOpen` plus an
+    `onSwitcherToggle` message; Main holds the flag.
 
 -}
 
@@ -36,6 +42,9 @@ import Api.Docs
 import Api.Workspaces exposing (Workspace)
 import Html exposing (Html)
 import Html.Attributes as Attr
+import Html.Events as Events
+import Json.Decode as Decode
+import Json.Encode as Encode
 import Route exposing (Route)
 import Session
 import Svg
@@ -325,20 +334,22 @@ unique =
 -- ===== View =====
 
 
-type alias Config =
+type alias Config msg =
     { slug : String
     , workspaceName : String
     , workspaces : List Workspace
     , sections : Maybe Sections
     , navActive : NavActive
     , user : Maybe Session.User
+    , switcherOpen : Bool
+    , onSwitcherToggle : Bool -> msg
     }
 
 
 {-| The workspace shell around a page's content — the `assigns[:workspace]`
 branch of `layouts/app.html.heex`.
 -}
-view : Config -> Html msg -> Html msg
+view : Config msg -> Html msg -> Html msg
 view config content =
     Html.div [ Attr.class "shell-sidebar", Attr.id "shell-sidebar" ]
         [ sidebar config
@@ -347,7 +358,7 @@ view config content =
         ]
 
 
-sidebar : Config -> Html msg
+sidebar : Config msg -> Html msg
 sidebar config =
     Html.aside [ Attr.class "sidebar" ]
         (workspaceSwitcher config
@@ -382,10 +393,23 @@ sidebar config =
         )
 
 
-workspaceSwitcher : Config -> Html msg
+{-| The workspace dropdown. It is a native `<details>`, but its open
+state is owned by Elm: we mirror the model onto the `open` property and
+learn about native opens/closes (summary clicks, keyboard activation)
+from the element's `toggle` event. That is what lets navigation close
+the menu — a plain `<details>` keeps its own state, so clicking a
+workspace re-rendered the page with the menu still hanging open.
+-}
+workspaceSwitcher : Config msg -> Html msg
 workspaceSwitcher config =
     Html.node "details"
-        [ Attr.class "workspace-switcher" ]
+        [ Attr.class switcherClass
+        , Attr.property "open" (Encode.bool config.switcherOpen)
+        , Events.on "toggle"
+            (Decode.map config.onSwitcherToggle
+                (Decode.at [ "target", "open" ] Decode.bool)
+            )
+        ]
         [ Html.node "summary"
             []
             [ Html.div [ Attr.class "sidebar-header" ]
@@ -411,6 +435,14 @@ workspaceSwitcher config =
         ]
 
 
+{-| The class the switcher's root carries; Main uses it to tell
+clicks inside the open menu from clicks outside it.
+-}
+switcherClass : String
+switcherClass =
+    "workspace-switcher"
+
+
 switcherItem : String -> Workspace -> Html msg
 switcherItem currentSlug w =
     let
@@ -431,7 +463,7 @@ switcherItem currentSlug w =
         )
 
 
-viewSections : Config -> List (Html msg)
+viewSections : Config msg -> List (Html msg)
 viewSections config =
     case config.sections of
         Nothing ->
@@ -466,7 +498,7 @@ viewSections config =
                 ]
 
 
-viewItemLink : Config -> ViewItem -> Html msg
+viewItemLink : Config msg -> ViewItem -> Html msg
 viewItemLink config item =
     Html.a
         (List.concat

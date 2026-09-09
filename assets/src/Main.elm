@@ -9,6 +9,7 @@ import Api
 import Api.Docs
 import Api.Workspaces
 import Browser exposing (Document)
+import Browser.Events
 import Browser.Navigation as Nav
 import Html exposing (Html)
 import Json.Decode as Decode
@@ -36,7 +37,7 @@ main =
         { init = init
         , view = view
         , update = update
-        , subscriptions = \_ -> Sub.none
+        , subscriptions = subscriptions
         , onUrlRequest = LinkClicked
         , onUrlChange = UrlChanged
         }
@@ -60,6 +61,7 @@ type alias ChromeModel =
     { slug : String
     , workspaces : List Api.Workspaces.Workspace
     , sections : Maybe Chrome.Sections
+    , switcherOpen : Bool
     }
 
 
@@ -96,6 +98,8 @@ type Msg
     | SettingsMsg Page.Settings.Msg
     | GotChromeWorkspaces (Result Api.Error (List Api.Workspaces.Workspace))
     | GotChromeViews String (Result Api.Error (List Api.Docs.ViewDef))
+    | SwitcherToggled Bool
+    | DismissSwitcher
 
 
 init : Decode.Value -> Url -> Nav.Key -> ( Model, Cmd Msg )
@@ -219,7 +223,9 @@ syncChrome route model =
             case model.chrome of
                 Just chrome ->
                     if chrome.slug == slug then
-                        ( Just chrome, Cmd.none )
+                        -- Same workspace: keep the fetched data, but the
+                        -- switcher never survives a navigation.
+                        ( Just { chrome | switcherOpen = False }, Cmd.none )
 
                     else
                         enterWorkspace model.session slug
@@ -230,7 +236,7 @@ syncChrome route model =
 
 enterWorkspace : Session -> String -> ( Maybe ChromeModel, Cmd Msg )
 enterWorkspace session slug =
-    ( Just { slug = slug, workspaces = [], sections = Nothing }
+    ( Just { slug = slug, workspaces = [], sections = Nothing, switcherOpen = False }
     , Cmd.batch
         [ Api.Workspaces.fetch session GotChromeWorkspaces
         , Api.Docs.fetchViews session slug (GotChromeViews slug)
@@ -250,17 +256,19 @@ update msg model =
     in
     case ( msg, model.page ) of
         ( LinkClicked (Browser.Internal url), _ ) ->
+            -- Any link click dismisses the switcher, including one to
+            -- the URL we are already on (which yields no UrlChanged).
             case Route.fromUrl url of
                 Just _ ->
-                    ( model, Nav.pushUrl model.key (Url.toString url) )
+                    ( setSwitcherOpen False model, Nav.pushUrl model.key (Url.toString url) )
 
                 Nothing ->
                     -- Same-origin but not an SPA route (e.g. /logout):
                     -- hand it to the server like the LV's plain <a>.
-                    ( model, Nav.load (Url.toString url) )
+                    ( setSwitcherOpen False model, Nav.load (Url.toString url) )
 
         ( LinkClicked (Browser.External href), _ ) ->
-            ( model, Nav.load href )
+            ( setSwitcherOpen False model, Nav.load href )
 
         ( UrlChanged url, _ ) ->
             routeTo url model
@@ -331,8 +339,100 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
+        ( SwitcherToggled open, _ ) ->
+            -- The <details> element opened/closed itself (summary click,
+            -- Enter/Space); mirror that back into the model so the two
+            -- stay in step.
+            ( setSwitcherOpen open model, Cmd.none )
+
+        ( DismissSwitcher, _ ) ->
+            ( setSwitcherOpen False model, Cmd.none )
+
         _ ->
             ( model, Cmd.none )
+
+
+setSwitcherOpen : Bool -> Model -> Model
+setSwitcherOpen open model =
+    case model.chrome of
+        Just chrome ->
+            if chrome.switcherOpen == open then
+                model
+
+            else
+                { model | chrome = Just { chrome | switcherOpen = open } }
+
+        Nothing ->
+            model
+
+
+{-| While the switcher is open, a click anywhere outside it or an Esc
+press closes it — what every other dropdown does, and what a bare
+`<details>` does not do on its own.
+-}
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    if Maybe.map .switcherOpen model.chrome == Just True then
+        Sub.batch
+            [ Browser.Events.onClick (outsideSwitcher DismissSwitcher)
+            , Browser.Events.onKeyDown
+                (Decode.field "key" Decode.string
+                    |> Decode.andThen
+                        (\key ->
+                            if key == "Escape" then
+                                Decode.succeed DismissSwitcher
+
+                            else
+                                Decode.fail "ignored key"
+                        )
+                )
+            ]
+
+    else
+        Sub.none
+
+
+{-| Succeeds with `msg` only when the event target is outside the
+switcher, by walking up `parentNode` looking for its class. `className`
+is decoded leniently because on SVG elements it is not a string.
+-}
+outsideSwitcher : Msg -> Decode.Decoder Msg
+outsideSwitcher msg =
+    Decode.field "target" (inSwitcher ())
+        |> Decode.andThen
+            (\inside ->
+                if inside then
+                    Decode.fail "click inside the switcher"
+
+                else
+                    Decode.succeed msg
+            )
+
+
+{-| True when this DOM node, or any ancestor of it, is the switcher.
+-}
+inSwitcher : () -> Decode.Decoder Bool
+inSwitcher () =
+    let
+        isSwitcher =
+            Decode.oneOf
+                [ Decode.field "className" Decode.string
+                    |> Decode.map (\c -> List.member Chrome.switcherClass (String.words c))
+                , Decode.succeed False
+                ]
+    in
+    Decode.oneOf
+        [ isSwitcher
+            |> Decode.andThen
+                (\hit ->
+                    if hit then
+                        Decode.succeed True
+
+                    else
+                        Decode.field "parentNode" (Decode.lazy inSwitcher)
+                )
+        , Decode.succeed False
+        ]
 
 
 view : Model -> Document Msg
@@ -370,7 +470,7 @@ workspaceName model =
             )
 
 
-chromeConfig : Model -> ChromeModel -> Chrome.Config
+chromeConfig : Model -> ChromeModel -> Chrome.Config Msg
 chromeConfig model chrome =
     { slug = chrome.slug
     , workspaceName = Maybe.withDefault chrome.slug (workspaceName model)
@@ -381,6 +481,8 @@ chromeConfig model chrome =
             |> Maybe.map Chrome.navActiveFor
             |> Maybe.withDefault Chrome.NavNone
     , user = model.session.user
+    , switcherOpen = chrome.switcherOpen
+    , onSwitcherToggle = SwitcherToggled
     }
 
 
