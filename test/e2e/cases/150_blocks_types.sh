@@ -41,7 +41,7 @@ _b_list_ordered() {
 test_block_heading_l1_round_trips() {
   local ws; ws="$(mk_workspace ws-b-h1)"
   local blocks; blocks="[$(_b_heading_l1)]"
-  run_cli -w "$ws" create-doc --title "H1" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "H1" --blocks "$blocks"
   expect_ok "create heading L1 doc"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -53,7 +53,7 @@ test_block_heading_l1_round_trips() {
 test_block_heading_l3_round_trips() {
   local ws; ws="$(mk_workspace ws-b-h3)"
   local blocks; blocks="[$(_b_heading_l3)]"
-  run_cli -w "$ws" create-doc --title "H3" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "H3" --blocks "$blocks"
   expect_ok "create heading L3 doc"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -63,7 +63,7 @@ test_block_heading_l3_round_trips() {
 test_block_paragraph_marks_round_trip() {
   local ws; ws="$(mk_workspace ws-b-marks)"
   local blocks; blocks="[$(_b_paragraph_marked)]"
-  run_cli -w "$ws" create-doc --title "Marks" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Marks" --blocks "$blocks"
   expect_ok "create marked paragraph"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -79,7 +79,7 @@ test_block_paragraph_marks_round_trip() {
 test_block_paragraph_link_round_trips() {
   local ws; ws="$(mk_workspace ws-b-link)"
   local blocks; blocks="[$(_b_paragraph_link)]"
-  run_cli -w "$ws" create-doc --title "Link" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Link" --blocks "$blocks"
   expect_ok "create link paragraph"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -89,7 +89,7 @@ test_block_paragraph_link_round_trips() {
 test_block_code_with_language() {
   local ws; ws="$(mk_workspace ws-b-code)"
   local blocks; blocks="[$(_b_code_with_lang)]"
-  run_cli -w "$ws" create-doc --title "Code" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Code" --blocks "$blocks"
   expect_ok "create code-with-lang doc"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -100,7 +100,7 @@ test_block_code_with_language() {
 test_block_code_without_language() {
   local ws; ws="$(mk_workspace ws-b-cnl)"
   local blocks; blocks="[$(_b_code_no_lang)]"
-  run_cli -w "$ws" create-doc --title "Plain code" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Plain code" --blocks "$blocks"
   expect_ok "create code-no-lang doc"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -110,7 +110,7 @@ test_block_code_without_language() {
 test_block_list_unordered() {
   local ws; ws="$(mk_workspace ws-b-lu)"
   local blocks; blocks="[$(_b_list_unordered)]"
-  run_cli -w "$ws" create-doc --title "UL" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "UL" --blocks "$blocks"
   expect_ok "create unordered list doc"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -121,7 +121,7 @@ test_block_list_unordered() {
 test_block_list_ordered() {
   local ws; ws="$(mk_workspace ws-b-lo)"
   local blocks; blocks="[$(_b_list_ordered)]"
-  run_cli -w "$ws" create-doc --title "OL" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "OL" --blocks "$blocks"
   expect_ok "create ordered list doc"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -131,7 +131,7 @@ test_block_list_ordered() {
 test_block_mixed_types_in_one_doc() {
   local ws; ws="$(mk_workspace ws-b-mix)"
   local blocks; blocks="[$(_b_heading_l1),$(_b_paragraph),$(_b_code_with_lang),$(_b_list_unordered)]"
-  run_cli -w "$ws" create-doc --title "Mixed" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Mixed" --blocks "$blocks"
   expect_ok "create mixed-types doc"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -145,21 +145,21 @@ test_block_mixed_types_in_one_doc() {
 test_block_unknown_type_rejected() {
   local ws; ws="$(mk_workspace ws-b-bad)"
   local blocks; blocks='[{"type":"frog","content":[{"text":"ribbit"}]}]'
-  run_cli -w "$ws" create-doc --title "Frog" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Frog" --blocks "$blocks"
   expect_exit 2 "unknown block type → validation_failed"
 }
 
 test_block_invalid_heading_level_rejected() {
   local ws; ws="$(mk_workspace ws-b-bh)"
   local blocks; blocks='[{"type":"heading","level":42,"text":"way too deep"}]'
-  run_cli -w "$ws" create-doc --title "Deep" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Deep" --blocks "$blocks"
   expect_exit 2 "heading level out of range → validation_failed"
 }
 
 test_block_ids_minted_when_absent() {
   local ws; ws="$(mk_workspace ws-b-ids)"
   local blocks; blocks="[$(_b_paragraph)]"
-  run_cli -w "$ws" create-doc --title "Mint" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Mint" --blocks "$blocks"
   expect_ok "create without ids"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -169,7 +169,7 @@ test_block_ids_minted_when_absent() {
 test_block_ids_respected_when_provided() {
   local ws; ws="$(mk_workspace ws-b-myid)"
   local blocks; blocks='[{"type":"paragraph","id":"b_my_chosen_id_here_22","content":[{"text":"x"}]}]'
-  run_cli -w "$ws" create-doc --title "MyID" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "MyID" --blocks "$blocks"
   expect_ok "create with explicit valid id"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"

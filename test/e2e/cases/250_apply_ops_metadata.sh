@@ -43,7 +43,7 @@ test_apply_ops_updates_tags() {
 test_pin_slot_survives_apply_ops() {
   local ws; ws="$(mk_workspace ws-am-pin)"
   local blocks; blocks="[$(block_paragraph 'm')]"
-  run_cli -w "$ws" create-doc --title "M" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "M" --blocks "$blocks"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" pin-doc "$slug" --slot 3
   expect_ok "pinned to slot 3"
@@ -59,7 +59,7 @@ test_apply_ops_no_metadata_preserves_current_values() {
   local ws; ws="$(mk_workspace ws-am-pres)"
   mk_tag "$ws" "stable" >/dev/null
   local blocks; blocks="[$(block_paragraph 'x')]"
-  run_cli -w "$ws" create-doc --title "Persistent" --summary "stays" --tag stable --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Persistent" --summary "stays" --tag stable --blocks "$blocks"
   expect_ok "create"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   local ops; ops="[$(jq -nc --argjson b "$(block_paragraph 'y')" '{op:"append_block",block:$b}')]"

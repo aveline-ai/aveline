@@ -11,7 +11,7 @@ test_doc_with_thirty_blocks() {
     parts+="$(block_paragraph "block #$i")"
   done
   local blocks="[$parts]"
-  run_cli -w "$ws" create-doc --title "Big" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Big" --blocks "$blocks"
   expect_ok "create 30-block doc"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"

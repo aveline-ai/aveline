@@ -103,7 +103,7 @@ test_delete_tag_leaves_docs_tagless() {
   run_cli -w "$ws" create-tag --name "lone" --description "lone tag with one doc"
   expect_ok "tag created"
   local blocks; blocks="[$(block_paragraph 'hi')]"
-  run_cli -w "$ws" create-doc --title "OneTag" --tag lone --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "OneTag" --tag lone --blocks "$blocks"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" delete-tag "lone"
   expect_ok "deleting a doc's only tag succeeds"
@@ -136,7 +136,7 @@ test_tag_restore_brings_attachments_back() {
   local ws; ws="$(mk_workspace ws-t-restore)"
   run_cli -w "$ws" create-tag --name "lone" --description "Restorable tag."
   local blocks; blocks="[$(block_paragraph 'hi')]"
-  run_cli -w "$ws" create-doc --title "Tagged" --tag lone --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Tagged" --tag lone --blocks "$blocks"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
 
   run_cli -w "$ws" delete-tag "lone"

@@ -24,11 +24,11 @@ test_scope_conflict_rejected_on_doc_write() {
   mk_board_tags "$ws"
   local blocks; blocks="[$(block_paragraph 'x')]"
 
-  run_cli -w "$ws" create-doc --title "Contradiction" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Contradiction" \
     --tag feature-x --tag "status:todo" --tag "status:done" --blocks "$blocks"
   expect_err "tag_scope_conflict" 2 "two status tags → tag_scope_conflict"
 
-  run_cli -w "$ws" create-doc --title "Fine" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Fine" \
     --tag feature-x --tag "status:todo" --blocks "$blocks"
   expect_ok "one tag per scope is fine"
 }
@@ -37,7 +37,7 @@ test_moving_a_card_is_a_retag() {
   local ws; ws="$(mk_workspace st-move)"
   mk_board_tags "$ws"
   local blocks; blocks="[$(block_paragraph 'card')]"
-  run_cli -w "$ws" create-doc --title "Card" --tag feature-x --tag "status:todo" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Card" --tag feature-x --tag "status:todo" --blocks "$blocks"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
 
   run_cli -w "$ws" apply-ops "$slug" --ops "[]" --intent "moved to doing" \

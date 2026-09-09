@@ -46,3 +46,10 @@ bruno/
 pgdata/
 /priv/duckdb/
 design-mocks/
+
+# Gleam build artefacts
+build/
+assets/elm-stuff/
+node_modules/
+test/browser/screenshots/
+test/browser/**/.state.json

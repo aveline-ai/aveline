@@ -4,48 +4,57 @@ defmodule AvelineWeb.Api.KeyController do
   rotate their credentials. The plaintext appears exactly once, in the
   create response; only its hash persists. Revoking the last active key
   is refused (`last_key`) so an account is never stranded keyless.
+
+  All decisions live in src/aveline/handlers/api_keys.gleam; this module
+  only coerces params and renders the typed results.
   """
   use AvelineWeb, :controller
 
-  alias Aveline.Tokens
+  import Aveline.Gleam.Interop, only: [unopt: 1]
+
+  alias Aveline.Gleam.CtxBuilder
   alias AvelineWeb.Api.Envelope
+  alias AvelineWeb.Api.GleamAdapter
 
   action_fallback AvelineWeb.Api.FallbackController
 
   def index(conn, _params) do
-    user = conn.assigns.current_user
-    keys = Tokens.list_active_for_user(user.id)
+    keys = :aveline@handlers@api_keys.index(CtxBuilder.build(), actor(conn))
     Envelope.ok(conn, %{keys: Enum.map(keys, &key_map/1)})
   end
 
   def create(conn, params) do
-    user = conn.assigns.current_user
-    name = (params["name"] || "") |> to_string() |> String.trim()
+    name = to_string(params["name"] || "")
 
-    with :ok <- validate_name(name),
-         {:ok, token, plaintext} <- Tokens.mint(user.id, name) do
-      Envelope.ok(conn, key_map(token) |> Map.put(:key, plaintext))
+    case :aveline@handlers@api_keys.create(CtxBuilder.build(), actor(conn), name) do
+      {:ok, {:minted_key, key, plaintext}} ->
+        Envelope.ok(conn, key |> key_map() |> Map.put(:key, plaintext))
+
+      {:error, err} ->
+        GleamAdapter.error(err)
     end
   end
 
   def delete(conn, %{"id" => id}) do
-    user = conn.assigns.current_user
-
-    with {:ok, _} <- Tokens.revoke_guarded(user.id, id) do
-      Envelope.ok(conn, %{revoked: id})
+    case :aveline@handlers@api_keys.delete(CtxBuilder.build(), actor(conn), id) do
+      {:ok, revoked} -> Envelope.ok(conn, %{revoked: revoked})
+      {:error, err} -> GleamAdapter.error(err)
     end
   end
 
-  defp validate_name(""), do: {:error, "name is required — e.g. \"laptop\" or \"ci\""}
-  defp validate_name(_), do: :ok
+  # /api/keys is not workspace-scoped, so the handler takes the bare Actor.
+  defp actor(conn) do
+    user = conn.assigns.current_user
+    {:actor, user.id, user.username}
+  end
 
-  defp key_map(t) do
+  defp key_map({:api_key, id, name, masked, created_at, last_used_at}) do
     %{
-      id: t.id,
-      name: t.name,
-      masked: Tokens.masked(t),
-      created_at: DateTime.to_iso8601(t.inserted_at),
-      last_used_at: t.last_used_at && DateTime.to_iso8601(t.last_used_at)
+      id: id,
+      name: name,
+      masked: masked,
+      created_at: created_at,
+      last_used_at: unopt(last_used_at)
     }
   end
 end

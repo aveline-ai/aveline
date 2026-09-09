@@ -62,6 +62,6 @@ test_delete_tag_succeeds_after_doc_retagged() {
 test_create_doc_with_unknown_tag_fails() {
   local ws; ws="$(mk_workspace ws-tc-unk)"
   local blocks; blocks="[$(block_paragraph 'b')]"
-  run_cli -w "$ws" create-doc --title "X" --tag ghosttag --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "X" --tag ghosttag --blocks "$blocks"
   expect_err "unknown_tags" 2 "tag must exist first"
 }

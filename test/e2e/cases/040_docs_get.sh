@@ -45,7 +45,7 @@ test_get_doc_includes_tags() {
   local ws; ws="$(mk_workspace ws-meta)"
   mk_tag "$ws" "meta" >/dev/null
   local blocks; blocks="[$(block_paragraph 'm')]"
-  run_cli -w "$ws" create-doc --title "Meta" --tag meta --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Meta" --tag meta --blocks "$blocks"
   expect_ok "doc created"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"

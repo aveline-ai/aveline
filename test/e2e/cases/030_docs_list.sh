@@ -26,7 +26,7 @@ test_list_docs_after_creating_three() {
 test_list_docs_shows_pin_slot() {
   local ws; ws="$(mk_workspace ws-pinned)"
   local blocks; blocks="[$(block_paragraph 'hi')]"
-  run_cli -w "$ws" create-doc --title "Pinned" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Pinned" --blocks "$blocks"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" pin-doc "$slug" --slot 2
   expect_ok "pin-doc ok"

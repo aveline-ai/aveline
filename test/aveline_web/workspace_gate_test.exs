@@ -52,9 +52,11 @@ defmodule AvelineWeb.WorkspaceGateTest do
     assert ghost =~ "You don't have access to this workspace"
   end
 
-  test "members pass through to the doc", %{conn: conn, owner: owner, ws: ws} do
+  test "members pass through to the SPA shell", %{conn: conn, owner: owner, ws: ws} do
     html = conn |> login(owner) |> get("/w/#{ws.slug}/d/secret-plan") |> html_response(200)
-    assert html =~ "The secret plan"
+    # Members get the Elm app (which fetches the doc via /papi), never the gate.
+    assert html =~ "elm-root"
+    assert html =~ ~s("username")
     refute html =~ "This doc is private"
   end
 end

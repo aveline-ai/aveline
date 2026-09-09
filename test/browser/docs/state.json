@@ -1,0 +1,42 @@
+{
+  "base": "http://localhost:4000",
+  "workspace": "browser-test-mtt12zr3",
+  "owner": {
+    "username": "bt-owner-mtt12zr3",
+    "token": "avl_SCYxbFFqt-bC_O5VOJxqQe3FH3i99Hvw",
+    "workspace": {
+      "id": "66b8e56c-63bf-4977-8b34-4b053bc5f309",
+      "name": "Browser Test mtt12zr3",
+      "slug": "browser-test-mtt12zr3"
+    }
+  },
+  "reader": {
+    "username": "bt-reader-mtt12zr3",
+    "token": "avl_ZWqPiVj9QcrjfNeOGWImnKF3SS-8Vaka",
+    "workspace": {
+      "id": "e295ef91-0128-47f6-856a-d98716a361ed",
+      "name": "Reader Space mtt12zr3",
+      "slug": "reader-space-mtt12zr3"
+    }
+  },
+  "docs": {
+    "rich": "block-gallery",
+    "target": "deploy-runbook",
+    "shared": "visibility-lab",
+    "search": "zarquon-migration-plan"
+  },
+  "comments": [
+    {
+      "id": "781c5e67-9d40-49d9-8f62-72cdf39e2041",
+      "block_id": "b_u-xhByTpjPZPv-AJJxdn1w",
+      "type": "paragraph"
+    },
+    {
+      "id": "de6459f4-eac9-4d75-a2f9-241f740c3d36",
+      "block_id": "b_WpqyVWp_FqUlf_2ZoW-zHQ",
+      "type": "code"
+    }
+  ],
+  "view": "design-only",
+  "totalDocs": 0
+}

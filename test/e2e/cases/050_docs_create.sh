@@ -4,7 +4,7 @@
 test_create_doc_minimal() {
   local ws; ws="$(mk_workspace ws-cd-min)"
   local blocks; blocks="[$(block_paragraph 'hi')]"
-  run_cli -w "$ws" create-doc --title "Minimal" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Minimal" --blocks "$blocks"
   expect_ok "minimal create-doc ok"
   expect_present ".slug" "slug echoed"
   expect_present ".doc_id" "doc_id echoed"
@@ -16,7 +16,7 @@ test_create_doc_explicit_slug() {
   local ws; ws="$(mk_workspace ws-cd-slug)"
   local slug; slug="$(us my-slug)"
   local blocks; blocks="[$(block_paragraph 'hi')]"
-  run_cli -w "$ws" create-doc --title "Explicit" --slug "$slug" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Explicit" --slug "$slug" --blocks "$blocks"
   expect_ok "explicit-slug create ok"
   expect_eq ".slug" "$slug" "echoed slug matches input"
 }
@@ -24,7 +24,7 @@ test_create_doc_explicit_slug() {
 test_create_doc_with_summary() {
   local ws; ws="$(mk_workspace ws-cd-sum)"
   local blocks; blocks="[$(block_paragraph 'hi')]"
-  run_cli -w "$ws" create-doc --title "Sum" --summary "A pithy one-liner" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Sum" --summary "A pithy one-liner" --blocks "$blocks"
   expect_ok "create with summary ok"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -36,7 +36,7 @@ test_create_doc_with_tags() {
   mk_tag "$ws" "alpha" >/dev/null
   mk_tag "$ws" "beta"  >/dev/null
   local blocks; blocks="[$(block_paragraph 'hi')]"
-  run_cli -w "$ws" create-doc --title "Tagged" --tag alpha --tag beta --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Tagged" --tag alpha --tag beta --blocks "$blocks"
   expect_ok "tagged create ok"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -50,14 +50,14 @@ test_create_doc_with_tags() {
 test_create_doc_unknown_tag() {
   local ws; ws="$(mk_workspace ws-cd-unktag)"
   local blocks; blocks="[$(block_paragraph 'hi')]"
-  run_cli -w "$ws" create-doc --title "Bad" --tag never-made --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Bad" --tag never-made --blocks "$blocks"
   expect_err "unknown_tags" 2 "tag not in workspace → unknown_tags"
 }
 
 test_pin_doc_round_trips() {
   local ws; ws="$(mk_workspace ws-cd-pin)"
   local blocks; blocks="[$(block_paragraph 'p')]"
-  run_cli -w "$ws" create-doc --title "Pinned" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Pinned" --blocks "$blocks"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" pin-doc "$slug"
   expect_ok "pin-doc (auto slot) ok"
@@ -69,16 +69,16 @@ test_create_doc_duplicate_slug() {
   local ws; ws="$(mk_workspace ws-cd-dup)"
   local slug; slug="$(us dup-doc)"
   local blocks; blocks="[$(block_paragraph 'hi')]"
-  run_cli -w "$ws" create-doc --title "First" --slug "$slug" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "First" --slug "$slug" --blocks "$blocks"
   expect_ok "first create ok"
-  run_cli -w "$ws" create-doc --title "Second" --slug "$slug" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Second" --slug "$slug" --blocks "$blocks"
   expect_err "slug_taken" 2 "duplicate slug → slug_taken"
 }
 
 test_create_doc_no_title_local_error() {
   local ws; ws="$(mk_workspace ws-cd-nt)"
   local blocks; blocks="[$(block_paragraph 'hi')]"
-  run_cli -w "$ws" create-doc --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --blocks "$blocks"
   if [[ "$LAST_EXIT" != "0" ]]; then
     pass "missing --title fails locally"
   else
@@ -88,7 +88,7 @@ test_create_doc_no_title_local_error() {
 
 test_create_doc_no_blocks_local_error() {
   local ws; ws="$(mk_workspace ws-cd-nb)"
-  run_cli -w "$ws" create-doc --title "NoBlocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "NoBlocks"
   if [[ "$LAST_EXIT" != "0" ]]; then
     pass "missing --blocks fails locally"
   else
@@ -100,7 +100,7 @@ test_create_doc_blocks_from_file() {
   local ws; ws="$(mk_workspace ws-cd-file)"
   local f; f="$(mktemp)"
   printf '[%s]' "$(block_paragraph 'from file')" > "$f"
-  run_cli -w "$ws" create-doc --title "FromFile" --blocks "$f"
+  run_cli -w "$ws" create-doc --visibility workspace --title "FromFile" --blocks "$f"
   expect_ok "create with --blocks PATH ok"
   rm -f "$f"
 }
@@ -109,7 +109,7 @@ test_create_doc_blocks_from_stdin() {
   local ws; ws="$(mk_workspace ws-cd-stdin)"
   local body; body="[$(block_paragraph 'from stdin')]"
   XDG_CONFIG_HOME="$(persona_xdg)" AVELINE_API_URL="$E2E_API_URL" \
-    "$E2E_BIN" -w "$ws" create-doc --title "FromStdin" --blocks - <<<"$body" \
+    "$E2E_BIN" -w "$ws" create-doc --visibility workspace --title "FromStdin" --blocks - <<<"$body" \
     >"$(mktemp)" 2>"$(mktemp)" && LAST_EXIT=0 || LAST_EXIT=$?
   if [[ "$LAST_EXIT" == "0" ]]; then
     pass "create with --blocks - (stdin) ok"
@@ -120,7 +120,7 @@ test_create_doc_blocks_from_stdin() {
 
 test_create_doc_invalid_blocks_json() {
   local ws; ws="$(mk_workspace ws-cd-badjson)"
-  run_cli -w "$ws" create-doc --title "Bad" --blocks "not-json-at-all"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Bad" --blocks "not-json-at-all"
   if [[ "$LAST_EXIT" != "0" ]]; then
     pass "invalid JSON in --blocks fails"
   else
@@ -132,6 +132,6 @@ test_create_doc_actor_agent_default() {
   local ws; ws="$(mk_workspace ws-cd-actor)"
   local blocks; blocks="[$(block_paragraph 'hi')]"
   # The create itself succeeds; the audit event should record actor=agent.
-  run_cli -w "$ws" create-doc --title "ByAgent" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "ByAgent" --blocks "$blocks"
   expect_ok "create with default actor ok"
 }

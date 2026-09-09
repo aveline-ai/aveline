@@ -22,7 +22,7 @@ test_doc_link_slug_resolves_to_base_doc_id() {
   run_cli -w "$ws" get-doc "$target"
   local base; base="$(jq -r '.doc.base_doc_id' <<<"$LAST_OUT_TEXT")"
 
-  run_cli -w "$ws" create-doc --title "Story $(us s)" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Story $(us s)" \
     --blocks "[$(block_doc_link "$target" "start here")]"
   expect_ok "create story with slug-form doc_link"
   local story; story="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
@@ -37,7 +37,7 @@ test_doc_link_echoes_target_metadata() {
   local ws; ws="$(mk_workspace dl-echo)"
   local target; target="$(mk_doc "$ws" "Echo Target")"
 
-  run_cli -w "$ws" create-doc --title "Story $(us s)" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Story $(us s)" \
     --blocks "[$(block_doc_link "$target" "why this stop")]"
   local story; story="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
 
@@ -50,7 +50,7 @@ test_doc_link_echoes_target_metadata() {
 
 test_doc_link_unknown_slug_rejected() {
   local ws; ws="$(mk_workspace dl-unknown)"
-  run_cli -w "$ws" create-doc --title "Bad story" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Bad story" \
     --blocks "[$(block_doc_link "ghost-$(us g)" "nope")]"
   expect_err "doc_link_target_not_found" 2 "unknown slug → doc_link_target_not_found / exit 2"
 }
@@ -63,14 +63,14 @@ test_doc_link_cross_workspace_id_rejected() {
   run_cli -w "$ws_a" get-doc "$target"
   local base; base="$(jq -r '.doc.base_doc_id' <<<"$LAST_OUT_TEXT")"
 
-  run_cli -w "$ws_b" create-doc --title "Cross story" \
+  run_cli -w "$ws_b" create-doc --visibility workspace --title "Cross story" \
     --blocks "$(jq -nc --arg id "$base" '[{type: "doc_link", doc_id: $id}]')"
   expect_err "doc_link_target_not_found" 2 "other workspace's doc_id rejected"
 }
 
 test_doc_link_non_uuid_doc_id_rejected() {
   local ws; ws="$(mk_workspace dl-baduuid)"
-  run_cli -w "$ws" create-doc --title "Bad id story" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Bad id story" \
     --blocks '[{"type": "doc_link", "doc_id": "not-a-uuid"}]'
   expect_err "validation_failed" 2 "non-UUID doc_id → validation_failed"
 }
@@ -80,7 +80,7 @@ test_doc_link_multiple_links_echo_in_order() {
   local one; one="$(mk_doc "$ws" "Stop One")"
   local two; two="$(mk_doc "$ws" "Stop Two")"
 
-  run_cli -w "$ws" create-doc --title "Ordered story $(us s)" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Ordered story $(us s)" \
     --blocks "[$(block_doc_link "$one" "first"), $(block_doc_link "$two" "second")]"
   local story; story="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
 
@@ -95,7 +95,7 @@ test_doc_link_deleted_target_becomes_stub() {
   local ws; ws="$(mk_workspace dl-deleted)"
   local target; target="$(mk_doc "$ws" "Doomed doc")"
 
-  run_cli -w "$ws" create-doc --title "Story $(us s)" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Story $(us s)" \
     --blocks "[$(block_doc_link "$target" "still points here")]"
   local story; story="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
 
@@ -118,7 +118,7 @@ test_doc_link_modify_block_reanchors_to_new_slug() {
   local one; one="$(mk_doc "$ws" "Old stop")"
   local two; two="$(mk_doc "$ws" "New stop")"
 
-  run_cli -w "$ws" create-doc --title "Story $(us s)" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Story $(us s)" \
     --blocks "[$(block_doc_link "$one" "points at old")]"
   local story; story="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
 
@@ -145,7 +145,7 @@ test_inline_link_resolves_and_echoes() {
   run_cli -w "$ws" get-doc "$target"
   local base; base="$(jq -r '.doc.base_doc_id' <<<"$LAST_OUT_TEXT")"
 
-  run_cli -w "$ws" create-doc --title "Prose $(us s)" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Prose $(us s)" \
     --blocks "[$(block_inline_mention "$target" "the target doc")]"
   expect_ok "create doc with inline mention (slug form)"
   local prose; prose="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
@@ -160,7 +160,7 @@ test_inline_link_resolves_and_echoes() {
 
 test_inline_link_unknown_slug_rejected() {
   local ws; ws="$(mk_workspace il-unknown)"
-  run_cli -w "$ws" create-doc --title "Bad prose" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Bad prose" \
     --blocks "[$(block_inline_mention "ghost-$(us g)" "nope")]"
   expect_err "doc_link_target_not_found" 2 "unknown inline slug → doc_link_target_not_found / exit 2"
 }
@@ -169,7 +169,7 @@ test_inline_link_deleted_target_flagged() {
   local ws; ws="$(mk_workspace il-deleted)"
   local target; target="$(mk_doc "$ws" "Doomed Inline")"
 
-  run_cli -w "$ws" create-doc --title "Prose $(us s)" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Prose $(us s)" \
     --blocks "[$(block_inline_mention "$target" "soon gone")]"
   local prose; prose="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
 
@@ -186,7 +186,7 @@ test_inline_link_both_href_and_doc_rejected() {
   local ws; ws="$(mk_workspace il-both)"
   local target; target="$(mk_doc "$ws" "Both Target")"
 
-  run_cli -w "$ws" create-doc --title "Bad span" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Bad span" \
     --blocks "$(jq -nc --arg doc "$target" \
       '[{type: "paragraph", content: [{text: "x", link: {doc: $doc, href: "https://example.com"}}]}]')"
   expect_err "validation_failed" 2 "href + doc on one span → validation_failed"
@@ -201,7 +201,7 @@ test_doc_link_stale_echo_stripped_on_write() {
 
   # Paste a block that carries a stale/forged target echo — the server
   # must rebuild the block from schema fields and drop it.
-  run_cli -w "$ws" create-doc --title "Story $(us s)" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Story $(us s)" \
     --blocks "$(jq -nc --arg id "$base" \
       '[{type: "doc_link", doc_id: $id, target: {title: "FORGED", deleted: false}}]')"
   expect_ok "create with forged target accepted"

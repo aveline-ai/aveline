@@ -1,28 +1,31 @@
 defmodule AvelineWeb.Api.CommentController do
   @moduledoc """
-  Comment lifecycle. Every write path calls the same `Aveline.Comments.*`
-  context functions the LiveView calls. Reads return the current-doc-
-  version snapshot (matches the LV default; time-travel is web-UI
-  only for now).
+  Comment lifecycle. All decisions live in the Gleam handler
+  (src/aveline/handlers/comments.gleam) — this module only converts
+  params to typed requests and renders results.
 
   IDs in URL paths and request bodies are always the LOGICAL
   `base_comment_id` — the stable id that survives edits + reanchors.
   """
   use AvelineWeb, :controller
 
-  alias Aveline.Comments
-  alias Aveline.Docs
+  import Aveline.Gleam.Interop, only: [opt: 1, unopt: 1]
+
+  alias Aveline.Gleam.CtxBuilder
   alias AvelineWeb.Api.Envelope
-  alias AvelineWeb.Api.Views
+  alias AvelineWeb.Api.GleamAdapter
 
   action_fallback AvelineWeb.Api.FallbackController
 
   # ===== Reads =====
 
   def index(conn, %{"doc_slug" => doc_slug}) do
-    with %_{} = item <- resolve_current(conn, doc_slug) || {:error, :not_found} do
-      messages = Comments.list_for_doc_version(item.id)
-      Envelope.ok(conn, %{comments: Enum.map(messages, &Views.comment/1)})
+    case :aveline@handlers@comments.index(CtxBuilder.build(), CtxBuilder.scope(conn), doc_slug) do
+      {:ok, comments} ->
+        Envelope.ok(conn, %{comments: Enum.map(comments, &render_comment/1)})
+
+      {:error, err} ->
+        GleamAdapter.error(err)
     end
   end
 
@@ -43,32 +46,18 @@ defmodule AvelineWeb.Api.CommentController do
   resolve / delete it without re-querying.
   """
   def create(conn, %{"doc_slug" => doc_slug} = params) do
-    user = conn.assigns.current_user
+    request =
+      {:create_request, str_opt(params["body"]), opt(params["block_id"]),
+       opt(params["parent_comment_id"]), opt(params["actor"])}
 
-    with %_{} = item <- resolve_current(conn, doc_slug) || {:error, :not_found},
-         # Reply inherits the parent's block anchor when --block-id
-         # isn't passed, so threads stay attached to their source block.
-         block_id =
-           params["block_id"] || inherit_block_id(params["parent_comment_id"]),
-         attrs = %{
-           "doc_id" => item.id,
-           "block_id" => block_id,
-           "parent_comment_id" => params["parent_comment_id"],
-           "body" => params["body"],
-           "actor_user_id" => user.id,
-           "actor_type" => params["actor"] || "agent"
-         },
-         {:ok, message} <- Comments.create_comment(attrs) do
-      Envelope.ok(conn, %{id: message.base_comment_id})
-    end
-  end
-
-  defp inherit_block_id(nil), do: nil
-
-  defp inherit_block_id(parent_base_id) when is_binary(parent_base_id) do
-    case Comments.get_current_by_base(parent_base_id) do
-      nil -> nil
-      %{block_id: bid} -> bid
+    case :aveline@handlers@comments.create(
+           CtxBuilder.build(),
+           CtxBuilder.scope(conn),
+           doc_slug,
+           request
+         ) do
+      {:ok, id} -> Envelope.ok(conn, %{id: id})
+      {:error, err} -> GleamAdapter.error(err)
     end
   end
 
@@ -80,36 +69,17 @@ defmodule AvelineWeb.Api.CommentController do
   Body: `{"body": "new text"}`.
   """
   def update(conn, %{"id" => base_id, "body" => body}) do
-    user = conn.assigns.current_user
-
-    with %_{} = current <- Comments.get_current_by_base(base_id) || {:error, :not_found},
-         true <- current.actor_user_id == user.id || {:error, :forbidden},
-         {:ok, _new_v} <- Comments.edit_comment_body(current, body, user.id) do
-      Envelope.ok(conn, %{})
-    else
-      {:error, :forbidden} -> {:error, :forbidden}
-      {:error, _} = err -> err
-    end
+    run(conn, fn ctx, scope ->
+      :aveline@handlers@comments.update(ctx, scope, base_id, str_opt(body))
+    end)
   end
 
   def delete(conn, %{"id" => base_id}) do
-    user = conn.assigns.current_user
-
-    with %_{} = msg <- Comments.get_current_by_base(base_id) || {:error, :not_found},
-         true <- msg.actor_user_id == user.id || {:error, :forbidden},
-         {:ok, _} <- Comments.soft_delete_comment(msg, user.id) do
-      Envelope.ok(conn, %{})
-    end
+    run(conn, fn ctx, scope -> :aveline@handlers@comments.delete(ctx, scope, base_id) end)
   end
 
   def undelete(conn, %{"id" => base_id}) do
-    user = conn.assigns.current_user
-
-    with %_{} = msg <- Comments.get_latest_by_base(base_id) || {:error, :not_found},
-         true <- msg.actor_user_id == user.id || {:error, :forbidden},
-         {:ok, _} <- Comments.undelete_comment(msg) do
-      Envelope.ok(conn, %{})
-    end
+    run(conn, fn ctx, scope -> :aveline@handlers@comments.undelete(ctx, scope, base_id) end)
   end
 
   @doc """
@@ -120,32 +90,65 @@ defmodule AvelineWeb.Api.CommentController do
   This endpoint is the human-equivalent: standalone resolve.
   """
   def resolve(conn, %{"id" => base_id}) do
-    user = conn.assigns.current_user
-
-    with %_{} = msg <- Comments.get_current_by_base(base_id) || {:error, :not_found},
-         {:ok, _} <- Comments.resolve_comment(msg, user.id) do
-      Envelope.ok(conn, %{})
-    end
+    run(conn, fn ctx, scope -> :aveline@handlers@comments.resolve(ctx, scope, base_id) end)
   end
 
   def unresolve(conn, %{"id" => base_id}) do
-    with %_{} = msg <- Comments.get_current_by_base(base_id) || {:error, :not_found},
-         {:ok, _} <- Comments.unresolve_comment(msg) do
-      Envelope.ok(conn, %{})
-    end
+    run(conn, fn ctx, scope -> :aveline@handlers@comments.unresolve(ctx, scope, base_id) end)
   end
 
   # ===== Helpers =====
 
-  # Access-gated: commenting rides read access (viewer shares can
-  # comment); an unreadable doc resolves to nil = not_found.
-  defp resolve_current(conn, slug) do
-    ws = conn.assigns.current_workspace
-    user = conn.assigns.current_user
-
-    case Docs.get_current_by_slug(ws.id, slug) do
-      nil -> nil
-      item -> if Docs.member_can_read?(item, user.id), do: item, else: nil
+  defp run(conn, handler) do
+    case handler.(CtxBuilder.build(), CtxBuilder.scope(conn)) do
+      {:ok, nil} -> Envelope.ok(conn, %{})
+      {:error, err} -> GleamAdapter.error(err)
     end
+  end
+
+  # Body must be a string; anything else fails validation in the
+  # handler, same 422 the changeset cast used to produce.
+  defp str_opt(value) when is_binary(value), do: {:some, value}
+  defp str_opt(_), do: :none
+
+  # Renders a Gleam CommentView into the exact legacy Views.comment map.
+  defp render_comment(
+         {:comment_view, id, version_id, version_number, doc_id, block_id, parent_comment_id,
+          body, actor_type, actor_user, resolved_at, resolved_by, resolved_in_version, edited_at,
+          deleted_at, deleted_by, created_at}
+       ) do
+    %{
+      # Stable LOGICAL id — what every other API call references.
+      "id" => id,
+      # Specific row id of THIS version. Mostly internal.
+      "version_id" => version_id,
+      "version_number" => version_number,
+      "doc_id" => doc_id,
+      "block_id" => unopt(block_id),
+      "parent_comment_id" => unopt(parent_comment_id),
+      "body" => body,
+      "actor" => %{
+        "type" => actor_type,
+        "user" => render_user(actor_user)
+      },
+      "resolved_at" => unopt(resolved_at),
+      "resolved_by" => render_user(resolved_by),
+      "resolved_in_version" => unopt(resolved_in_version),
+      "edited_at" => unopt(edited_at),
+      "deleted_at" => unopt(deleted_at),
+      "deleted_by" => render_user(deleted_by),
+      "created_at" => created_at
+    }
+  end
+
+  defp render_user(:none), do: nil
+
+  defp render_user({:some, {:user_ref, id, username, display_name, email}}) do
+    %{
+      "id" => id,
+      "username" => username,
+      "display_name" => unopt(display_name),
+      "email" => unopt(email)
+    }
   end
 end

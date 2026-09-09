@@ -71,7 +71,7 @@ test_chart_block_runs_query_on_read() {
   mk_query "$ws" numbers selfdb "select generate_series(1, 3) as n"
   expect_ok "create-query ok"
 
-  run_cli -w "$ws" create-doc --title "Dash $(us d)" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Dash $(us d)" \
     --blocks "[$(block_chart numbers '{"type": "table"}')]"
   expect_ok "create doc with chart block"
   local dash; dash="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
@@ -100,7 +100,7 @@ test_chart_block_runs_query_on_read() {
 
 test_chart_unknown_query_rejected() {
   local ws; ws="$(mk_workspace ds-ghost)"
-  run_cli -w "$ws" create-doc --title "Bad dash" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Bad dash" \
     --blocks "[$(block_chart ghost '{"type": "table"}')]"
   expect_err "query_not_found" 2 "unknown query_ref → query_not_found"
 }
@@ -110,7 +110,7 @@ test_edit_rules() {
   mk_source "$ws" selfdb
   mk_query "$ws" one selfdb "select 1 as one"
 
-  run_cli -w "$ws" create-doc --title "Dash $(us e)" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Dash $(us e)" \
     --blocks "[$(block_chart one '{"type": "table"}')]"
   local dash; dash="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
 
@@ -158,7 +158,7 @@ test_data_source_delete_destroys_password() {
   mk_source "$ws" selfdb
   mk_query "$ws" one selfdb "select 1 as one"
 
-  run_cli -w "$ws" create-doc --title "Dash $(us r)" \
+  run_cli -w "$ws" create-doc --visibility workspace --title "Dash $(us r)" \
     --blocks "[$(block_chart one '{"type": "table"}')]"
   local dash; dash="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
 

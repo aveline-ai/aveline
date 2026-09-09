@@ -11,7 +11,7 @@ _doc_with_comment() {
   local ws; ws="$(mk_workspace "$label")"
   local blocks; blocks="[$(block_paragraph 'commented'),$(block_paragraph 'untouched')]"
   XDG_CONFIG_HOME="$(persona_xdg)" AVELINE_API_URL="$E2E_API_URL" \
-    "$E2E_BIN" -w "$ws" create-doc --title "DispDoc" --blocks "$blocks" \
+    "$E2E_BIN" -w "$ws" create-doc --visibility workspace --title "DispDoc" --blocks "$blocks" \
     >"$LAST_OUT" 2>/dev/null || return 1
   local slug; slug="$(jq -r '.slug' <"$LAST_OUT")"
   XDG_CONFIG_HOME="$(persona_xdg)" AVELINE_API_URL="$E2E_API_URL" \
@@ -88,7 +88,7 @@ test_disposition_mixed_in_single_apply_ops() {
   # in the same apply-ops.
   local ws; ws="$(mk_workspace ws-d-mix)"
   local blocks; blocks="[$(block_paragraph 'a'),$(block_paragraph 'b'),$(block_paragraph 'c')]"
-  run_cli -w "$ws" create-doc --title "Mix" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Mix" --blocks "$blocks"
   expect_ok "create 3-block doc"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"

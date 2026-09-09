@@ -22,9 +22,19 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
 FROM ${BUILDER_IMAGE} as builder
 
-# install build dependencies
+# install build dependencies (Node.js for the Elm/esbuild asset build)
 RUN apt-get update -y && apt-get install -y build-essential git curl \
+  && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+  && apt-get install -y nodejs \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
+
+# install the Gleam compiler (mix compile runs it via mix_gleam)
+ARG GLEAM_VERSION=1.18.1
+RUN curl -Lo gleam.tar.gz "https://github.com/gleam-lang/gleam/releases/download/v${GLEAM_VERSION}/gleam-v${GLEAM_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+  && tar -xzf gleam.tar.gz \
+  && mv gleam /usr/local/bin/gleam \
+  && rm gleam.tar.gz \
+  && chmod +x /usr/local/bin/gleam
 
 # prepare build dir
 WORKDIR /app
@@ -50,6 +60,10 @@ RUN mix archive.install github hexpm/hex branch latest --force && \
   mix local.rebar rebar3 /tmp/rebar3 --force && \
   rm /tmp/rebar3
 
+# mix_gleam archive (the :gleam mix compiler) — fetched from repo.hex.pm,
+# which unlike builds.hex.pm passes Erlang's cert validation.
+RUN mix archive.install hex mix_gleam 0.6.2 --force
+
 # set build ENV
 ENV MIX_ENV="prod"
 
@@ -60,10 +74,15 @@ ARG SESSION_COOKIE_SECURE="true"
 ENV SESSION_COOKIE_DOMAIN=$SESSION_COOKIE_DOMAIN
 ENV SESSION_COOKIE_SECURE=$SESSION_COOKIE_SECURE
 
-# install mix dependencies
-COPY mix.exs mix.lock ./
+# install mix dependencies (the deps.get alias also runs gleam.deps.get,
+# which needs gleam.toml + manifest.toml)
+COPY mix.exs mix.lock gleam.toml manifest.toml ./
 RUN mix deps.get --only $MIX_ENV
 RUN mkdir config
+
+# npm dependencies (elm, esbuild) for the asset build
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
 # copy compile-time config files before we compile dependencies
 # to ensure any relevant config change will trigger the dependencies
@@ -75,9 +94,12 @@ COPY priv priv
 
 COPY lib lib
 
+# Gleam source (compiled by the :gleam mix compiler during mix compile)
+COPY src src
+
 COPY assets assets
 
-# Build & digest static assets (esbuild → priv/static/assets/js/app.js, etc.)
+# Build & digest static assets (node build.js: esbuild + Elm → priv/static)
 RUN mix assets.deploy
 
 # Compile the release

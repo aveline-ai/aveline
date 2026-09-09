@@ -6,7 +6,7 @@
 # Creates a plain doc and echoes its slug.
 mk_plain() {
   local ws="$1" title="$2"
-  run_cli -w "$ws" create-doc --title "$title" --blocks "[$(block_paragraph 'body')]"
+  run_cli -w "$ws" create-doc --visibility workspace --title "$title" --blocks "[$(block_paragraph 'body')]"
   jq -r '.slug' <<<"$LAST_OUT_TEXT"
 }
 

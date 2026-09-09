@@ -1,45 +1,38 @@
 defmodule AvelineWeb.Api.TeamController do
   @moduledoc """
   Workspace member management (list / add / remove) plus the invite
-  link. Shares the same `Aveline.Workspaces.*` functions the TeamLive
-  uses; same constraints apply (can't self-remove, can't add a user
-  twice).
+  link. All decision logic lives in the Gleam handler
+  (src/aveline/handlers/team.gleam); this module is the thin
+  params -> handler -> envelope adapter. Same constraints as before
+  (can't self-remove, can't add a user twice).
   """
   use AvelineWeb, :controller
 
-  alias Aveline.Workspaces
+  import Aveline.Gleam.Interop, only: [unopt: 1]
+
+  alias Aveline.Gleam.CtxBuilder
   alias AvelineWeb.Api.Envelope
-  alias AvelineWeb.Api.Views
+  alias AvelineWeb.Api.GleamAdapter
 
   action_fallback AvelineWeb.Api.FallbackController
 
   def index(conn, _params) do
-    ws = conn.assigns.current_workspace
-    members = Workspaces.list_members(ws.id)
-    Envelope.ok(conn, %{members: Enum.map(members, &Views.member/1)})
+    members = :aveline@handlers@team.list(CtxBuilder.build(), CtxBuilder.scope(conn))
+    Envelope.ok(conn, %{members: Enum.map(members, &member_json/1)})
   end
 
   @doc """
   Add a user by username. Body: `{"username": "..."}`.
   """
-  def add(conn, %{"username" => username}) do
-    ws = conn.assigns.current_workspace
-    user = conn.assigns.current_user
-
-    case Workspaces.add_member_by_username(ws.id, username, user.id) do
-      {:ok, _membership, _user} ->
-        Envelope.ok(conn, %{})
-
-      {:error, :user_not_found} ->
-        {:error, :not_found}
-
-      {:error, :already_member} ->
-        {:error, :already_member}
-
-      err ->
-        err
+  def add(conn, %{"username" => username}) when is_binary(username) do
+    case :aveline@handlers@team.add(CtxBuilder.build(), CtxBuilder.scope(conn), username) do
+      {:ok, nil} -> Envelope.ok(conn, %{})
+      {:error, err} -> GleamAdapter.error(err)
     end
   end
+
+  # Non-binary username — same :user_not_found -> 404 as before.
+  def add(_conn, %{"username" => _}), do: {:error, :not_found}
 
   @doc """
   Remove a member. Accepts either a user id (UUID) or a username at the
@@ -48,36 +41,13 @@ defmodule AvelineWeb.Api.TeamController do
   the UUID. If a non-UUID string is passed, we resolve it as a username.
   """
   def remove(conn, %{"user_id" => user_id_or_username}) do
-    ws = conn.assigns.current_workspace
-    actor = conn.assigns.current_user
-
-    with {:ok, target_id} <- resolve_user_ref(user_id_or_username) do
-      cond do
-        target_id == actor.id ->
-          {:error, :self_remove}
-
-        true ->
-          case Workspaces.remove_member(ws.id, target_id, actor.id) do
-            {:ok, _} -> Envelope.ok(conn, %{})
-            {:error, :not_found} -> {:error, :not_member}
-            {:error, :not_member} -> {:error, :not_member}
-            err -> err
-          end
-      end
-    end
-  end
-
-  # Distinguish UUID (use as-is) from username (look up).
-  defp resolve_user_ref(ref) when is_binary(ref) do
-    case Ecto.UUID.cast(ref) do
-      {:ok, uuid} ->
-        {:ok, uuid}
-
-      :error ->
-        case Aveline.Accounts.get_user_by_username(ref) do
-          nil -> {:error, :not_member}
-          user -> {:ok, user.id}
-        end
+    case :aveline@handlers@team.remove(
+           CtxBuilder.build(),
+           CtxBuilder.scope(conn),
+           user_id_or_username
+         ) do
+      {:ok, nil} -> Envelope.ok(conn, %{})
+      {:error, err} -> GleamAdapter.error(err)
     end
   end
 
@@ -86,33 +56,27 @@ defmodule AvelineWeb.Api.TeamController do
   Body: `{}`.
   """
   def invite(conn, _params) do
-    ws = conn.assigns.current_workspace
-    user = conn.assigns.current_user
-
-    with {:ok, invite} <- Workspaces.ensure_invite(ws.id, user.id) do
-      Envelope.ok(conn, %{
-        code: invite.code,
-        url: invite_url(conn, invite.code)
-      })
+    case :aveline@handlers@team.invite(CtxBuilder.build(), CtxBuilder.scope(conn)) do
+      {:ok, {:invite_response, code, url}} -> Envelope.ok(conn, %{code: code, url: url})
+      {:error, err} -> GleamAdapter.error(err)
     end
   end
 
   def revoke_invite(conn, _params) do
-    ws = conn.assigns.current_workspace
-    user = conn.assigns.current_user
-
-    case Workspaces.get_active_invite_for_workspace(ws.id) do
-      nil ->
-        Envelope.ok(conn, %{})
-
-      invite ->
-        with {:ok, _} <- Workspaces.revoke_invite(invite, user.id) do
-          Envelope.ok(conn, %{})
-        end
+    case :aveline@handlers@team.revoke_invite(CtxBuilder.build(), CtxBuilder.scope(conn)) do
+      {:ok, nil} -> Envelope.ok(conn, %{})
+      {:error, err} -> GleamAdapter.error(err)
     end
   end
 
-  defp invite_url(_conn, code) do
-    AvelineWeb.Endpoint.url() <> "/invite/" <> code
+  defp member_json({:member, {:team_user, id, username, display_name, email}, role, joined_at}) do
+    %{
+      "id" => id,
+      "username" => username,
+      "display_name" => unopt(display_name),
+      "email" => unopt(email),
+      "role" => role,
+      "joined_at" => joined_at
+    }
   end
 end

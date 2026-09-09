@@ -9,12 +9,12 @@ test_blocks_inline_vs_file_produce_equal_docs() {
   local ws; ws="$(mk_workspace ws-i-bf)"
   local blocks; blocks="[$(block_paragraph 'same body')]"
   # Inline
-  run_cli -w "$ws" create-doc --title "Inline" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Inline" --blocks "$blocks"
   expect_ok "inline create ok"
   local slug_inline; slug_inline="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   # File
   local f; f="$(mktemp)"; printf '%s' "$blocks" > "$f"
-  run_cli -w "$ws" create-doc --title "FromFile" --blocks "$f"
+  run_cli -w "$ws" create-doc --visibility workspace --title "FromFile" --blocks "$f"
   expect_ok "file create ok"
   local slug_file; slug_file="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   rm -f "$f"
@@ -35,7 +35,7 @@ test_blocks_stdin_produces_same_doc() {
   local blocks; blocks="[$(block_paragraph 'piped')]"
   LAST_OUT="$(mktemp)"; LAST_ERR="$(mktemp)"
   XDG_CONFIG_HOME="$(persona_xdg)" AVELINE_API_URL="$E2E_API_URL" \
-    "$E2E_BIN" -w "$ws" create-doc --title "Piped" --blocks - <<<"$blocks" \
+    "$E2E_BIN" -w "$ws" create-doc --visibility workspace --title "Piped" --blocks - <<<"$blocks" \
     >"$LAST_OUT" 2>"$LAST_ERR"
   LAST_EXIT=$?
   LAST_OUT_TEXT="$(cat "$LAST_OUT")"; LAST_ERR_TEXT="$(cat "$LAST_ERR")"
@@ -100,7 +100,7 @@ test_comment_body_via_stdin() {
 test_dispositions_from_file() {
   local ws; ws="$(mk_workspace ws-i-dfile)"
   local blocks; blocks="[$(block_paragraph 'a')]"
-  run_cli -w "$ws" create-doc --title "D" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "D" --blocks "$blocks"
   expect_ok "create doc"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -122,7 +122,7 @@ test_dispositions_from_file() {
 test_blocks_invalid_json_in_file_fails() {
   local ws; ws="$(mk_workspace ws-i-bj)"
   local f; f="$(mktemp)"; printf "{ not json" > "$f"
-  run_cli -w "$ws" create-doc --title "Bad" --blocks "$f"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Bad" --blocks "$f"
   if [[ "$LAST_EXIT" != "0" ]]; then
     pass "invalid JSON file rejected"
   else

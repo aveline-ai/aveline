@@ -257,7 +257,9 @@ mk_doc() {
   # tests stays simple. Tests that need more blocks should append via
   # apply-ops.
   local blocks; blocks="[$(block_paragraph "$title body")]"
-  local args=(-w "$ws" create-doc --title "$title" --blocks "$blocks")
+  # Docs are born private since dfb2b44; the suite's cross-user and pin
+  # tests assume team-visible fixtures, so publish explicitly.
+  local args=(-w "$ws" create-doc --title "$title" --blocks "$blocks" --visibility workspace)
   if [[ -n "$tagcsv" ]]; then
     IFS=',' read -ra arr <<<"$tagcsv"
     for t in "${arr[@]}"; do

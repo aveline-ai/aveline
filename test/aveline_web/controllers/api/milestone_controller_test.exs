@@ -63,6 +63,33 @@ defmodule AvelineWeb.Api.MilestoneControllerTest do
     assert err["error"]["code"] == "validation_failed"
   end
 
+  test "name and description are trimmed; blank description is null", %{conn: conn, ws: ws} do
+    base = ~p"/api/workspaces/#{ws.slug}/milestones"
+
+    body =
+      conn
+      |> post(base, %{"name" => "  padded  ", "date" => "2026-07-06", "description" => "   "})
+      |> json_response(200)
+
+    assert body["milestone"]["name"] == "padded"
+    assert body["milestone"]["description"] == nil
+    assert body["milestone"]["created_at"]
+  end
+
+  test "blank or overlong name is a validation error", %{conn: conn, ws: ws} do
+    base = ~p"/api/workspaces/#{ws.slug}/milestones"
+
+    err = conn |> post(base, %{"date" => "2026-07-06"}) |> json_response(422)
+    assert err["error"]["code"] == "validation_failed"
+
+    err =
+      conn
+      |> post(base, %{"name" => String.duplicate("x", 81), "date" => "2026-07-06"})
+      |> json_response(422)
+
+    assert err["error"]["code"] == "validation_failed"
+  end
+
   test "milestones ride the doc read into chart specs", %{conn: conn, ws: ws} do
     base = ~p"/api/workspaces/#{ws.slug}/milestones"
 

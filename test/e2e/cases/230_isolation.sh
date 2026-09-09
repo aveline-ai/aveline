@@ -26,7 +26,7 @@ test_non_member_cannot_get_doc() {
 test_non_member_cannot_create_doc() {
   local ws; ws="$(mk_workspace ws-iso-create)"
   local blocks; blocks="[$(block_paragraph 'x')]"
-  AVELINE_E2E_PERSONA=bob run_cli -w "$ws" create-doc --title "Bob" --blocks "$blocks"
+  AVELINE_E2E_PERSONA=bob run_cli -w "$ws" create-doc --visibility workspace --title "Bob" --blocks "$blocks"
   if [[ "$LAST_EXIT" != "0" ]]; then
     pass "non-member can't create-doc"
   else

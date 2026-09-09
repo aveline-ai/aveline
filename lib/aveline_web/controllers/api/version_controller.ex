@@ -1,51 +1,38 @@
 defmodule AvelineWeb.Api.VersionController do
   @moduledoc """
-  Version history of a doc.
+  Version history of a doc — thin adapter over the Gleam handler
+  (src/aveline/handlers/doc_versions.gleam).
 
   GET /docs/:slug/versions               — list metadata for every version
   GET /docs/:slug/versions/:version_num  — full body of a specific version
   """
   use AvelineWeb, :controller
 
-  alias Aveline.Docs
+  alias Aveline.Gleam.CtxBuilder
   alias AvelineWeb.Api.Envelope
-  alias AvelineWeb.Api.Views
+  alias AvelineWeb.Api.GleamAdapter
 
   action_fallback AvelineWeb.Api.FallbackController
 
   def index(conn, %{"doc_slug" => slug}) do
-    ws = conn.assigns.current_workspace
+    case :aveline@handlers@doc_versions.index(CtxBuilder.build(), CtxBuilder.scope(conn), slug) do
+      {:ok, {:version_list, versions, current_version}} ->
+        Envelope.ok(conn, %{versions: versions, current_version: current_version})
 
-    case Docs.get_current_by_slug(ws.id, slug) do
-      nil ->
-        {:error, :not_found}
-
-      doc ->
-        versions = Docs.list_versions(doc.base_doc_id)
-
-        Envelope.ok(conn, %{
-          versions: Enum.map(versions, &Views.doc_version/1),
-          current_version: doc.version_number
-        })
+      {:error, err} ->
+        GleamAdapter.error(err)
     end
   end
 
-  def show(conn, %{"doc_slug" => slug, "version_number" => n_raw}) do
-    ws = conn.assigns.current_workspace
-
-    user = conn.assigns.current_user
-
-    with %_{} = current <- Docs.get_current_by_slug(ws.id, slug) || {:error, :not_found},
-         true <- Docs.member_can_read?(current, user.id) || {:error, :not_found},
-         {n, ""} <- Integer.parse(to_string(n_raw)),
-         %_{} = doc <- Docs.get_version(current.base_doc_id, n) || {:error, :not_found} do
-      # Config only, no chart execution — historical SQL is never fired
-      # at a customer database on read (agents run it via run-block).
-      doc = %{doc | blocks: Docs.enrich_blocks(doc.blocks || [], ws.id, run_charts: false, viewer: user.id)}
-      Envelope.ok(conn, %{doc: Views.doc_full(doc)})
-    else
-      :error -> {:error, :not_found}
-      err -> err
+  def show(conn, %{"doc_slug" => slug, "version_number" => raw}) do
+    case :aveline@handlers@doc_versions.show(
+           CtxBuilder.build(),
+           CtxBuilder.scope(conn),
+           slug,
+           to_string(raw)
+         ) do
+      {:ok, doc} -> Envelope.ok(conn, %{doc: doc})
+      {:error, err} -> GleamAdapter.error(err)
     end
   end
 end

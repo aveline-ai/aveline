@@ -6,43 +6,33 @@ defmodule AvelineWeb.Api.QueryController do
   analytics dialect. Charts and ad-hoc runs consume them through the
   built-in `derived` data source.
 
-  Thin adapter over `Aveline.DataSources.Queries`, like every other
-  controller — the context owns validation (name rules, reference and
-  cycle checks).
+  Thin adapter over the Gleam handlers in
+  src/aveline/handlers/queries.gleam, which own validation (name rules,
+  reference and cycle checks) with IO injected via CtxBuilder.
   """
   use AvelineWeb, :controller
 
-  alias Aveline.DataSources
-  alias Aveline.DataSources.Queries
+  alias Aveline.Gleam.CtxBuilder
+  alias Aveline.Gleam.Interop
   alias AvelineWeb.Api.Envelope
+  alias AvelineWeb.Api.GleamAdapter
 
   action_fallback AvelineWeb.Api.FallbackController
 
   def index(conn, params) do
-    ws = conn.assigns.current_workspace
+    {:ok, queries} =
+      :aveline@handlers@queries.index(
+        CtxBuilder.build(),
+        CtxBuilder.scope(conn),
+        Interop.opt(params["source"], &to_string/1)
+      )
 
-    queries =
-      case params["source"] do
-        nil ->
-          Queries.list_for_workspace(ws.id)
-
-        source_name ->
-          case DataSources.get_current_by_name(ws.id, source_name) do
-            nil -> []
-            source -> Queries.list_for_source(ws.id, source.base_data_source_id)
-          end
-      end
-
-    Envelope.ok(conn, %{queries: Enum.map(queries, &Queries.safe_map/1)})
+    Envelope.ok(conn, %{queries: Enum.map(queries, &query_map/1)})
   end
 
   def show(conn, %{"name" => name}) do
-    ws = conn.assigns.current_workspace
-
-    case Queries.get_current_by_name(ws.id, name) do
-      nil -> {:error, :not_found}
-      query -> Envelope.ok(conn, %{query: Queries.safe_map(query)})
-    end
+    :aveline@handlers@queries.show(CtxBuilder.build(), CtxBuilder.scope(conn), name)
+    |> render_query(conn)
   end
 
   @doc """
@@ -50,55 +40,63 @@ defmodule AvelineWeb.Api.QueryController do
   its presence makes the query raw, its absence derived).
   """
   def create(conn, params) do
-    ws = conn.assigns.current_workspace
-    user = conn.assigns.current_user
+    request =
+      {:create_request, to_string(params["name"]), to_string(params["sql"]),
+       Interop.opt(params["description"], &to_string/1),
+       if(params["source"], do: {:some, to_string(params["source"])}, else: :none)}
 
-    attrs =
-      %{name: params["name"], sql: params["sql"], description: params["description"]}
-      |> then(fn a -> if params["source"], do: Map.put(a, :source, params["source"]), else: a end)
-
-    with {:ok, query} <- Queries.create(ws.id, attrs, user.id) do
-      Envelope.ok(conn, %{query: Queries.safe_map(query)})
-    end
+    :aveline@handlers@queries.create(CtxBuilder.build(), CtxBuilder.scope(conn), request)
+    |> render_query(conn)
   end
 
   @doc "Versioned edit. Body: any of `new_name`, `description`, `sql`."
   def update(conn, %{"name" => name} = params) do
-    ws = conn.assigns.current_workspace
-    user = conn.assigns.current_user
+    request =
+      {:edit_request,
+       if(params["new_name"], do: {:some, to_string(params["new_name"])}, else: :none),
+       if(params["sql"], do: {:some, to_string(params["sql"])}, else: :none),
+       if(Map.has_key?(params, "description"),
+         do: {:some, Interop.opt(params["description"], &to_string/1)},
+         else: :none
+       )}
 
-    changes =
-      %{}
-      |> then(fn c -> if params["new_name"], do: Map.put(c, :name, params["new_name"]), else: c end)
-      |> then(fn c -> if params["sql"], do: Map.put(c, :sql, params["sql"]), else: c end)
-      |> then(fn c ->
-        if Map.has_key?(params, "description"),
-          do: Map.put(c, :description, params["description"]),
-          else: c
-      end)
-
-    with %{} = query <- Queries.get_current_by_name(ws.id, name) || {:error, :not_found},
-         {:ok, updated} <- Queries.edit(query, changes, user.id) do
-      Envelope.ok(conn, %{query: Queries.safe_map(updated)})
-    end
+    :aveline@handlers@queries.update(CtxBuilder.build(), CtxBuilder.scope(conn), name, request)
+    |> render_query(conn)
   end
 
   def delete(conn, %{"name" => name}) do
-    ws = conn.assigns.current_workspace
-    user = conn.assigns.current_user
-
-    with %{} = query <- Queries.get_current_by_name(ws.id, name) || {:error, :not_found},
-         {:ok, _} <- Queries.delete(query, user.id) do
-      Envelope.ok(conn, %{})
+    case :aveline@handlers@queries.delete(CtxBuilder.build(), CtxBuilder.scope(conn), name) do
+      {:ok, nil} -> Envelope.ok(conn, %{})
+      {:error, err} -> GleamAdapter.error(err)
     end
   end
 
   def restore(conn, %{"name" => name}) do
-    ws = conn.assigns.current_workspace
+    :aveline@handlers@queries.restore(CtxBuilder.build(), CtxBuilder.scope(conn), name)
+    |> render_query(conn)
+  end
 
-    with %{} = query <- Queries.get_latest_deleted_by_name(ws.id, name) || {:error, :not_found},
-         {:ok, restored} <- Queries.restore(query) do
-      Envelope.ok(conn, %{query: Queries.safe_map(restored)})
+  defp render_query(result, conn) do
+    case result do
+      {:ok, query} -> Envelope.ok(conn, %{query: query_map(query)})
+      {:error, err} -> GleamAdapter.error(err)
     end
+  end
+
+  # The one shape read surfaces see (mirrors the legacy safe_map/1).
+  defp query_map(
+         {:query, _id, _base_query_id, version_number, name, description, kind, data_source_id,
+          sql, deleted, created_at}
+       ) do
+    %{
+      "name" => name,
+      "description" => Interop.unopt(description),
+      "kind" => Atom.to_string(kind),
+      "data_source_id" => Interop.unopt(data_source_id),
+      "sql" => sql,
+      "version_number" => version_number,
+      "deleted" => deleted,
+      "created_at" => created_at
+    }
   end
 end

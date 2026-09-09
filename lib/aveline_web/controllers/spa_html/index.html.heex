@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{assigns[:page_title] || "Aveline"}</title>
+    <meta property="og:site_name" content="Aveline" />
+    <meta property="og:type" content="website" />
+    <link rel="icon" type="image/svg+xml" href={~p"/favicon.svg"} />
+    <link rel="icon" type="image/x-icon" href={~p"/favicon.ico"} sizes="any" />
+    <link rel="apple-touch-icon" sizes="180x180" href={~p"/apple-touch-icon.png"} />
+    <link rel="manifest" href={~p"/site.webmanifest"} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap"
+    />
+    <link rel="stylesheet" href={~p"/assets/css/app.css"} />
+    <script>
+      // Apply the saved sidebar-collapsed state before paint to avoid an
+      // expand-then-collapse flash on load. Falls back to viewport width
+      // when the user hasn't expressed a preference yet.
+      (function () {
+        var pref = localStorage.getItem("aveline:sidebarCollapsed");
+        var collapsed = pref === "1" || (pref === null && window.innerWidth < 1024);
+        if (collapsed) document.documentElement.classList.add("sidebar-collapsed");
+      })();
+    </script>
+    <script id="spa-bootstrap" type="application/json"><%= Phoenix.HTML.raw(Jason.encode!(@bootstrap)) %></script>
+    <script defer type="text/javascript" src={~p"/assets/js/spa.js"}>
+    </script>
+  </head>
+  <body>
+    <div id="elm-root"></div>
+  </body>
+</html>

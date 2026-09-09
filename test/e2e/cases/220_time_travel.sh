@@ -5,7 +5,7 @@
 test_v1_snapshot_reflects_initial_content() {
   local ws; ws="$(mk_workspace ws-tt-v1)"
   local blocks; blocks="[$(block_paragraph 'original text')]"
-  run_cli -w "$ws" create-doc --title "Doc1" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Doc1" --blocks "$blocks"
   expect_ok "create"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   # Bump to v2 with a modify
@@ -24,7 +24,7 @@ test_v1_snapshot_reflects_initial_content() {
 test_v2_snapshot_reflects_post_modify() {
   local ws; ws="$(mk_workspace ws-tt-v2)"
   local blocks; blocks="[$(block_paragraph 'orig')]"
-  run_cli -w "$ws" create-doc --title "D" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "D" --blocks "$blocks"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
   local bid; bid="$(jq -r '.doc.blocks[0].id' <<<"$LAST_OUT_TEXT")"
@@ -38,7 +38,7 @@ test_v2_snapshot_reflects_post_modify() {
 test_intent_preserved_per_version() {
   local ws; ws="$(mk_workspace ws-tt-int)"
   local blocks; blocks="[$(block_paragraph 'p')]"
-  run_cli -w "$ws" create-doc --title "T" --intent "first cut" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "T" --intent "first cut" --blocks "$blocks"
   expect_ok "v1 create"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   local ops; ops="[$(jq -nc --argjson b "$(block_paragraph 'extra')" '{op:"append_block",block:$b}')]"
@@ -53,7 +53,7 @@ test_intent_preserved_per_version() {
 test_list_versions_chronological() {
   local ws; ws="$(mk_workspace ws-tt-chr)"
   local blocks; blocks="[$(block_paragraph 'p')]"
-  run_cli -w "$ws" create-doc --title "C" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "C" --blocks "$blocks"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   for i in 1 2 3 4; do
     local ops; ops="[$(jq -nc --argjson b "$(block_paragraph "step $i")" '{op:"append_block",block:$b}')]"

@@ -7,7 +7,7 @@ _setup_doc() {
   mk_tag "$ws" "ops" >/dev/null
   local blocks; blocks="[$(block_paragraph 'first body')]"
   XDG_CONFIG_HOME="$(persona_xdg)" AVELINE_API_URL="$E2E_API_URL" \
-    "$E2E_BIN" -w "$ws" create-doc --title "Apply" --tag ops --blocks "$blocks" \
+    "$E2E_BIN" -w "$ws" create-doc --visibility workspace --title "Apply" --tag ops --blocks "$blocks" \
     >"$LAST_OUT" 2>/dev/null || return 1
   local slug; slug="$(jq -r '.slug' <"$LAST_OUT")"
   XDG_CONFIG_HOME="$(persona_xdg)" AVELINE_API_URL="$E2E_API_URL" \
@@ -110,7 +110,7 @@ test_apply_ops_missing_disposition_blocks() {
   # block without a disposition must fail.
   local ws; ws="$(mk_workspace ws-mdisp)"
   local blocks; blocks="[$(block_paragraph 'commented')]"
-  run_cli -w "$ws" create-doc --title "C" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "C" --blocks "$blocks"
   expect_ok "doc created"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -129,7 +129,7 @@ test_apply_ops_missing_disposition_blocks() {
 test_apply_ops_disposition_resolve_with_reply() {
   local ws; ws="$(mk_workspace ws-dres)"
   local blocks; blocks="[$(block_paragraph 'orig')]"
-  run_cli -w "$ws" create-doc --title "R" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "R" --blocks "$blocks"
   expect_ok "doc created"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -151,7 +151,7 @@ test_apply_ops_disposition_resolve_with_reply() {
 test_apply_ops_disposition_leave_with_note() {
   local ws; ws="$(mk_workspace ws-dlv)"
   local blocks; blocks="[$(block_paragraph 'leave-me')]"
-  run_cli -w "$ws" create-doc --title "L" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "L" --blocks "$blocks"
   expect_ok "doc created"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -172,7 +172,7 @@ test_apply_ops_disposition_leave_with_note() {
 test_apply_ops_disposition_invalid_action() {
   local ws; ws="$(mk_workspace ws-dinv)"
   local blocks; blocks="[$(block_paragraph 'x')]"
-  run_cli -w "$ws" create-doc --title "I" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "I" --blocks "$blocks"
   expect_ok "doc created"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -192,7 +192,7 @@ test_apply_ops_disposition_invalid_action() {
 test_apply_ops_disposition_leave_on_deleted_block() {
   local ws; ws="$(mk_workspace ws-dled)"
   local blocks; blocks="[$(block_paragraph 'doomed'),$(block_paragraph 'keeper')]"
-  run_cli -w "$ws" create-doc --title "D" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "D" --blocks "$blocks"
   expect_ok "doc created"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -210,7 +210,7 @@ test_apply_ops_disposition_leave_on_deleted_block() {
 test_apply_ops_disposition_reanchor_missing_target() {
   local ws; ws="$(mk_workspace ws-drmt)"
   local blocks; blocks="[$(block_paragraph 'a'),$(block_paragraph 'b')]"
-  run_cli -w "$ws" create-doc --title "RM" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "RM" --blocks "$blocks"
   expect_ok "doc created"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -230,7 +230,7 @@ test_apply_ops_disposition_reanchor_missing_target() {
 test_apply_ops_duplicate_dispositions() {
   local ws; ws="$(mk_workspace ws-ddup)"
   local blocks; blocks="[$(block_paragraph 'x')]"
-  run_cli -w "$ws" create-doc --title "Dup" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "Dup" --blocks "$blocks"
   expect_ok "doc created"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" get-doc "$slug"
@@ -272,7 +272,7 @@ test_apply_ops_can_update_title() {
 test_unpin_doc_frees_slot() {
   local ws; ws="$(mk_workspace ws-ao-unpin)"
   local blocks; blocks="[$(block_paragraph 'p')]"
-  run_cli -w "$ws" create-doc --title "P" --blocks "$blocks"
+  run_cli -w "$ws" create-doc --visibility workspace --title "P" --blocks "$blocks"
   local slug; slug="$(jq -r '.slug' <<<"$LAST_OUT_TEXT")"
   run_cli -w "$ws" pin-doc "$slug" --slot 4
   expect_ok "pinned to slot 4"
