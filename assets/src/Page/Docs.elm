@@ -14,7 +14,7 @@ query params yet (reported as a deferred need).
 -}
 
 import Api
-import Api.Docs as ApiDocs exposing (DocSummary, Facets, Member, TagInfo, ViewDef)
+import Api.Docs as ApiDocs exposing (DocPage, DocSummary, Facets, Member, TagInfo, ViewDef)
 import Dict exposing (Dict)
 import Html exposing (Html, a, button, div, form, h1, input, li, p, span, text, ul)
 import Html.Attributes exposing (attribute, autocomplete, class, hidden, href, id, name, placeholder, title, type_, value)
@@ -44,6 +44,8 @@ type alias Model =
     , knobs : Knobs
     , searchInput : String
     , docs : List DocSummary
+    , total : Int
+    , groups : List DocPage
     , docsLoaded : Bool
     , hasMore : Bool
     , facetTags : Dict String Int
@@ -60,7 +62,9 @@ type Msg
     | GotMembers (Result Api.Error (List Member))
     | GotViews (Result Api.Error (List ViewDef))
     | GotDocs (Result Api.Error ApiDocs.DocsPage)
+    | GotGroups (Result Api.Error ApiDocs.GroupsPage)
     | GotMoreDocs (Result Api.Error ApiDocs.DocsPage)
+    | GotMoreGroupDocs (Maybe String) (Result Api.Error ApiDocs.DocsPage)
     | GotFacets (Result Api.Error Facets)
     | ToggleMenu String
     | CloseMenus
@@ -75,6 +79,7 @@ type Msg
     | SearchChanged String
     | SearchSubmitted
     | LoadMore
+    | LoadMoreGroup (Maybe String)
     | ToggleSection String
 
 
@@ -95,6 +100,8 @@ init session slug viewName =
             , knobs = Logic.defaultKnobs
             , searchInput = ""
             , docs = []
+            , total = 0
+            , groups = []
             , docsLoaded = False
             , hasMore = False
             , facetTags = Dict.empty
@@ -137,13 +144,25 @@ tagColors model =
         |> Dict.fromList
 
 
+{-| Grouped views fetch every column's first page in one round trip;
+flat views fetch one page. Either way the server sends totals.
+-}
 fetchList : Model -> Cmd Msg
 fetchList model =
-    ApiDocs.fetchDocs model.session
-        model.slug
-        model.knobs
-        { sort = Logic.sortToParam model.knobs.sort, offset = 0 }
-        GotDocs
+    case model.knobs.groupBy of
+        Just group ->
+            ApiDocs.fetchGroups model.session
+                model.slug
+                model.knobs
+                { sort = Logic.sortToParam model.knobs.sort, group = group }
+                GotGroups
+
+        Nothing ->
+            ApiDocs.fetchDocs model.session
+                model.slug
+                model.knobs
+                { sort = Logic.sortToParam model.knobs.sort, offset = 0, group = Nothing }
+                GotDocs
 
 
 fetchFacetCounts : Model -> Cmd Msg
@@ -216,17 +235,58 @@ update msg model =
             ( { model | error = Just (Api.errorMessage err) }, Cmd.none )
 
         GotDocs (Ok page) ->
-            ( { model | docs = page.docs, hasMore = page.hasMore, docsLoaded = True }
+            ( { model
+                | docs = page.docs
+                , total = page.total
+                , hasMore = page.hasMore
+                , groups = []
+                , docsLoaded = True
+              }
             , Cmd.none
             )
 
         GotDocs (Err err) ->
             ( { model | error = Just (Api.errorMessage err), docsLoaded = True }, Cmd.none )
 
+        GotGroups (Ok page) ->
+            ( { model
+                | groups = page.groups
+                , total = page.total
+                , docs = []
+                , hasMore = False
+                , docsLoaded = True
+              }
+            , Cmd.none
+            )
+
+        GotGroups (Err err) ->
+            ( { model | error = Just (Api.errorMessage err), docsLoaded = True }, Cmd.none )
+
         GotMoreDocs (Ok page) ->
-            ( { model | docs = model.docs ++ page.docs, hasMore = page.hasMore }, Cmd.none )
+            ( { model | docs = model.docs ++ page.docs, hasMore = page.hasMore, total = page.total }
+            , Cmd.none
+            )
 
         GotMoreDocs (Err err) ->
+            ( { model | error = Just (Api.errorMessage err) }, Cmd.none )
+
+        GotMoreGroupDocs key (Ok page) ->
+            ( { model
+                | groups =
+                    List.map
+                        (\g ->
+                            if g.key == key then
+                                { g | docs = g.docs ++ page.docs, hasMore = page.hasMore, total = page.total }
+
+                            else
+                                g
+                        )
+                        model.groups
+              }
+            , Cmd.none
+            )
+
+        GotMoreGroupDocs _ (Err err) ->
             ( { model | error = Just (Api.errorMessage err) }, Cmd.none )
 
         GotFacets (Ok facets) ->
@@ -335,9 +395,31 @@ update msg model =
             , ApiDocs.fetchDocs model.session
                 model.slug
                 model.knobs
-                { sort = Logic.sortToParam model.knobs.sort, offset = List.length model.docs }
+                { sort = Logic.sortToParam model.knobs.sort
+                , offset = List.length model.docs
+                , group = Nothing
+                }
                 GotMoreDocs
             )
+
+        LoadMoreGroup key ->
+            -- Each column pages on its own offset: how many of its
+            -- docs are already on screen.
+            case ( model.knobs.groupBy, List.filter (\g -> g.key == key) model.groups ) of
+                ( Just scope, [ g ] ) ->
+                    ( model
+                    , ApiDocs.fetchDocs model.session
+                        model.slug
+                        model.knobs
+                        { sort = Logic.sortToParam model.knobs.sort
+                        , offset = List.length g.docs
+                        , group = Just ( scope, key )
+                        }
+                        (GotMoreGroupDocs key)
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
 
         ToggleSection key ->
             ( { model
@@ -829,40 +911,62 @@ radioClass on =
 
 viewList : Model -> List (Html Msg)
 viewList model =
-    if model.docsLoaded && model.docs == [] then
+    if model.docsLoaded && model.docs == [] && model.groups == [] then
         [ div [ class "empty" ] [ text "No docs match the current filter." ] ]
 
     else
-        (case model.knobs.groupBy of
+        case model.knobs.groupBy of
             Just group ->
                 [ div [ class "grouped-list" ]
-                    (Logic.groupedSections (tagSlugs model) group model.knobs.subGroupBy .tags model.docs
-                        |> List.indexedMap (viewGroupBlock model)
-                    )
+                    (List.map (viewGroupBlock model group) model.groups)
                 ]
 
             Nothing ->
-                [ cardList model model.docs ]
-        )
-            ++ viewLoadMore model
+                cardList model model.docs
+                    :: viewLoadMore
+                        { shown = List.length model.docs
+                        , total = model.total
+                        , hasMore = model.hasMore
+                        , wrapClass = "load-more-wrap"
+                        , msg = LoadMore
+                        }
 
 
-viewLoadMore : Model -> List (Html Msg)
-viewLoadMore model =
-    if model.hasMore then
-        [ div [ class "load-more-wrap" ]
-            [ button [ type_ "button", class "load-more-btn", onClick LoadMore ] [ text "Load more" ] ]
+{-| Footer of a paginated list: "shown of total" (or just the total
+once it is all on screen) and, while there is more, the button.
+-}
+viewLoadMore : { shown : Int, total : Int, hasMore : Bool, wrapClass : String, msg : Msg } -> List (Html Msg)
+viewLoadMore { shown, total, hasMore, wrapClass, msg } =
+    if hasMore then
+        [ div [ class wrapClass ]
+            [ span [ class "load-more-count" ] [ text (shownOfTotal shown total) ]
+            , button [ type_ "button", class "load-more-btn", onClick msg ] [ text "Load more" ]
+            ]
+        ]
+
+    else if wrapClass == "load-more-wrap" && total > 0 then
+        [ div [ class wrapClass ]
+            [ span [ class "load-more-count" ] [ text (String.fromInt total ++ " docs") ] ]
         ]
 
     else
         []
 
 
-viewGroupBlock : Model -> Int -> Logic.Section DocSummary -> Html Msg
-viewGroupBlock model si sec =
+shownOfTotal : Int -> Int -> String
+shownOfTotal shown total =
+    if shown < total then
+        String.fromInt shown ++ " of " ++ String.fromInt total
+
+    else
+        String.fromInt total
+
+
+viewGroupBlock : Model -> String -> DocPage -> Html Msg
+viewGroupBlock model scope grp =
     let
         key =
-            "grp-" ++ String.fromInt si
+            "grp-" ++ Maybe.withDefault "none" grp.key
 
         isCollapsed =
             Set.member key model.collapsed
@@ -882,17 +986,26 @@ viewGroupBlock model si sec =
         [ button
             [ type_ "button", class "group-head", onClick (ToggleSection key) ]
             [ chevronSvg "group-chev" "2.4"
-            , span (class "group-dot" :: dotStyle model sec.key) []
-            , span [ class "group-head-name" ] [ text sec.label ]
-            , span [ class "group-head-count" ] [ text (String.fromInt sec.count) ]
+            , span (class "group-dot" :: dotStyle model grp.key) []
+            , span [ class "group-head-name" ] [ text (Logic.sectionLabel scope grp.key) ]
+            , span [ class "group-head-count" ] [ text (shownOfTotal (List.length grp.docs) grp.total) ]
             ]
         , div [ id (key ++ "-body"), class "group-body", hidden isCollapsed ]
-            (case sec.subs of
-                Just subs ->
-                    List.map (viewSubgroup model) subs
+            ((case model.knobs.subGroupBy of
+                Just sub ->
+                    Logic.subSections (tagSlugs model) sub .tags grp.docs
+                        |> List.map (viewSubgroup model)
 
                 Nothing ->
-                    [ cardList model sec.docs ]
+                    [ cardList model grp.docs ]
+             )
+                ++ viewLoadMore
+                    { shown = List.length grp.docs
+                    , total = grp.total
+                    , hasMore = grp.hasMore
+                    , wrapClass = "load-more-wrap load-more-wrap-group"
+                    , msg = LoadMoreGroup grp.key
+                    }
             )
         ]
 

@@ -17,6 +17,7 @@ docJson =
     """
     { "ok": true,
       "has_more": true,
+      "total": 9,
       "docs": [
         { "id": "v-1",
           "base_doc_id": "b-1",

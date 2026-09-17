@@ -73,6 +73,72 @@ defmodule AvelineWeb.Api.FeDocsControllerTest do
     assert page2["has_more"] == false
   end
 
+  test "flat pages carry the filtered total", %{conn: conn, ws: ws, user: user} do
+    tag!(ws, user, "fed-total")
+    for i <- 1..3, do: doc_fixture(ws, user, title: "Doc #{i}", tags: ["fed-total"])
+
+    body = list(conn, ws, %{"tag" => "fed-total", "limit" => 2})
+    assert length(body["docs"]) == 2
+    assert body["total"] == 3
+  end
+
+  test "group=<scope> paginates each column independently", %{conn: conn, ws: ws, user: user} do
+    tag!(ws, user, "fed-grp")
+    tag!(ws, user, "fedst:todo")
+    tag!(ws, user, "fedst:done")
+    tag!(ws, user, "fedst:empty")
+    for i <- 1..3, do: doc_fixture(ws, user, title: "Todo #{i}", tags: ["fed-grp", "fedst:todo"])
+    doc_fixture(ws, user, title: "Done 1", tags: ["fed-grp", "fedst:done"])
+    doc_fixture(ws, user, title: "Loose 1", tags: ["fed-grp"])
+
+    body = list(conn, ws, %{"tag" => "fed-grp", "group" => "fedst", "limit" => 2})
+    assert body["total"] == 5
+
+    # Member order, unassigned last, empty column dropped.
+    assert Enum.map(body["groups"], & &1["key"]) == ["fedst:done", "fedst:todo", nil]
+
+    todo = Enum.find(body["groups"], &(&1["key"] == "fedst:todo"))
+    assert length(todo["docs"]) == 2
+    assert todo["has_more"] == true
+    assert todo["total"] == 3
+
+    done = Enum.find(body["groups"], &(&1["key"] == "fedst:done"))
+    assert done == %{"key" => "fedst:done", "docs" => done["docs"], "has_more" => false, "total" => 1}
+    assert [%{"title" => "Done 1"}] = done["docs"]
+
+    loose = Enum.find(body["groups"], &is_nil(&1["key"]))
+    assert [%{"title" => "Loose 1"}] = loose["docs"]
+
+    # Paging one column answers in the flat shape.
+    more =
+      list(conn, ws, %{
+        "tag" => "fed-grp",
+        "group" => "fedst",
+        "key" => "fedst:todo",
+        "limit" => 2,
+        "offset" => 2
+      })
+
+    assert [%{"title" => "Todo 1"}] = more["docs"]
+    assert more["has_more"] == false
+    assert more["total"] == 3
+
+    none = list(conn, ws, %{"tag" => "fed-grp", "group" => "fedst", "key" => "none"})
+    assert [%{"title" => "Loose 1"}] = none["docs"]
+    assert none["total"] == 1
+  end
+
+  test "group key outside the scope is rejected", %{conn: conn, ws: ws, user: user} do
+    tag!(ws, user, "fedst2:todo")
+
+    body =
+      conn
+      |> get(~p"/papi/workspaces/#{ws.slug}/fe/docs-list?group=fedst2&key=fedst2:nope")
+      |> json_response(422)
+
+    assert body["ok"] == false
+  end
+
   test "filters: tag and q compose", %{conn: conn, ws: ws, user: user} do
     tag!(ws, user, "fed-runbook")
     tag!(ws, user, "fed-spec")

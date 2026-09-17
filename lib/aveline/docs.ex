@@ -67,7 +67,34 @@ defmodule Aveline.Docs do
     |> maybe_filter_owners(owner_ids)
     |> maybe_filter_search(search)
     |> maybe_filter_updated(Keyword.get(opts, :updated))
+    |> maybe_filter_group(Keyword.get(opts, :group))
   end
+
+  @doc """
+  How many docs match the filter — same opts as `list_current`, minus
+  sort/pagination. Backs the "shown of total" counts on the Docs page.
+  """
+  def count_current(workspace_id, opts \\ []) do
+    filtered_query(workspace_id, opts)
+    |> Repo.aggregate(:count, :id)
+  end
+
+  # Grouped-view slice: `{:member, slug}` narrows to docs carrying that
+  # scoped tag (scopes are exclusive, so this is exactly one kanban
+  # column); `{:unassigned, members}` to docs carrying none of the
+  # scope's live members — the trailing "no <scope>" column. Matching
+  # against the live member list (not a `scope:%` LIKE) keeps a doc
+  # whose only scope tag is soft-deleted in the unassigned column, the
+  # same place the client's scrubbed tag list would put it.
+  defp maybe_filter_group(query, nil), do: query
+
+  defp maybe_filter_group(query, {:member, slug}) when is_binary(slug),
+    do: from(d in query, where: ^slug in d.tags)
+
+  defp maybe_filter_group(query, {:unassigned, []}), do: query
+
+  defp maybe_filter_group(query, {:unassigned, members}) when is_list(members),
+    do: from(d in query, where: not fragment("? && ?", d.tags, ^members))
 
   @doc """
   Facet counts for the docs filter dropdowns: how many docs under the

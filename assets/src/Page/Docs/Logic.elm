@@ -12,9 +12,11 @@ module Page.Docs.Logic exposing
     , parseSort
     , scopeMembers
     , scopeOf
+    , sectionLabel
     , seedKnobs
     , sortLabel
     , sortToParam
+    , subSections
     , valueOf
     , viewSections
     , workspaceScopes
@@ -221,6 +223,31 @@ groupedSections workspaceTags scope subScope docTags items =
             )
 
 
+{-| Split one column's loaded docs by a sub-group scope — the
+per-column half of `groupedSections`, for columns the server already
+paginated on their own.
+-}
+subSections :
+    List String
+    -> String
+    -> (doc -> List String)
+    -> List doc
+    -> List (SubSection doc)
+subSections workspaceTags sub docTags docs =
+    splitByScope workspaceTags sub docTags docs
+        |> List.map
+            (\( k, ds ) ->
+                { key = k
+                , label = sectionLabel sub k
+                , count = List.length ds
+                , docs = ds
+                }
+            )
+
+
+{-| Column heading: the tag's value, or "no <scope>" for the unassigned
+column.
+-}
 sectionLabel : String -> Maybe String -> String
 sectionLabel scope key =
     case key of

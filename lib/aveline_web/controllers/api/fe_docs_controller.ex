@@ -6,7 +6,16 @@ defmodule AvelineWeb.Api.FeDocsController do
 
     * `index` — the doc list enriched with the card fields the page
       renders (visibility, actor, per-doc view/kudos counts) plus a
-      `has_more` flag (server fetches limit+1, same trick as the LV).
+      `has_more` flag (server fetches limit+1, same trick as the LV)
+      and `total`, the filtered corpus size, for "shown of total".
+
+      With `group=<scope>` the page is grouped server-side: one
+      `{key, docs, has_more, total}` entry per scope member that has
+      docs (registry order) plus a trailing `key: null` entry for docs
+      carrying none of the members — each paginated independently, so
+      a column is never a slice of a global page. Adding `key=<slug>`
+      (or `key=none` for the unassigned column) with `offset` pages one
+      column and answers in the flat `{docs, has_more, total}` shape.
     * `facets` — corpus-wide tag/author counts for the filter
       dropdowns, computed in SQL so pagination can't skew them
       (`Docs.facet_counts/2`). Author counts are keyed by username to
@@ -21,6 +30,7 @@ defmodule AvelineWeb.Api.FeDocsController do
   alias Aveline.Docs
   alias Aveline.DocViews
   alias Aveline.Kudos
+  alias Aveline.Tags
   alias Aveline.Workspaces
   alias AvelineWeb.Api.Envelope
   alias AvelineWeb.Api.Views
@@ -36,28 +46,60 @@ defmodule AvelineWeb.Api.FeDocsController do
     with {:ok, sort} <- parse_sort(params["sort"]),
          {:ok, limit} <- parse_limit(params["limit"]),
          {:ok, offset} <- parse_offset(params["offset"]) do
-      raw =
-        Docs.list_current(
-          ws.id,
-          filter_opts(conn, params) ++ [sort: sort, limit: limit + 1, offset: offset]
-        )
+      opts = filter_opts(conn, params) ++ [sort: sort]
 
-      {items, has_more?} =
-        case raw do
-          list when length(list) > limit -> {Enum.take(list, limit), true}
-          list -> {list, false}
-        end
+      case parse_group(ws.id, params["group"], params["key"]) do
+        {:ok, nil} ->
+          Envelope.ok(conn, page(ws.id, opts, limit, offset))
 
-      base_ids = Enum.map(items, & &1.base_doc_id)
-      view_counts = DocViews.counts_by_base(base_ids)
-      kudos_counts = Kudos.counts_by_base(base_ids)
+        {:ok, {:all, members}} ->
+          groups =
+            (Enum.map(members, &{:member, &1}) ++ [{:unassigned, members}])
+            |> Enum.map(fn group ->
+              page(ws.id, opts ++ [group: group], limit, 0)
+              |> Map.put(:key, group_key(group))
+            end)
+            |> Enum.reject(&(&1.docs == []))
 
-      Envelope.ok(conn, %{
-        docs: Enum.map(items, &card_map(&1, view_counts, kudos_counts)),
-        has_more: has_more?
-      })
+          Envelope.ok(conn, %{
+            groups: groups,
+            total: groups |> Enum.map(& &1.total) |> Enum.sum()
+          })
+
+        {:ok, {:one, group}} ->
+          Envelope.ok(conn, page(ws.id, opts ++ [group: group], limit, offset))
+
+        {:error, _} = err ->
+          err
+      end
     end
   end
+
+  # One page of the (possibly group-narrowed) list, plus the total the
+  # page is a slice of. Fetches limit+1 to learn has_more without a
+  # second round trip; the count is what the header shows.
+  defp page(ws_id, opts, limit, offset) do
+    raw = Docs.list_current(ws_id, opts ++ [limit: limit + 1, offset: offset])
+
+    {items, has_more?} =
+      case raw do
+        list when length(list) > limit -> {Enum.take(list, limit), true}
+        list -> {list, false}
+      end
+
+    base_ids = Enum.map(items, & &1.base_doc_id)
+    view_counts = DocViews.counts_by_base(base_ids)
+    kudos_counts = Kudos.counts_by_base(base_ids)
+
+    %{
+      docs: Enum.map(items, &card_map(&1, view_counts, kudos_counts)),
+      has_more: has_more?,
+      total: Docs.count_current(ws_id, opts)
+    }
+  end
+
+  defp group_key({:member, slug}), do: slug
+  defp group_key({:unassigned, _}), do: nil
 
   def facets(conn, params) do
     ws = conn.assigns.current_workspace
@@ -128,6 +170,34 @@ defmodule AvelineWeb.Api.FeDocsController do
   defp parse_list(""), do: []
   defp parse_list(list) when is_list(list), do: Enum.uniq(list)
   defp parse_list(s) when is_binary(s), do: s |> String.split(",", trim: true) |> Enum.uniq()
+
+  # `group` is a tag scope ("status"); `key` picks one of its columns.
+  # A scope with no live members still groups: everything lands in the
+  # unassigned column, which is what the client would render too.
+  defp parse_group(_ws_id, nil, _key), do: {:ok, nil}
+  defp parse_group(_ws_id, "", _key), do: {:ok, nil}
+
+  defp parse_group(ws_id, scope, key) when is_binary(scope) do
+    members = Tags.list_scope_members(ws_id, scope)
+
+    case key do
+      nil ->
+        {:ok, {:all, members}}
+
+      "" ->
+        {:ok, {:all, members}}
+
+      "none" ->
+        {:ok, {:one, {:unassigned, members}}}
+
+      slug ->
+        if slug in members do
+          {:ok, {:one, {:member, slug}}}
+        else
+          {:error, {:list_param_invalid, "key must be a member of the #{scope} scope or none"}}
+        end
+    end
+  end
 
   # :recent default — the page always shows an explicit sort knob.
   defp parse_sort(nil), do: {:ok, :recent}

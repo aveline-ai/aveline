@@ -2321,6 +2321,11 @@
         background: var(--bg-card-hover);
         color: var(--text);
       }
+      .load-more-count { font-size: 12px; color: var(--text-muted); }
+      .load-more-wrap { gap: 14px; align-items: center; }
+      /* Per-column variant inside a grouped list: hugs the column's
+         cards instead of centring on the page. */
+      .load-more-wrap-group { justify-content: flex-start; padding: 8px 0 4px; }
 
       /* The TOP discussion sits flush against the article header — the
          `.doc-discussion` defaults (56px top margin, 24px top padding)

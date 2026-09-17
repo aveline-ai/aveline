@@ -1,8 +1,10 @@
 module Api.Docs exposing
     ( Bucket
+    , DocPage
     , DocSummary
     , DocsPage
     , Facets
+    , GroupsPage
     , Member
     , TagInfo
     , UserRef
@@ -12,9 +14,11 @@ module Api.Docs exposing
     , facetsDecoder
     , fetchDocs
     , fetchFacets
+    , fetchGroups
     , fetchMembers
     , fetchTags
     , fetchViews
+    , groupsPageDecoder
     , membersDecoder
     , tagsDecoder
     , viewsDecoder
@@ -64,9 +68,30 @@ type alias DocSummary =
     }
 
 
+{-| One page of a list plus the size of the list it is a slice of.
+-}
 type alias DocsPage =
     { docs : List DocSummary
     , hasMore : Bool
+    , total : Int
+    }
+
+
+{-| A grouped list: one page per kanban column, each paginated on its
+own. `key` is the scoped tag (`status:todo`) or Nothing for the
+trailing "no <scope>" column.
+-}
+type alias DocPage =
+    { key : Maybe String
+    , docs : List DocSummary
+    , hasMore : Bool
+    , total : Int
+    }
+
+
+type alias GroupsPage =
+    { groups : List DocPage
+    , total : Int
     }
 
 
@@ -162,9 +187,26 @@ posixDecoder =
 
 docsPageDecoder : Decoder DocsPage
 docsPageDecoder =
-    Decode.map2 DocsPage
+    Decode.map3 DocsPage
         (Decode.field "docs" (Decode.list docSummaryDecoder))
         (Decode.field "has_more" Decode.bool)
+        (Decode.field "total" Decode.int)
+
+
+groupsPageDecoder : Decoder GroupsPage
+groupsPageDecoder =
+    Decode.map2 GroupsPage
+        (Decode.field "groups" (Decode.list docPageDecoder))
+        (Decode.field "total" Decode.int)
+
+
+docPageDecoder : Decoder DocPage
+docPageDecoder =
+    Decode.map4 DocPage
+        (Decode.field "key" (Decode.nullable Decode.string))
+        (Decode.field "docs" (Decode.list docSummaryDecoder))
+        (Decode.field "has_more" Decode.bool)
+        (Decode.field "total" Decode.int)
 
 
 tagsDecoder : Decoder (List TagInfo)
@@ -299,14 +341,18 @@ filterParams f =
         ]
 
 
+{-| One flat page, or — with `group` — one page of a single column:
+`( scope, Just "status:todo" )` or `( scope, Nothing )` for the
+unassigned column (sent as `key=none`).
+-}
 fetchDocs :
     Session
     -> String
     -> Filter r
-    -> { sort : String, offset : Int }
+    -> { sort : String, offset : Int, group : Maybe ( String, Maybe String ) }
     -> (Result Api.Error DocsPage -> msg)
     -> Cmd msg
-fetchDocs session slug filter { sort, offset } toMsg =
+fetchDocs session slug filter { sort, offset, group } toMsg =
     let
         params =
             filterParams filter
@@ -317,10 +363,42 @@ fetchDocs session slug filter { sort, offset } toMsg =
                     else
                         []
                    )
+                ++ (case group of
+                        Just ( scope, key ) ->
+                            [ Url.Builder.string "group" scope
+                            , Url.Builder.string "key" (Maybe.withDefault "none" key)
+                            ]
+
+                        Nothing ->
+                            []
+                   )
     in
     Api.get session
         (base slug "/fe/docs-list" ++ Url.Builder.toQuery params)
         docsPageDecoder
+        toMsg
+
+
+{-| The first page of every column of a grouped list.
+-}
+fetchGroups :
+    Session
+    -> String
+    -> Filter r
+    -> { sort : String, group : String }
+    -> (Result Api.Error GroupsPage -> msg)
+    -> Cmd msg
+fetchGroups session slug filter { sort, group } toMsg =
+    let
+        params =
+            filterParams filter
+                ++ [ Url.Builder.string "sort" sort
+                   , Url.Builder.string "group" group
+                   ]
+    in
+    Api.get session
+        (base slug "/fe/docs-list" ++ Url.Builder.toQuery params)
+        groupsPageDecoder
         toMsg
 
 
