@@ -39,6 +39,9 @@ pub type ViewConfig {
     edited: Option(String),
     sort: Option(String),
     icon: Option(String),
+    /// How a grouped view lays its columns out: "list" (stacked
+    /// sections, the default) or "board" (side by side, a kanban).
+    layout: Option(String),
   )
 }
 
@@ -50,6 +53,7 @@ pub fn empty_config() -> ViewConfig {
     edited: None,
     sort: None,
     icon: None,
+    layout: None,
   )
 }
 

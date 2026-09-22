@@ -122,6 +122,18 @@ defmodule Aveline.ViewsTest do
              Views.create(ws.id, "bad2", "Same scope.", %{"group_by" => "status", "sub_group_by" => "status"}, user.id)
   end
 
+  test "layout is list or board" do
+    %{user: user, ws: ws} = setup_ws()
+
+    {:ok, v} =
+      Views.create(ws.id, "board", "Tickets as a kanban.", %{"group_by" => "status", "layout" => "board"}, user.id)
+
+    assert v.config["layout"] == "board"
+
+    assert {:error, %Ecto.Changeset{}} =
+             Views.create(ws.id, "bad", "Bad layout.", %{"group_by" => "status", "layout" => "grid"}, user.id)
+  end
+
   test "a partial config edit merges, keeping other keys" do
     %{user: user, ws: ws} = setup_ws()
 

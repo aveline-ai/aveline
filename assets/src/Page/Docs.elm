@@ -19,7 +19,7 @@ import Dict exposing (Dict)
 import Html exposing (Html, a, button, div, form, h1, input, li, p, span, text, ul)
 import Html.Attributes exposing (attribute, autocomplete, class, hidden, href, id, name, placeholder, title, type_, value)
 import Html.Events exposing (onClick, onInput, onSubmit)
-import Page.Docs.Logic as Logic exposing (Knobs, Sort(..))
+import Page.Docs.Logic as Logic exposing (Knobs, Layout(..), Sort(..))
 import Route
 import Session exposing (Session)
 import Set exposing (Set)
@@ -28,6 +28,7 @@ import Svg.Attributes as SA
 import Task
 import Time
 import Ui.DocCard
+import Ui.StoryCard
 
 
 type alias Model =
@@ -74,6 +75,7 @@ type Msg
     | SetGroup (Maybe String)
     | SetSubgroup (Maybe String)
     | SetSort Sort
+    | SetLayout Layout
     | ClearFilters
     | ResetView
     | SearchChanged String
@@ -353,6 +355,14 @@ update msg model =
                     model.knobs
             in
             applyKnobs { model | openMenu = Nothing } { knobs | sort = sort }
+
+        SetLayout layout ->
+            let
+                knobs =
+                    model.knobs
+            in
+            -- Display only: nothing to refetch.
+            ( { model | openMenu = Nothing, knobs = { knobs | layout = layout } }, Cmd.none )
 
         ClearFilters ->
             let
@@ -663,8 +673,13 @@ viewFbar model =
 
           else
             []
-        , [ viewGroupFdd model
-          , viewEditedFdd model
+        , [ viewGroupFdd model ]
+        , if model.knobs.groupBy /= Nothing then
+            [ viewLayoutFdd model ]
+
+          else
+            []
+        , [ viewEditedFdd model
           , viewSortFdd model
           ]
         , viewClearAll model
@@ -773,6 +788,24 @@ viewGroupFdd model =
                                 )
                         ]
             ]
+        )
+
+
+{-| Only offered while grouped: a board needs columns.
+-}
+viewLayoutFdd : Model -> Html Msg
+viewLayoutFdd model =
+    fdd model
+        { menuId = "fdd-layout", label = "Layout · " ++ Logic.layoutLabel model.knobs.layout, count = 0 }
+        (List.map
+            (\layout ->
+                button
+                    [ type_ "button", class "fdd-item", onClick (SetLayout layout) ]
+                    [ span [ class (radioClass (model.knobs.layout == layout)) ] []
+                    , span [ class "fdd-item-label" ] [ text (Logic.layoutLabel layout) ]
+                    ]
+            )
+            [ ListLayout, Board ]
         )
 
 
@@ -917,9 +950,25 @@ viewList model =
     else
         case model.knobs.groupBy of
             Just group ->
-                [ div [ class "grouped-list" ]
-                    (List.map (viewGroupBlock model group) model.groups)
-                ]
+                let
+                    ( pinned, members ) =
+                        Logic.pinnedFirst model.groups
+
+                    pinnedShelf =
+                        List.filterMap identity [ Maybe.map (viewPinnedBlock model group) pinned ]
+                in
+                case model.knobs.layout of
+                    ListLayout ->
+                        [ div [ class "grouped-list" ]
+                            (pinnedShelf ++ List.map (viewGroupBlock model group) members)
+                        ]
+
+                    Board ->
+                        -- The pinned shelf spans the page; the member
+                        -- columns sit side by side under it.
+                        [ div [ class "grouped-list" ] pinnedShelf
+                        , div [ class "kanban" ] (List.map (viewBoardColumn model group) members)
+                        ]
 
             Nothing ->
                 cardList model model.docs
@@ -962,8 +1011,46 @@ shownOfTotal shown total =
         String.fromInt total
 
 
+{-| How a group block draws itself: the glyph before its name and the
+card treatment for its docs. Member columns get a colour dot and the
+full doc card; the pinned "no <scope>" shelf gets a pin and the home
+page's story card.
+-}
+type alias BlockStyle =
+    { extraClass : String
+    , glyph : Html Msg
+    , cards : List DocSummary -> Html Msg
+    }
+
+
 viewGroupBlock : Model -> String -> DocPage -> Html Msg
 viewGroupBlock model scope grp =
+    groupBlock model
+        scope
+        grp
+        { extraClass = ""
+        , glyph = span (class "group-dot" :: dotStyle model grp.key) []
+        , cards = cardList model
+        }
+
+
+{-| The unassigned column, pinned above the member columns as a shelf
+of story cards (see `Logic.pinnedFirst`). Same header, collapse and
+paging as any column; only the position and the card change.
+-}
+viewPinnedBlock : Model -> String -> DocPage -> Html Msg
+viewPinnedBlock model scope grp =
+    groupBlock model
+        scope
+        grp
+        { extraClass = " group-pinned"
+        , glyph = span [ class "group-pin", attribute "aria-hidden" "true" ] [ Ui.StoryCard.pinIcon ]
+        , cards = storyGrid model
+        }
+
+
+groupBlock : Model -> String -> DocPage -> BlockStyle -> Html Msg
+groupBlock model scope grp style =
     let
         key =
             "grp-" ++ Maybe.withDefault "none" grp.key
@@ -974,6 +1061,7 @@ viewGroupBlock model scope grp =
     div
         [ class
             ("group-block"
+                ++ style.extraClass
                 ++ (if isCollapsed then
                         " group-collapsed"
 
@@ -986,7 +1074,7 @@ viewGroupBlock model scope grp =
         [ button
             [ type_ "button", class "group-head", onClick (ToggleSection key) ]
             [ chevronSvg "group-chev" "2.4"
-            , span (class "group-dot" :: dotStyle model grp.key) []
+            , style.glyph
             , span [ class "group-head-name" ] [ text (Logic.sectionLabel scope grp.key) ]
             , span [ class "group-head-count" ] [ text (shownOfTotal (List.length grp.docs) grp.total) ]
             ]
@@ -994,7 +1082,38 @@ viewGroupBlock model scope grp =
             ((case model.knobs.subGroupBy of
                 Just sub ->
                     Logic.subSections (tagSlugs model) sub .tags grp.docs
-                        |> List.map (viewSubgroup model)
+                        |> List.map (viewSubgroup model style.cards)
+
+                Nothing ->
+                    [ style.cards grp.docs ]
+             )
+                ++ viewLoadMore
+                    { shown = List.length grp.docs
+                    , total = grp.total
+                    , hasMore = grp.hasMore
+                    , wrapClass = "load-more-wrap load-more-wrap-group"
+                    , msg = LoadMoreGroup grp.key
+                    }
+            )
+        ]
+
+
+{-| One board column: same header as a list section (minus collapse),
+its cards stacked in a scroller of its own, "Load more" at the foot.
+-}
+viewBoardColumn : Model -> String -> DocPage -> Html Msg
+viewBoardColumn model scope grp =
+    div [ class "kanban-col", id ("grp-" ++ Maybe.withDefault "none" grp.key) ]
+        [ div [ class "kanban-col-head" ]
+            [ span (class "group-dot" :: dotStyle model grp.key) []
+            , span [ class "group-head-name" ] [ text (Logic.sectionLabel scope grp.key) ]
+            , span [ class "group-head-count" ] [ text (shownOfTotal (List.length grp.docs) grp.total) ]
+            ]
+        , div [ class "kanban-col-body" ]
+            ((case model.knobs.subGroupBy of
+                Just sub ->
+                    Logic.subSections (tagSlugs model) sub .tags grp.docs
+                        |> List.map (viewSubgroup model (cardList model))
 
                 Nothing ->
                     [ cardList model grp.docs ]
@@ -1010,15 +1129,15 @@ viewGroupBlock model scope grp =
         ]
 
 
-viewSubgroup : Model -> Logic.SubSection DocSummary -> Html Msg
-viewSubgroup model sub =
+viewSubgroup : Model -> (List DocSummary -> Html Msg) -> Logic.SubSection DocSummary -> Html Msg
+viewSubgroup model cards sub =
     div [ class "subgroup" ]
         [ div [ class "subgroup-head" ]
             [ span (class "group-dot group-dot-sm" :: dotStyle model sub.key) []
             , span [ class "subgroup-head-name" ] [ text sub.label ]
             , span [ class "group-head-count" ] [ text (String.fromInt sub.count) ]
             ]
-        , cardList model sub.docs
+        , cards sub.docs
         ]
 
 
@@ -1040,6 +1159,15 @@ cardList model docs =
     in
     ul [ class "card-list" ]
         (List.map (\doc -> li [] [ Ui.DocCard.view cardConfig doc ]) docs)
+
+
+storyGrid : Model -> List DocSummary -> Html Msg
+storyGrid model docs =
+    div [ class "story-grid" ]
+        (List.map
+            (\d -> Ui.StoryCard.view model.slug { slug = d.slug, title = d.title, summary = d.summary, tags = d.tags })
+            docs
+        )
 
 
 

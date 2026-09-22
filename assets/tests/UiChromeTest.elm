@@ -21,6 +21,7 @@ viewDef name pinned bucket =
         , subGroupBy = Nothing
         , sort = Nothing
         , edited = Nothing
+        , layout = Nothing
         }
     , pinned = pinned
     , bucket = bucket

@@ -25,13 +25,14 @@ doc slug tags =
     { slug = slug, tags = tags }
 
 
-baseConfig : { tags : List String, groupBy : Maybe String, subGroupBy : Maybe String, sort : Maybe String, edited : Maybe String }
+baseConfig : { tags : List String, groupBy : Maybe String, subGroupBy : Maybe String, sort : Maybe String, edited : Maybe String, layout : Maybe String }
 baseConfig =
     { tags = [ "runbook" ]
     , groupBy = Just "status"
     , subGroupBy = Nothing
     , sort = Just "kudos"
     , edited = Just "7d"
+    , layout = Just "board"
     }
 
 
@@ -115,6 +116,22 @@ suite =
                             , ( "no priority", [ "c" ] )
                             ]
             ]
+        , describe "pinnedFirst"
+            [ test "lifts the unassigned page out, keeps member order" <|
+                \_ ->
+                    let
+                        page key =
+                            { key = key, docs = [] }
+                    in
+                    Logic.pinnedFirst [ page (Just "todo"), page (Just "done"), page Nothing ]
+                        |> Tuple.mapBoth (Maybe.map .key) (List.map .key)
+                        |> Expect.equal ( Just Nothing, [ Just "todo", Just "done" ] )
+            , test "no unassigned page: nothing pinned" <|
+                \_ ->
+                    Logic.pinnedFirst [ { key = Just "todo" } ]
+                        |> Tuple.mapBoth (Maybe.map .key) (List.map .key)
+                        |> Expect.equal ( Nothing, [ Just "todo" ] )
+            ]
         , describe "normalizeWithin"
             [ test "canonical tokens pass through" <|
                 \_ ->
@@ -138,8 +155,13 @@ suite =
                         , edited = Just "7d"
                         , sort = Kudos
                         , search = ""
+                        , layout = Logic.Board
                         }
                         (Logic.seedKnobs registry baseConfig)
+            , test "layout defaults to list; only \"board\" is a board" <|
+                \_ ->
+                    List.map Logic.parseLayout [ Nothing, Just "board", Just "grid" ]
+                        |> Expect.equal [ Logic.ListLayout, Logic.Board, Logic.ListLayout ]
             , test "seedKnobs drops an unknown group scope and a sub equal to group" <|
                 \_ ->
                     let
@@ -174,9 +196,10 @@ suite =
                     , { seeded | edited = Nothing }
                     , { seeded | authors = [ "arie" ] }
                     , { seeded | search = "q" }
+                    , { seeded | layout = Logic.ListLayout }
                     ]
                         |> List.map (Logic.isModified registry baseConfig)
-                        |> Expect.equal [ True, True, True, True, True, True ]
+                        |> Expect.equal [ True, True, True, True, True, True, True ]
             ]
         , describe "viewSections"
             [ test "team / yours / project buckets, groups + views sorted by name" <|
@@ -185,7 +208,7 @@ suite =
                         v name bucket =
                             { name = name
                             , description = Nothing
-                            , config = { tags = [], groupBy = Nothing, subGroupBy = Nothing, sort = Nothing, edited = Nothing }
+                            , config = { tags = [], groupBy = Nothing, subGroupBy = Nothing, sort = Nothing, edited = Nothing, layout = Nothing }
                             , pinned = False
                             , bucket = bucket
                             }

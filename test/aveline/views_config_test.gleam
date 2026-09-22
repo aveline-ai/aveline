@@ -192,6 +192,7 @@ pub fn merge_keeps_absent_and_clears_null_test() {
       edited: Some("7d"),
       sort: Some("recent"),
       icon: None,
+      layout: Some("board"),
     )
   let param =
     ConfigObject(RawConfig(
@@ -201,6 +202,7 @@ pub fn merge_keeps_absent_and_clears_null_test() {
       edited: Null,
       sort: RawString("title"),
       icon: Absent,
+      layout: Absent,
     ))
 
   assert view_config.apply_and_validate(base, param, no_unknown, scope_ok)
@@ -211,7 +213,20 @@ pub fn merge_keeps_absent_and_clears_null_test() {
       edited: None,
       sort: Some("title"),
       icon: None,
+      layout: Some("board"),
     ))
+}
+
+pub fn layout_test() {
+  let err =
+    Error(Invalid("validation_failed", "layout must be one of list, board"))
+  assert validate(raw(fn(r) { RawConfig(..r, layout: RawString("grid")) }))
+    == err
+  assert validate(raw(fn(r) { RawConfig(..r, layout: BadField) })) == err
+
+  let assert Ok(config) =
+    validate(raw(fn(r) { RawConfig(..r, layout: RawString("board")) }))
+  assert config.layout == Some("board")
 }
 
 pub fn no_config_revalidates_current_test() {

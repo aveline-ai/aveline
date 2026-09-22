@@ -32,8 +32,8 @@ defmodule AvelineWeb.Api.ViewController do
 
   def update(conn, %{"name" => name} = params) do
     request =
-      {:update_view_request, name, truthy_string_opt(params["new_name"]),
-       truthy_string_opt(params["description"]), update_config_param(params["config"])}
+      {:update_view_request, name, truthy_string_opt(params["new_name"]), truthy_string_opt(params["description"]),
+       update_config_param(params["config"])}
 
     CtxBuilder.build()
     |> :aveline@handlers@views.update(CtxBuilder.scope(conn), request)
@@ -178,8 +178,8 @@ defmodule AvelineWeb.Api.ViewController do
   defp update_config_param(_), do: :not_an_object
 
   defp raw_config(map) do
-    {:raw_config, raw_tags(map), raw_field(map, "group_by"), raw_field(map, "sub_group_by"),
-     raw_field(map, "edited"), raw_field(map, "sort"), raw_field(map, "icon")}
+    {:raw_config, raw_tags(map), raw_field(map, "group_by"), raw_field(map, "sub_group_by"), raw_field(map, "edited"),
+     raw_field(map, "sort"), raw_field(map, "icon"), raw_field(map, "layout")}
   end
 
   defp raw_tags(map) do
@@ -212,8 +212,8 @@ defmodule AvelineWeb.Api.ViewController do
   # ===== Gleam values -> JSON =====
 
   defp view_json(
-         {:view, _id, _workspace_id, _base_view_id, version_number, name, description, config,
-          pinned, _owner_id, bucket, created_at}
+         {:view, _id, _workspace_id, _base_view_id, version_number, name, description, config, pinned, _owner_id,
+          bucket, created_at}
        ) do
     %{
       "name" => name,
@@ -231,13 +231,14 @@ defmodule AvelineWeb.Api.ViewController do
   defp bucket_ref_json({:some, {:bucket, _id, _ws, name, kind, _vis, _owner}}),
     do: %{"name" => name, "kind" => kind_string(kind)}
 
-  defp config_json({:view_config, tags, group_by, sub_group_by, edited, sort, icon}) do
+  defp config_json({:view_config, tags, group_by, sub_group_by, edited, sort, icon, layout}) do
     %{"tags" => tags}
     |> put_some("group_by", group_by)
     |> put_some("sub_group_by", sub_group_by)
     |> put_some("edited", edited)
     |> put_some("sort", sort)
     |> put_some("icon", icon)
+    |> put_some("layout", layout)
   end
 
   defp put_some(map, _key, :none), do: map

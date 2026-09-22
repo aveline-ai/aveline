@@ -1,5 +1,6 @@
 module Page.Docs.Logic exposing
     ( Knobs
+    , Layout(..)
     , Section
     , Sort(..)
     , SubSection
@@ -7,9 +8,12 @@ module Page.Docs.Logic exposing
     , groupedSections
     , groupedTags
     , isModified
+    , layoutLabel
     , normalizeWithin
     , parseGroup
+    , parseLayout
     , parseSort
+    , pinnedFirst
     , scopeMembers
     , scopeOf
     , sectionLabel
@@ -40,6 +44,7 @@ type alias Knobs =
     , edited : Maybe String
     , sort : Sort
     , search : String
+    , layout : Layout
     }
 
 
@@ -47,6 +52,34 @@ type Sort
     = Recent
     | Kudos
     | Views
+
+
+{-| How a grouped view lays its columns out: stacked sections, or side
+by side as a kanban board. Display only, so changing it never
+refetches. Meaningless without a group.
+-}
+type Layout
+    = ListLayout
+    | Board
+
+
+parseLayout : Maybe String -> Layout
+parseLayout value =
+    if value == Just "board" then
+        Board
+
+    else
+        ListLayout
+
+
+layoutLabel : Layout -> String
+layoutLabel layout =
+    case layout of
+        ListLayout ->
+            "List"
+
+        Board ->
+            "Board"
 
 
 defaultKnobs : Knobs
@@ -58,6 +91,7 @@ defaultKnobs =
     , edited = Nothing
     , sort = Recent
     , search = ""
+    , layout = ListLayout
     }
 
 
@@ -221,6 +255,21 @@ groupedSections workspaceTags scope subScope docTags items =
                             )
                 }
             )
+
+
+{-| Pull the unassigned "no <scope>" page out of the server's
+member-order-then-unassigned list so the view can pin it above the
+member columns. In practice those docs are the view's context (a
+brief, a plan, an overview) rather than items moving through the
+scope, so they read as pinned, the way the home page pins docs.
+-}
+pinnedFirst : List { a | key : Maybe String } -> ( Maybe { a | key : Maybe String }, List { a | key : Maybe String } )
+pinnedFirst pages =
+    let
+        ( unassigned, members ) =
+            List.partition (\p -> p.key == Nothing) pages
+    in
+    ( List.head unassigned, members )
 
 
 {-| Split one column's loaded docs by a sub-group scope — the
@@ -405,6 +454,7 @@ seedKnobs workspaceTags config =
     , edited = normalizeWithin config.edited
     , sort = parseSort config.sort
     , search = ""
+    , layout = parseLayout config.layout
     }
 
 
@@ -419,6 +469,7 @@ isModified workspaceTags config knobs =
         || (knobs.subGroupBy /= parseGroup workspaceTags config.subGroupBy)
         || (knobs.sort /= parseSort config.sort)
         || (knobs.edited /= normalizeWithin config.edited)
+        || (knobs.layout /= parseLayout config.layout)
         || (knobs.authors /= [])
         || (knobs.search /= "")
 

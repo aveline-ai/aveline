@@ -24,6 +24,7 @@ import Svg
 import Svg.Attributes as SA
 import Task
 import Time exposing (Posix)
+import Ui.StoryCard
 import Ui.Workspace.Time exposing (absoluteTime, relativeTime)
 
 
@@ -227,7 +228,7 @@ viewPinned slug data =
         Just
             (section [ class "shelf" ]
                 [ div [ class "shelf-head" ]
-                    [ span [ class "shelf-icon", attribute "aria-hidden" "true" ] [ pinIcon ]
+                    [ span [ class "shelf-icon", attribute "aria-hidden" "true" ] [ Ui.StoryCard.pinIcon ]
                     , span [ class "shelf-label" ] [ text "Pinned docs" ]
                     ]
                 , div [ class "story-grid" ]
@@ -252,36 +253,10 @@ viewPinned slug data =
                         Nothing ->
                             []
                      )
-                        ++ List.map (viewStoryCard slug) data.pinnedDocs
+                        ++ List.map (Ui.StoryCard.view slug) data.pinnedDocs
                     )
                 ]
             )
-
-
-viewStoryCard : String -> DocCard -> Html Msg
-viewStoryCard slug d =
-    a [ href (docPath slug d.slug), class "story-card" ]
-        (List.filterMap identity
-            [ Just
-                (div [ class "story-card-top" ]
-                    [ span [ class "story-card-title" ] [ text d.title ] ]
-                )
-            , Maybe.map
-                (\s -> div [ class "story-card-summary" ] [ text s ])
-                d.summary
-            , if List.isEmpty d.tags then
-                Nothing
-
-              else
-                Just
-                    (div [ class "story-card-tags" ]
-                        (List.map
-                            (\t -> span [ class "story-card-tag" ] [ text t ])
-                            (List.take 3 d.tags)
-                        )
-                    )
-            ]
-        )
 
 
 
@@ -533,21 +508,6 @@ relative model t =
 
 
 -- ICONS (exact svgs from home_live.ex)
-
-
-pinIcon : Html msg
-pinIcon =
-    Svg.svg
-        [ SA.viewBox "0 0 24 24"
-        , SA.fill "none"
-        , SA.stroke "currentColor"
-        , SA.strokeWidth "2"
-        , SA.strokeLinecap "round"
-        , SA.strokeLinejoin "round"
-        ]
-        [ Svg.path [ SA.d "M12 17v5" ] []
-        , Svg.path [ SA.d "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" ] []
-        ]
 
 
 commentIcon : Html msg

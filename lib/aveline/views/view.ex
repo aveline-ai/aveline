@@ -12,6 +12,9 @@ defmodule Aveline.Views.View do
     * `"edited"`       — relative window on last edit ("7d", "24h") or nil
     * `"sort"`     — "recent" | "title" (optional; default recent)
     * `"icon"`     — optional emoji for future collapsed-sidebar tiles
+    * `"layout"`   — "list" | "board" (optional; default list). Only
+                     meaningful with group_by: board lays the groups
+                     out side by side as a kanban.
   """
   use Aveline.Schema
   import Ecto.Changeset
@@ -23,6 +26,7 @@ defmodule Aveline.Views.View do
   @min_description 6
   @max_description 280
   @sorts ~w(recent title)
+  @layouts ~w(list board)
 
   schema "views" do
     field :base_view_id, :binary_id
@@ -50,6 +54,7 @@ defmodule Aveline.Views.View do
   end
 
   def sorts, do: @sorts
+  def layouts, do: @layouts
 
   def insert_changeset(view, attrs) do
     view
@@ -99,6 +104,7 @@ defmodule Aveline.Views.View do
     edited = Aveline.Docs.normalize_within(Map.get(config, "edited"))
     sort = Map.get(config, "sort")
     icon = Map.get(config, "icon")
+    layout = Map.get(config, "layout")
 
     cond do
       not is_list(tags) or Enum.any?(tags, &(not is_binary(&1))) ->
@@ -122,6 +128,9 @@ defmodule Aveline.Views.View do
       not (is_nil(icon) or is_binary(icon)) ->
         add_error(changeset, :config, "icon must be a string")
 
+      not (is_nil(layout) or layout in @layouts) ->
+        add_error(changeset, :config, "layout must be one of #{Enum.join(@layouts, ", ")}")
+
       true ->
         clean =
           %{"tags" => tags}
@@ -130,6 +139,7 @@ defmodule Aveline.Views.View do
           |> then(fn c -> if edited, do: Map.put(c, "edited", edited), else: c end)
           |> then(fn c -> if sort, do: Map.put(c, "sort", sort), else: c end)
           |> then(fn c -> if icon, do: Map.put(c, "icon", icon), else: c end)
+          |> then(fn c -> if layout, do: Map.put(c, "layout", layout), else: c end)
 
         put_change(changeset, :config, clean)
     end

@@ -129,6 +129,7 @@ suite =
                                     , subGroupBy = Nothing
                                     , sort = Just "kudos"
                                     , edited = Nothing
+                                    , layout = Nothing
                                     }
                               , pinned = True
                               , bucket = Just { name = "team", kind = "team" }
@@ -141,6 +142,7 @@ suite =
                                     , subGroupBy = Nothing
                                     , sort = Nothing
                                     , edited = Nothing
+                                    , layout = Nothing
                                     }
                               , pinned = False
                               , bucket = Nothing

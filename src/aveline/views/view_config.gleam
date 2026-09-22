@@ -43,6 +43,7 @@ pub type RawConfig {
     edited: RawField,
     sort: RawField,
     icon: RawField,
+    layout: RawField,
   )
 }
 
@@ -62,6 +63,7 @@ pub fn empty_raw() -> RawConfig {
     edited: Absent,
     sort: Absent,
     icon: Absent,
+    layout: Absent,
   )
 }
 
@@ -116,6 +118,7 @@ fn validate(
   let edited = merge_field(base.edited, raw.edited)
   let sort = merge_field(base.sort, raw.sort)
   let icon = merge_field(base.icon, raw.icon)
+  let layout = merge_field(base.layout, raw.layout)
 
   // Context-stage checks first (tag existence, group_by scope) —
   // they outrank the changeset's shape checks, as before the port.
@@ -149,7 +152,8 @@ fn validate(
   use edited <- result.try(check_edited(edited))
   use sort <- result.try(check_sort(sort))
   use icon <- result.try(check_icon(icon))
-  Ok(ViewConfig(tags:, group_by:, sub_group_by:, edited:, sort:, icon:))
+  use layout <- result.try(check_layout(layout))
+  Ok(ViewConfig(tags:, group_by:, sub_group_by:, edited:, sort:, icon:, layout:))
 }
 
 fn check_group_by(
@@ -260,6 +264,19 @@ fn check_sort(merged: Merged) -> Result(Option(String), ApiError) {
     MBad -> Error(err)
     MSome(s) ->
       case s == "recent" || s == "title" {
+        True -> Ok(Some(s))
+        False -> Error(err)
+      }
+  }
+}
+
+fn check_layout(merged: Merged) -> Result(Option(String), ApiError) {
+  let err = Invalid("validation_failed", "layout must be one of list, board")
+  case merged {
+    MNone -> Ok(None)
+    MBad -> Error(err)
+    MSome(s) ->
+      case s == "list" || s == "board" {
         True -> Ok(Some(s))
         False -> Error(err)
       }

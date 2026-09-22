@@ -122,6 +122,7 @@ type alias ViewConfig =
     , subGroupBy : Maybe String
     , sort : Maybe String
     , edited : Maybe String
+    , layout : Maybe String
     }
 
 
@@ -237,12 +238,13 @@ optionalField name decoder fallback =
 
 viewConfigDecoder : Decoder ViewConfig
 viewConfigDecoder =
-    Decode.map5 ViewConfig
+    Decode.map6 ViewConfig
         (optionalField "tags" (Decode.list Decode.string) [])
         (optionalField "group_by" (Decode.map Just Decode.string) Nothing)
         (optionalField "sub_group_by" (Decode.map Just Decode.string) Nothing)
         (optionalField "sort" (Decode.map Just Decode.string) Nothing)
         (optionalField "edited" (Decode.map Just Decode.string) Nothing)
+        (optionalField "layout" (Decode.map Just Decode.string) Nothing)
 
 
 viewDefDecoder : Decoder ViewDef
@@ -250,7 +252,7 @@ viewDefDecoder =
     Decode.map5 ViewDef
         (Decode.field "name" Decode.string)
         (Decode.field "description" (Decode.nullable Decode.string))
-        (optionalField "config" viewConfigDecoder (ViewConfig [] Nothing Nothing Nothing Nothing))
+        (optionalField "config" viewConfigDecoder (ViewConfig [] Nothing Nothing Nothing Nothing Nothing))
         (optionalField "pinned" Decode.bool False)
         (Decode.field "bucket"
             (Decode.nullable

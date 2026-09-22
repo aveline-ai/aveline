@@ -324,12 +324,14 @@
          tabs on wide monitors. Padding constants kept tight so the centered
          column doesn't drift on smaller screens. */
       .content {
-        max-width: 1200px;
         margin: 0 auto;
-        padding: 48px 28px 80px;
+        padding: 48px 40px 80px;
         flex: 1;
         width: 100%;
       }
+      /* Full width by design (Sept 2026): the app fills whatever screen
+         it gets instead of a centred 1200px column. Reading surfaces
+         keep their own measure (.content-section-narrow, .doc-layout). */
       /* Reading-width inner section for forms / long-form copy. Sits
          inside `.content` and keeps line length comfortable. */
       .content-section-narrow {
@@ -1019,6 +1021,56 @@
         letter-spacing: 0.03em;
       }
       .group-dot-sm { width: 7px; height: 7px; }
+      /* The unassigned "no <scope>" column is pinned above the member
+         columns as a shelf of story cards, the home page's pinned-docs
+         treatment: those docs are usually the view's context (brief,
+         plan, overview), not items moving through the scope. */
+      .group-pin {
+        width: 14px; height: 14px; flex: none;
+        display: inline-flex; color: var(--text-muted);
+      }
+      .group-pin svg { width: 14px; height: 14px; }
+      .group-pinned .story-grid { padding: 2px 0 8px; }
+      .group-pinned .subgroup .story-grid { padding-top: 0; }
+
+      /* ===== Board layout: the grouped view's columns side by side.
+         Columns share the width equally up to a cap; past that the
+         board scrolls sideways. Each column scrolls on its own so a
+         long column never pushes its neighbours' heads off screen. */
+      .kanban {
+        display: flex; align-items: flex-start; gap: 14px;
+        overflow-x: auto; padding: 4px 0 20px;
+        scroll-snap-type: x proximity;
+      }
+      .kanban-col {
+        flex: 1 0 300px; min-width: 300px; max-width: 480px;
+        display: flex; flex-direction: column;
+        max-height: calc(100dvh - 96px);
+        background: rgba(255,255,255,0.015);
+        border: 1px solid var(--border); border-radius: 12px;
+        scroll-snap-align: start;
+      }
+      .kanban-col-head {
+        flex: none;
+        display: flex; align-items: center; gap: 8px;
+        padding: 12px 14px 10px;
+        border-bottom: 1px solid var(--border);
+      }
+      .kanban-col-body {
+        min-height: 0; overflow-y: auto;
+        display: flex; flex-direction: column; gap: 8px;
+        padding: 10px;
+      }
+      .kanban .card-list { gap: 8px; }
+      .kanban .subgroup { margin-left: 0; }
+      .kanban .subgroup-head { margin: 4px 4px 6px; }
+      .kanban .load-more-wrap-group { padding: 4px 4px 2px; }
+      @media (max-width: 720px) {
+        /* One column per screen, swiped. */
+        .kanban { gap: 10px; scroll-snap-type: x mandatory; }
+        .kanban-col { flex-basis: 86vw; min-width: 86vw; max-height: none; }
+        .kanban-col-body { overflow-y: visible; }
+      }
 
       /* Sidebar views: expanded mode only. Three sections — team pins
          (unlabeled, the default), then Yours (your private views) and

@@ -246,7 +246,7 @@ defmodule Aveline.Gleam.Caps.Views do
 
     {:view_config, Map.get(c, "tags", []) |> List.wrap() |> Enum.filter(&is_binary/1),
      opt(Map.get(c, "group_by")), opt(Map.get(c, "sub_group_by")), opt(Map.get(c, "edited")),
-     opt(Map.get(c, "sort")), opt(Map.get(c, "icon"))}
+     opt(Map.get(c, "sort")), opt(Map.get(c, "icon")), opt(Map.get(c, "layout"))}
   end
 
   defp write_attrs(
@@ -267,13 +267,14 @@ defmodule Aveline.Gleam.Caps.Views do
     }
   end
 
-  defp config_map({:view_config, tags, group_by, sub_group_by, edited, sort, icon}) do
+  defp config_map({:view_config, tags, group_by, sub_group_by, edited, sort, icon, layout}) do
     %{"tags" => tags}
     |> put_some("group_by", group_by)
     |> put_some("sub_group_by", sub_group_by)
     |> put_some("edited", edited)
     |> put_some("sort", sort)
     |> put_some("icon", icon)
+    |> put_some("layout", layout)
   end
 
   defp put_some(map, _key, :none), do: map
