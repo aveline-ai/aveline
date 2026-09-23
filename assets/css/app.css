@@ -1035,8 +1035,8 @@
 
       /* ===== Board layout: the grouped view's columns side by side.
          Columns share the width equally up to a cap; past that the
-         board scrolls sideways. Each column scrolls on its own so a
-         long column never pushes its neighbours' heads off screen. */
+         board scrolls sideways. Columns grow to their content and the
+         page scrolls; no nested scrollbars. */
       .kanban {
         display: flex; align-items: flex-start; gap: 14px;
         overflow-x: auto; padding: 4px 0 20px;
@@ -1045,7 +1045,6 @@
       .kanban-col {
         flex: 1 0 300px; min-width: 300px; max-width: 480px;
         display: flex; flex-direction: column;
-        max-height: calc(100dvh - 96px);
         background: rgba(255,255,255,0.015);
         border: 1px solid var(--border); border-radius: 12px;
         scroll-snap-align: start;
@@ -1057,7 +1056,6 @@
         border-bottom: 1px solid var(--border);
       }
       .kanban-col-body {
-        min-height: 0; overflow-y: auto;
         display: flex; flex-direction: column; gap: 8px;
         padding: 10px;
       }
@@ -1068,8 +1066,7 @@
       @media (max-width: 720px) {
         /* One column per screen, swiped. */
         .kanban { gap: 10px; scroll-snap-type: x mandatory; }
-        .kanban-col { flex-basis: 86vw; min-width: 86vw; max-height: none; }
-        .kanban-col-body { overflow-y: visible; }
+        .kanban-col { flex-basis: 86vw; min-width: 86vw; }
       }
 
       /* Sidebar views: expanded mode only. Three sections — team pins
