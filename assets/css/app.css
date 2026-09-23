@@ -1034,26 +1034,30 @@
       .group-pinned .subgroup .story-grid { padding-top: 0; }
 
       /* ===== Board layout: the grouped view's columns side by side.
-         Columns share the width equally up to a cap; past that the
-         board scrolls sideways. Columns grow to their content and the
-         page scrolls; no nested scrollbars. */
+         One scroll, the page's: columns grow to their content and
+         stretch to the tallest, and each head sticks under the topbar.
+         No overflow on .kanban on desktop, since any scroll container
+         there would capture the sticky heads. Columns share the width
+         down to a floor; past that the page itself scrolls sideways. */
       .kanban {
-        display: flex; align-items: flex-start; gap: 14px;
-        overflow-x: auto; padding: 4px 0 20px;
-        scroll-snap-type: x proximity;
+        display: flex; align-items: stretch; gap: 14px;
+        padding: 4px 0 20px;
       }
       .kanban-col {
-        flex: 1 0 300px; min-width: 300px; max-width: 480px;
+        flex: 1 1 0; min-width: 240px; max-width: 480px;
         display: flex; flex-direction: column;
         background: rgba(255,255,255,0.015);
         border: 1px solid var(--border); border-radius: 12px;
-        scroll-snap-align: start;
       }
       .kanban-col-head {
         flex: none;
         display: flex; align-items: center; gap: 8px;
         padding: 12px 14px 10px;
         border-bottom: 1px solid var(--border);
+        position: sticky; top: 48px; z-index: 2;
+        /* Opaque twin of the column tint so cards slide under it. */
+        background: linear-gradient(rgba(255,255,255,0.015), rgba(255,255,255,0.015)), var(--bg);
+        border-radius: 11px 11px 0 0;
       }
       .kanban-col-body {
         display: flex; flex-direction: column; gap: 8px;
@@ -1064,9 +1068,14 @@
       .kanban .subgroup-head { margin: 4px 4px 6px; }
       .kanban .load-more-wrap-group { padding: 4px 4px 2px; }
       @media (max-width: 720px) {
-        /* One column per screen, swiped. */
-        .kanban { gap: 10px; scroll-snap-type: x mandatory; }
-        .kanban-col { flex-basis: 86vw; min-width: 86vw; }
+        /* One column per screen, swiped. The board is its own sideways
+           scroller here (the body clips x), so heads don't stick. */
+        .kanban {
+          gap: 10px; overflow-x: auto;
+          scroll-snap-type: x mandatory; align-items: flex-start;
+        }
+        .kanban-col { flex: none; width: 86vw; min-width: 86vw; scroll-snap-align: start; }
+        .kanban-col-head { position: static; }
       }
 
       /* Sidebar views: expanded mode only. Three sections — team pins

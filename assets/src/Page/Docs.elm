@@ -1099,7 +1099,7 @@ groupBlock model scope grp style =
 
 
 {-| One board column: same header as a list section (minus collapse),
-its cards stacked in a scroller of its own, "Load more" at the foot.
+its cards stacked below a sticky head, "Load more" at the foot.
 -}
 viewBoardColumn : Model -> String -> DocPage -> Html Msg
 viewBoardColumn model scope grp =
