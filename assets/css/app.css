@@ -1035,7 +1035,7 @@
 
       /* ===== Board layout: the grouped view's columns side by side.
          One scroll, the page's: columns grow to their content and
-         stretch to the tallest, and each head sticks under the topbar.
+         stretch to the tallest, and each head sticks to the viewport top.
          No overflow on .kanban on desktop, since any scroll container
          there would capture the sticky heads. Columns share the width
          down to a floor; past that the page itself scrolls sideways. */
@@ -1048,16 +1048,18 @@
         display: flex; flex-direction: column;
         background: rgba(255,255,255,0.015);
         border: 1px solid var(--border); border-radius: 12px;
+        /* clip, not hidden: rounds the head's corners without making a
+           scroll container that would capture the sticky head. */
+        overflow: clip;
       }
       .kanban-col-head {
         flex: none;
         display: flex; align-items: center; gap: 8px;
         padding: 12px 14px 10px;
         border-bottom: 1px solid var(--border);
-        position: sticky; top: 48px; z-index: 2;
+        position: sticky; top: 0; z-index: 2;
         /* Opaque twin of the column tint so cards slide under it. */
         background: linear-gradient(rgba(255,255,255,0.015), rgba(255,255,255,0.015)), var(--bg);
-        border-radius: 11px 11px 0 0;
       }
       .kanban-col-body {
         display: flex; flex-direction: column; gap: 8px;
