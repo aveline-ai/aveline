@@ -113,6 +113,12 @@ defmodule Aveline.Primer do
           "Run aveline contract before your first write: it gives the exact shape of every block and edit. New docs are born private and new views land in your personal bucket, so pass --visibility workspace and --bucket team for anything the team should see. Every edit carries --intent saying why. Edit surgically with --ops; replace a whole doc only when you mean to. Tags must exist before you use them, so run aveline list-tags and use what this workspace has rather than what you expect."
         )
       ]),
+      h2("When this doc changes"),
+      para([
+        t(
+          "Aveline revises this doc as it gains features. When the CLI tells you it has changed since you last read it, you will be handed one line per version. Read them, then tell the person what changed in a sentence of your own. Do not recite the lines: they are written for someone who already knows Aveline, and the point of mentioning it at all is to be clear. If nothing in the change affects what they are doing, say nothing."
+        )
+      ]),
       h2("Making it yours"),
       para([
         t(
