@@ -4,9 +4,9 @@ defmodule Aveline.Primer do
   shares, and what to tell a person on their first session.
 
   One of two block lists Aveline ships. This one is read live: it is
-  returned by GET /api/base (open, no token) and alongside a workspace's
-  own orientation by GET /api/workspaces/:slug/orientation, and it is
-  never copied into a workspace, so no copy of it can drift. The other is
+  returned alongside a workspace's own orientation by
+  GET /api/workspaces/:slug/orientation, and it is never copied into a
+  workspace, so no copy of it can drift. The other is
   `Aveline.Workspaces.Template`, the starter a new workspace optionally
   takes a copy of. The two are matched in shape: same blocks, same
   builders, same validation test.

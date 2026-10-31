@@ -41,8 +41,7 @@ defmodule AvelineWeb.Api.DocController do
   creation, undeletable). Agents fetch this first to learn how the
   workspace is laid out. `doc` has the same shape as GET /docs/:slug;
   `primer` is the Aveline base doc (`Aveline.Primer`), to be read first,
-  with its version and changelog so the CLI can say what changed. The
-  same payload is served without a token at GET /api/base.
+  with its version and changelog so the CLI can say what changed.
   """
   def orientation(conn, _params) do
     case :aveline@handlers@doc_read.orientation(CtxBuilder.build(), CtxBuilder.scope(conn)) do
