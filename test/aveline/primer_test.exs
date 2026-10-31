@@ -9,11 +9,26 @@ defmodule Aveline.PrimerTest do
   alias Aveline.Blocks.Block
   alias Aveline.Primer
 
+  test "changelog has an entry for every version up to the current one" do
+    versions = Primer.changelog_since(0) |> Enum.map(&elem(&1, 0))
+    assert versions == Enum.to_list(1..Primer.version())
+    assert Primer.changelog_since(Primer.version()) == []
+    for {_v, line} <- Primer.changelog_since(0), do: assert(is_binary(line) and line != "")
+  end
+
+  test "carries no tag list and no workflow of its own" do
+    text = Jason.encode!(Primer.blocks())
+    refute text =~ "ticket:bug"
+    refute text =~ "in-flight"
+    refute text =~ "Ticket subtype"
+  end
+
   test "version is a positive integer and the payload carries it" do
     assert is_integer(Primer.version()) and Primer.version() >= 1
-    assert %{"version" => v, "blocks" => blocks} = Primer.payload()
+    assert %{"version" => v, "blocks" => blocks, "changelog" => log} = Primer.payload()
     assert v == Primer.version()
     assert blocks == Primer.blocks()
+    assert is_list(log) and log != []
   end
 
   test "every block validates against Block.validate/2 with its own id" do

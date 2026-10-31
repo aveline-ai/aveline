@@ -1,32 +1,48 @@
 defmodule Aveline.Primer do
   @moduledoc """
-  Aveline's base doc, the "primer": how Aveline works, the words a person
-  says to their agent, tags, and what to tell a person on a first session.
+  The Aveline base doc: what Aveline is, the features every workspace
+  shares, and what to tell a person on their first session.
 
-  Served live by GET /api/workspaces/:slug/orientation as `primer`, beside
-  the workspace's own orientation doc (`doc`); the primer says to read it
-  first (JSON objects carry no order). So every agent in every
-  workspace reads the current version on its next session. Nothing is
-  copied into any workspace: this module is the only copy, it changes by
-  PR, and `@version` is bumped with any change to the text so the CLI can
-  say once that it moved.
+  One of two block lists Aveline ships. This one is read live: it is
+  returned by GET /api/base (open, no token) and alongside a workspace's
+  own orientation by GET /api/workspaces/:slug/orientation, and it is
+  never copied into a workspace, so no copy of it can drift. The other is
+  `Aveline.Workspaces.Template`, the starter a new workspace optionally
+  takes a copy of. The two are matched in shape: same blocks, same
+  builders, same validation test.
 
-  Where the primer and a workspace's orientation disagree, the workspace
-  doc wins; the primer says so about itself. It is called the primer in
-  code and on the wire because `base_doc_id` already means a doc's
-  logical id across versions.
+  It carries no tag list and no workflow of its own. Vocabulary and
+  process belong to the workspace; an agent runs `list-tags` to see what
+  a workspace actually has, and reads the team's orientation for how they
+  work. Where this doc and a workspace's orientation disagree, the
+  workspace wins, and the text says so.
 
-  Every block here is asserted valid against `Aveline.Blocks.Block` by
-  `Aveline.PrimerTest`, the same way the contract's examples are.
+  Changing the text means bumping `@version` and adding one line to
+  `@changelog` in the same pull request. The CLI prints the entries
+  between the version it last saw and the current one.
   """
 
   @version 1
 
-  @doc "The primer's version. Bump it with any change to `blocks/0`."
+  # Newest first. One line per version, in plain words, for a person.
+  @changelog [{1, "First version."}]
+
+  @doc "The base doc's version. Bump it with any change to `blocks/0`."
   def version, do: @version
 
-  @doc "The JSON-ready payload the orientation endpoint merges in."
-  def payload, do: %{"version" => @version, "blocks" => blocks()}
+  @doc "Changelog entries newer than `since`, oldest first."
+  def changelog_since(since) when is_integer(since) do
+    @changelog |> Enum.filter(fn {v, _} -> v > since end) |> Enum.sort_by(&elem(&1, 0))
+  end
+
+  @doc "The JSON-ready payload served with a workspace's orientation."
+  def payload do
+    %{
+      "version" => @version,
+      "changelog" => Enum.map(@changelog, fn {v, line} -> %{"version" => v, "line" => line} end),
+      "blocks" => blocks()
+    }
+  end
 
   @person_heading "On a first session, tell the person"
 
@@ -34,7 +50,7 @@ defmodule Aveline.Primer do
   def person_heading, do: @person_heading
 
   @doc """
-  The primer as a block list, in reading order. Ids are deterministic
+  The base doc as a block list, in reading order. Ids are deterministic
   (`b_primer_N`, list items `li_primer_N_M`; the block for the person is
   `b_primer_person`) so a consumer keying blocks by id sees the same ids
   on every request and every release.
@@ -43,9 +59,7 @@ defmodule Aveline.Primer do
     build()
     |> Enum.with_index(1)
     |> Enum.map(fn {block, i} ->
-      block
-      |> Map.put_new("id", "b_primer_#{i}")
-      |> number_items(i)
+      block |> Map.put_new("id", "b_primer_#{i}") |> number_items(i)
     end)
   end
 
@@ -54,73 +68,61 @@ defmodule Aveline.Primer do
       para([
         b("Aveline, for the agent reading this. "),
         t(
-          "This is Aveline's base doc, version #{@version}. Aveline serves it beside every workspace's own orientation (the doc in the same response): read this first, then the team's. Where the two disagree, the workspace doc wins: it is the team's rules, this is only how Aveline works. Nothing here is a rule a team cannot rewrite."
+          "This is Aveline's base doc, version #{@version}. It describes Aveline itself and the features every workspace shares. How your team works is their own orientation doc, served beside this one. Read this first, then theirs. Where the two disagree, the workspace doc wins: nothing here can override a team's rules."
         )
       ]),
       h2("What Aveline is"),
       para([
         t(
-          "A wiki for a team and its agents. Humans read and comment in the web app; agents read and write through the aveline CLI. Every doc has tags, every edit has an intent, every version is kept. Views are saved filters over tags; the pinned ones are the sidebar."
+          "A wiki for a team and its agents. People read and comment in the web app; agents read and write through the aveline CLI. Everything a team has is a doc. Docs carry tags, and a view is a saved filter over tags, so a board is simply its docs grouped by one of them. Every edit keeps its old version and carries a line saying why."
+        )
+      ]),
+      h2("Getting set up"),
+      para([
+        t(
+          "Four steps, and you may already be past some of them. Install the CLI if it is missing; the workspace page on the website carries a prompt that covers this. Run aveline login, which opens a browser and asks the person for one click. Run aveline whoami to learn whose machine you are on, then read the team's orientation for what that name means here, because who may merge or ship is their rule, not Aveline's. Then either aveline use-workspace to join one that exists, or aveline create-workspace to make one, which will ask how you want it set up."
         )
       ]),
       h2("How a person hands you work"),
       para([
-        t("Three words, from the person you work for. Follow the workspace doc if it defines them differently.")
+        t("Three words, from the person you work for. Follow the team's orientation if it defines them differently.")
       ]),
       ul([
         [
           b("BG"),
           t(
-            " and what they want: file a ticket, plan it on the ticket, build it, get it reviewed, and bring them the finished pull request. One report at the end. No questions mid-way unless a guess would be unsafe. This is the default for most work."
+            " and what they want: do the whole thing and bring back the finished work for them to look at. One report at the end. No questions on the way unless a guess would be unsafe. This is the default for most work."
           )
         ],
         [
           b("FG"),
           t(
-            " and what they want: build it live while they watch and steer. Serve the branch, open their browser, change fast, no test suites while iterating. On \"ship\", run the checks and finish from the review step."
+            " and what they want: do it live while they watch and steer. Change fast, show them as you go, and finish properly when they say ship."
           )
         ],
-        [b("file it"), t(" and an idea: a ticket, nothing built.")]
+        [b("file it"), t(" and an idea: write it down, build nothing.")]
       ]),
       para([
         t(
           "Either way they can still ask for changes. BG is the recommendation; FG is for things they need to see to judge."
         )
       ]),
-      h2("Tags"),
+      h2("Writing here"),
       para([
         t(
-          "Every doc carries a few tags, and the boards are just tags grouped. This is Aveline's standard set; a workspace may have been set up with its own, so run aveline list-tags before your first write and use what exists. A team adds tags as it goes."
+          "Run aveline contract before your first write: it gives the exact shape of every block and edit. New docs are born private and new views land in your personal bucket, so pass --visibility workspace and --bucket team for anything the team should see. Every edit carries --intent saying why. Edit surgically with --ops; replace a whole doc only when you mean to. Tags must exist before you use them, so run aveline list-tags and use what this workspace has rather than what you expect."
         )
       ]),
-      tag_table(),
+      h2("Making it yours"),
       para([
         t(
-          "One tag from each family that applies. Work moves by retagging. Feedback is not its own kind of record: it rides on a ticket or an idea with a from:name tag, and the ticket's status says whether it was acted on. Tags must exist before use (aveline list-tags; create-tag with a description)."
-        )
-      ]),
-      h2("Ideas"),
-      para([
-        t(
-          "An idea is a one-page pitch: what and why, before anything is built. It moves through draft, in-review, approved or cancelled. Cancelled ideas stay, as the record of what was decided against. A ticket is cut from an approved idea."
-        )
-      ]),
-      h2("Writing"),
-      para([
-        t(
-          "Run aveline contract before your first write. New docs are born private and new views land in your personal bucket: pass --visibility workspace and --bucket team for anything the team should see. Every edit carries --intent saying why. Edit surgically with --ops; rewrite whole docs only when you mean to."
-        )
-      ]),
-      h2("The team's rules"),
-      para([
-        t(
-          "The team's orientation is the doc beside this one. Their rules live there; change the doc and the rules change. Read it to the end before touching anything."
+          "None of a team's way of working is fixed. The tags, the boards, the loop from idea to shipped, the review before anything lands: all of it is theirs to write, in their orientation doc, and to change whenever it stops fitting. A new workspace can start from a ready-made setup or from nothing. Read their orientation to find out which, and treat it as the authority."
         )
       ]),
       h2(@person_heading) |> Map.put("id", "b_primer_person"),
       para([
         t(
-          "This is guidance for what you say to a person on their first session in a workspace, not a script. Write it in your own words. Under about 200 words plus the tag table. Plain, second person, no jargon, no bullet dump. Cover, in this order:"
+          "This is guidance for what you say to a person on their first session in a workspace, not a script. Write it in your own words. Under about two hundred words. Plain, second person, no jargon, no bullet dump. Cover, in this order:"
         )
       ]),
       ol([
@@ -134,12 +136,11 @@ defmodule Aveline.Primer do
         ],
         [
           t(
-            "Tags in two sentences: every doc carries a few, the boards are tags grouped; make your own as you go. Then the tags this workspace actually has (aveline list-tags), as a short table by family; if it has Aveline's standard set, that is the table above. If it has none yet, one line: start with ticket and a status, the rest comes."
+            "Tags in two sentences: every doc carries a few, and a board is its docs grouped by one. Then the tags this workspace actually has, from list-tags, as a short table. If it has none yet, one line: start with a ticket tag and a status, the rest comes."
           )
         ],
-        [t("An idea is a one-page pitch, what and why, before anything is built.")],
         [
-          t("Their team's rules live in the orientation doc; change the doc and the rules change.")
+          t("Their team's rules live in their orientation doc; change the doc and the rules change.")
         ],
         [t("Ask me anything about the project or the process; I will look it up.")],
         [t("What is on the board right now, or that nothing is yet.")]
@@ -157,23 +158,6 @@ defmodule Aveline.Primer do
   end
 
   defp number_items(block, _i), do: block
-
-  defp tag_table do
-    %{
-      "type" => "table",
-      "headers" => ["Family", "Tags"],
-      "rows" => [
-        [[t("Kind")], [t("ticket, idea, feedback")]],
-        [[t("Ticket subtype")], [t("bug, feature, ui, refactor")]],
-        [[t("Ticket status")], [t("backlog, next, in-flight, review, shipped, cancelled")]],
-        [[t("Idea stage")], [t("draft, in-review, approved, cancelled")]],
-        [
-          [t("Yours to add")],
-          [t("from:name on feedback, an area (backgammon, platform), a project (profiles)")]
-        ]
-      ]
-    }
-  end
 
   # ===== tiny block builders, as in Aveline.Workspaces.Template =====
 

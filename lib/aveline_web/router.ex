@@ -220,6 +220,7 @@ defmodule AvelineWeb.Router do
     pipe_through :api
 
     get "/heartbeat", HeartbeatController, :show
+    get "/base", BaseController, :show
   end
 
   # ===== Authed API =====
