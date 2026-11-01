@@ -19,7 +19,14 @@ defmodule Aveline.OrientationDocTest do
 
     # Board columns work out of the box, in template order.
     assert Aveline.Tags.list_scope_members(ws.id, "status") ==
-             ["status:backlog", "status:todo", "status:in-progress", "status:done", "status:cancelled"]
+             [
+               "status:backlog",
+               "status:next",
+               "status:in-flight",
+               "status:review",
+               "status:shipped",
+               "status:cancelled"
+             ]
   end
 
   test "every new workspace gets exactly one orientation doc", %{ws: ws} do

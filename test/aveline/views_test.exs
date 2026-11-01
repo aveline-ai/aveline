@@ -17,7 +17,7 @@ defmodule Aveline.ViewsTest do
     {:ok, view} =
       Views.create(
         ws.id,
-        "tickets",
+        "work-board",
         "All open work by status.",
         %{
           "tags" => ["ticket"],
@@ -42,7 +42,7 @@ defmodule Aveline.ViewsTest do
 
     # Name is live-unique.
     assert {:error, %Ecto.Changeset{}} =
-             Views.create(ws.id, "tickets", "Duplicate.", %{}, user.id)
+             Views.create(ws.id, "work-board", "Duplicate.", %{}, user.id)
 
     # Description required, name must be a slug.
     assert {:error, %Ecto.Changeset{}} = Views.create(ws.id, "ok-name", "", %{}, user.id)
@@ -51,7 +51,7 @@ defmodule Aveline.ViewsTest do
 
   test "edit mints versions on the same base; pin survives; delete/restore round-trips" do
     %{user: user, ws: ws} = setup_ws()
-    {:ok, v1} = Views.create(ws.id, "tickets", "All open work.", %{"tags" => ["ticket"]}, user.id)
+    {:ok, v1} = Views.create(ws.id, "work-board", "All open work.", %{"tags" => ["ticket"]}, user.id)
     {:ok, v1} = Views.set_pinned(v1, true)
 
     {:ok, v2} = Views.edit(v1, %{config: %{"tags" => ["ticket"], "group_by" => "status"}}, user.id)
@@ -68,16 +68,19 @@ defmodule Aveline.ViewsTest do
     # Rename via edit.
     {:ok, v3} = Views.edit(v2, %{name: "work"}, user.id)
     assert v3.name == "work"
-    assert Views.get_current_by_name(ws.id, "tickets") == nil
+    assert Views.get_current_by_name(ws.id, "work-board") == nil
     assert Views.get_current_by_name(ws.id, "work")
 
     {:ok, _} = Views.delete(v3, user.id)
     assert Views.get_current_by_name(ws.id, "work") == nil
-    assert Views.list_pinned(ws.id) == []
+    # The seeded boards stay pinned; only this test's own view goes.
+    refute Enum.any?(Views.list_pinned(ws.id), &(&1.name in ["work", "work-board"]))
 
     {:ok, restored} = Views.restore(ws.id, "work")
     assert restored.deleted_at == nil
-    assert [%{name: "work"}] = Views.list_pinned(ws.id)
+
+    assert Enum.any?(Views.list_pinned(ws.id), &(&1.name == "work")),
+           "a restored view keeps its pin"
   end
 
   test "list_for_workspace orders pinned first, then name" do
@@ -86,7 +89,10 @@ defmodule Aveline.ViewsTest do
     {:ok, z} = Views.create(ws.id, "zulu", "Last alphabetically.", %{}, user.id)
     {:ok, _} = Views.set_pinned(z, true)
 
-    assert ["zulu", "alpha"] = ws.id |> Views.list_for_workspace() |> Enum.map(& &1.name)
+    # A standard workspace is seeded with three pinned boards, so they
+    # lead, alphabetically, before this test's own pinned view.
+    assert ["feedback", "ideas", "tickets", "zulu", "alpha"] =
+             ws.id |> Views.list_for_workspace() |> Enum.map(& &1.name)
   end
 
   test "config accepts an edited window and rejects a bad one" do
@@ -138,7 +144,7 @@ defmodule Aveline.ViewsTest do
     %{user: user, ws: ws} = setup_ws()
 
     {:ok, v1} =
-      Views.create(ws.id, "tickets", "By status.", %{"tags" => ["ticket"], "group_by" => "status"}, user.id)
+      Views.create(ws.id, "work-board", "By status.", %{"tags" => ["ticket"], "group_by" => "status"}, user.id)
 
     # Edit only sub_group_by — tags and group_by must survive.
     {:ok, v2} = Views.edit(v1, %{config: %{"sub_group_by" => "ticket"}}, user.id)
@@ -154,10 +160,10 @@ defmodule Aveline.ViewsTest do
 
   test "safe_map shape" do
     %{user: user, ws: ws} = setup_ws()
-    {:ok, view} = Views.create(ws.id, "tickets", "All open work.", %{"tags" => ["ticket"]}, user.id)
+    {:ok, view} = Views.create(ws.id, "work-board", "All open work.", %{"tags" => ["ticket"]}, user.id)
 
     assert %{
-             "name" => "tickets",
+             "name" => "work-board",
              "description" => "All open work.",
              "config" => %{"tags" => ["ticket"]},
              "pinned" => false,

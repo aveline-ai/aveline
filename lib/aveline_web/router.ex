@@ -232,6 +232,7 @@ defmodule AvelineWeb.Router do
     post "/keys", KeyController, :create
     delete "/keys/:id", KeyController, :delete
     get "/contract", ContractController, :show
+    get "/starter", StarterController, :show
     get "/workspaces", WorkspaceController, :index
     post "/workspaces", WorkspaceController, :create
     get "/workspaces/:slug", WorkspaceController, :show

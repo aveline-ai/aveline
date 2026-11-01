@@ -92,18 +92,18 @@ defmodule AvelineWeb.Api.ViewLifecycleTest do
   test "update mints a version, merges config, keeps pin", %{owner_conn: conn, ws: ws} do
     conn
     |> create_view(ws, %{
-      "name" => "tickets",
+      "name" => "work-board",
       "description" => "All open work.",
       "bucket" => "team",
       "config" => %{"tags" => ["ticket"], "group_by" => "status"}
     })
     |> json_response(200)
 
-    conn |> post(~p"/api/workspaces/#{ws.slug}/views/tickets/pin") |> json_response(200)
+    conn |> post(~p"/api/workspaces/#{ws.slug}/views/work-board/pin") |> json_response(200)
 
     body =
       conn
-      |> patch(~p"/api/workspaces/#{ws.slug}/views/tickets", %{"config" => %{"sort" => "title"}})
+      |> patch(~p"/api/workspaces/#{ws.slug}/views/work-board", %{"config" => %{"sort" => "title"}})
       |> json_response(200)
 
     assert body["view"]["version_number"] == 2

@@ -18,9 +18,11 @@ pub type WorkspacesCaps {
     get_active_by_slug: fn(String) -> Option(WorkspaceInfo),
     /// (workspace_id, user_id) membership check.
     is_member: fn(String, String) -> Bool,
-    /// Create a workspace: (name, slug, creator_id). Template seeding
-    /// (tags, orientation doc, built-in source) stays Elixir-side.
-    create: fn(String, String, String) ->
+    /// Create a workspace: (name, slug, creator_id, setup). Setup is
+    /// "standard" or "custom" and decides how far it is furnished;
+    /// the seeding itself (tags, boards, orientation doc, built-in
+    /// source) stays Elixir-side.
+    create: fn(String, String, String, String) ->
       Result(WorkspaceInfo, CreateWorkspaceError),
     /// Idempotently add the creator as a member: (workspace_id, user_id).
     ensure_member: fn(String, String) -> Nil,
@@ -32,7 +34,7 @@ pub fn stub() -> WorkspacesCaps {
     list_for_user: fn(_) { panic as "stub workspaces.list_for_user" },
     get_active_by_slug: fn(_) { panic as "stub workspaces.get_active_by_slug" },
     is_member: fn(_, _) { panic as "stub workspaces.is_member" },
-    create: fn(_, _, _) { panic as "stub workspaces.create" },
+    create: fn(_, _, _, _) { panic as "stub workspaces.create" },
     ensure_member: fn(_, _) { panic as "stub workspaces.ensure_member" },
   )
 }

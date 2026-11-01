@@ -52,23 +52,37 @@ defmodule Aveline.Workspaces do
 
   def get_workspace(id), do: Repo.get(Workspace, id)
 
+  # "standard" (the default) furnishes the workspace; "custom" leaves the
+  # team an empty frame. Anything unrecognised is treated as standard, so
+  # a stale client can never land a workspace in a half-made state.
+  defp setup_mode(attrs) do
+    case Map.get(attrs, "setup") || Map.get(attrs, :setup) do
+      "custom" -> :custom
+      :custom -> :custom
+      _ -> :standard
+    end
+  end
+
   def create_workspace(attrs) do
     %Workspace{}
     |> Workspace.changeset(attrs)
     |> Repo.insert()
     |> case do
       {:ok, ws} ->
-        # Every workspace ships furnished: the recommended tag set and an
-        # orientation doc pre-written for it (Aveline.Workspaces.Template).
-        # All ordinary data — teams reshape it through their agents.
+        # A workspace is furnished according to the mode it was created
+        # with (Aveline.Workspaces.Template). Both modes get an
+        # orientation doc; :standard also gets the tag set, the boards and
+        # a template doc, and :custom gets an empty frame to write into.
+        # All of it is ordinary data the team reshapes afterwards.
         creator = Map.get(attrs, "created_by_id") || Map.get(attrs, :created_by_id)
+        mode = setup_mode(attrs)
 
         # The built-in workspace source (the query catalog's virtual
         # database) exists from the first breath, creator or not.
         {:ok, _} = Aveline.DataSources.ensure_workspace_source(ws.id)
 
         if creator do
-          Enum.each(Aveline.Workspaces.Template.tags(), fn {slug, description, color, sort_key} ->
+          Enum.each(Aveline.Workspaces.Template.tags(mode), fn {slug, description, color, sort_key} ->
             {:ok, _} =
               Aveline.Tags.create(ws.id, slug, description, creator,
                 color: color,
@@ -76,9 +90,9 @@ defmodule Aveline.Workspaces do
               )
           end)
 
-          {:ok, _} = Aveline.Docs.seed_orientation_doc(ws.id, creator)
+          {:ok, _} = Aveline.Docs.seed_orientation_doc(ws.id, creator, mode)
 
-          Enum.each(Aveline.Workspaces.Template.docs(), fn {slug, title, summary, tags, blocks} ->
+          Enum.each(Aveline.Workspaces.Template.docs(mode), fn {slug, title, summary, tags, blocks} ->
             {:ok, _} =
               Aveline.Docs.create_doc(%{
                 workspace_id: ws.id,
@@ -92,6 +106,11 @@ defmodule Aveline.Workspaces do
                 blocks: blocks,
                 intent: "seed the workspace template docs"
               })
+          end)
+
+          Enum.each(Aveline.Workspaces.Template.views(mode), fn {name, description, config} ->
+            {:ok, view} = Aveline.Views.create(ws.id, name, description, config, creator)
+            {:ok, _} = Aveline.Views.set_pinned(view, true)
           end)
         end
 

@@ -16,7 +16,11 @@ import gleam/result
 import gleam/string
 
 pub type CreateRequest {
-  CreateRequest(name: Option(String), slug: Option(String))
+  CreateRequest(
+    name: Option(String),
+    slug: Option(String),
+    setup: Option(String),
+  )
 }
 
 pub fn index(ctx: Ctx, actor: Actor) -> List(WorkspaceInfo) {
@@ -45,13 +49,31 @@ pub fn create(
 ) -> Result(WorkspaceInfo, ApiError) {
   use name <- result.try(validate_name(req.name))
   use slug_value <- result.try(resolve_slug(req.slug, name))
+  use setup <- result.try(validate_setup(req.setup))
 
-  case ctx.workspaces.create(name, slug_value, actor.id) {
+  case ctx.workspaces.create(name, slug_value, actor.id, setup) {
     Error(SlugTaken) -> Error(Invalid("slug_taken", "Slug already in use."))
     Ok(ws) -> {
       ctx.workspaces.ensure_member(ws.id, actor.id)
       Ok(ws)
     }
+  }
+}
+
+/// How far to furnish the new workspace. Omitted means "standard": a
+/// caller that says nothing gets the loop, the tags and the boards.
+/// Anything else is rejected rather than quietly treated as standard,
+/// so a typo cannot leave a team wondering where their boards went.
+fn validate_setup(setup: Option(String)) -> Result(String, ApiError) {
+  case setup {
+    option.None -> Ok("standard")
+    option.Some("standard") -> Ok("standard")
+    option.Some("custom") -> Ok("custom")
+    option.Some(other) ->
+      Error(Invalid(
+        "setup_invalid",
+        "setup must be \"standard\" or \"custom\", got \"" <> other <> "\".",
+      ))
   }
 }
 

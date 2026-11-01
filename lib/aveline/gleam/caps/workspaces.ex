@@ -16,14 +16,17 @@ defmodule Aveline.Gleam.Caps.Workspaces do
      fn workspace_id, user_id ->
        Workspaces.member?(workspace_id, user_id)
      end,
-     fn name, slug, creator_id ->
-       # Full furnishing (template tags/docs, built-in source) rides along
-       # inside create_workspace. Gleam pre-validates name + slug, so the
-       # only product-behavior failure left is the slug unique constraint.
+     fn name, slug, creator_id, setup ->
+       # Furnishing (template tags, boards, orientation doc, built-in
+       # source) rides along inside create_workspace, to the depth the
+       # setup mode asks for. Gleam pre-validates name, slug and setup,
+       # so the only product-behavior failure left here is the slug
+       # unique constraint.
        case Workspaces.create_workspace(%{
               "name" => name,
               "slug" => slug,
-              "created_by_id" => creator_id
+              "created_by_id" => creator_id,
+              "setup" => setup
             }) do
          {:ok, ws} ->
            {:ok, info(ws)}
