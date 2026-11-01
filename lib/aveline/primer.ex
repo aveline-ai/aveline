@@ -80,7 +80,7 @@ defmodule Aveline.Primer do
       h2("Getting set up"),
       para([
         t(
-          "A few steps, and you may already be past some of them. Install the CLI if it is missing; the workspace page on the website carries a prompt that covers this. Run aveline login, which opens a browser and asks the person for one click. Run aveline whoami to learn whose machine you are on, then read the team's orientation for what that name means here, because who may merge or ship is their rule, not Aveline's. Then either aveline use-workspace to join one that exists, or aveline create-workspace to make one, which will ask how you want it set up."
+          "A few steps, and you may already be past some of them. Install the CLI if it is missing; the workspace page on the website carries a prompt that covers this. Run aveline login, which opens a browser and asks the person for one click. Run aveline whoami to learn whose machine you are on, then read the team's orientation for what that name means here, because who may merge or ship is their rule, not Aveline's. Then either aveline use-workspace to join one that exists, or aveline create-workspace to make one. Making one is a choice: ask the person whether they want the standard setup, which comes with a way of working already written down, or a blank one they fill in themselves. Run aveline starter first so you can tell them what the standard one contains, then pass their answer as --setup."
         )
       ]),
       para([
