@@ -80,7 +80,12 @@ defmodule Aveline.Primer do
       h2("Getting set up"),
       para([
         t(
-          "Four steps, and you may already be past some of them. Install the CLI if it is missing; the workspace page on the website carries a prompt that covers this. Run aveline login, which opens a browser and asks the person for one click. Run aveline whoami to learn whose machine you are on, then read the team's orientation for what that name means here, because who may merge or ship is their rule, not Aveline's. Then either aveline use-workspace to join one that exists, or aveline create-workspace to make one, which will ask how you want it set up."
+          "A few steps, and you may already be past some of them. Install the CLI if it is missing; the workspace page on the website carries a prompt that covers this. Run aveline login, which opens a browser and asks the person for one click. Run aveline whoami to learn whose machine you are on, then read the team's orientation for what that name means here, because who may merge or ship is their rule, not Aveline's. Then either aveline use-workspace to join one that exists, or aveline create-workspace to make one, which will ask how you want it set up."
+        )
+      ]),
+      para([
+        t(
+          "One more, if the work lives in a repository. Write a few lines into the file your own instructions are loaded from, saying that team knowledge lives in Aveline, that a session starts with aveline get-orientation, and that writes go through the CLI. Put it in a file that already exists rather than adding a second one: a tool that finds two may read only one of them, and the note goes unread. AGENTS.md is the usual name when there is none. Ask the person before writing it."
         )
       ]),
       h2("How a person hands you work"),
