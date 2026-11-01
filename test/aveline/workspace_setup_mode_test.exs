@@ -30,7 +30,29 @@ defmodule Aveline.WorkspaceSetupModeTest do
   test "standard furnishes the workspace" do
     {ws, _owner} = create("standard")
 
-    assert length(Tags.list_slugs(ws.id)) == length(Template.tags(:standard))
+    # Named, not compared with the template: a slug dropped or misspelt
+    # in the template must fail here rather than agree with itself.
+    assert Enum.sort(Tags.list_slugs(ws.id)) ==
+             Enum.sort([
+               "ticket",
+               "idea",
+               "template",
+               "ticket:bug",
+               "ticket:feature",
+               "ticket:ui",
+               "ticket:refactor",
+               "status:backlog",
+               "status:next",
+               "status:in-flight",
+               "status:review",
+               "status:shipped",
+               "status:cancelled",
+               "stage:draft",
+               "stage:in-review",
+               "stage:approved",
+               "stage:cancelled",
+               "feedback"
+             ])
 
     assert Tags.list_scope_members(ws.id, "status") == [
              "status:backlog",
@@ -80,19 +102,34 @@ defmodule Aveline.WorkspaceSetupModeTest do
     refute text =~ "Search before you file"
   end
 
-  test "an unrecognised mode is treated as standard, never half-made" do
+  test "an unrecognised mode raises rather than furnishing silently" do
+    owner = Fixtures.user_fixture()
+    slug = "ws-#{System.unique_integer([:positive])}"
+
+    # The API path rejects this in the Gleam handler, so anything that
+    # reaches here came from code. Quietly picking a mode would hide it.
+    assert_raise ArgumentError, ~r/unknown workspace setup mode/, fn ->
+      Workspaces.create_workspace(%{
+        "slug" => slug,
+        "name" => "Odd #{slug}",
+        "created_by_id" => owner.id,
+        "setup" => "stnadard"
+      })
+    end
+  end
+
+  test "omitting the mode furnishes it, which is what every caller got before" do
     owner = Fixtures.user_fixture()
     slug = "ws-#{System.unique_integer([:positive])}"
 
     {:ok, ws} =
       Workspaces.create_workspace(%{
         "slug" => slug,
-        "name" => "Odd #{slug}",
-        "created_by_id" => owner.id,
-        "setup" => "whatever-a-stale-client-sends"
+        "name" => "Plain #{slug}",
+        "created_by_id" => owner.id
       })
 
-    assert length(Tags.list_slugs(ws.id)) == length(Template.tags(:standard))
+    assert length(Tags.list_slugs(ws.id)) == 18
     assert length(Views.list_for_workspace(ws.id)) == 3
   end
 
@@ -118,6 +155,21 @@ defmodule Aveline.WorkspaceSetupModeTest do
       for {name, _desc, config} <- Template.views(mode), group = config["group_by"], group != nil do
         assert MapSet.member?(scopes, group),
                "#{mode}: board #{name} groups by #{group}, which the mode does not create"
+      end
+    end
+  end
+
+  test "every block the template writes is a valid block" do
+    for mode <- [:standard, :custom] do
+      for block <- Template.orientation_blocks(mode) do
+        assert {:ok, _} = Aveline.Blocks.Block.validate(block, mint_id?: true),
+               "#{mode}: orientation block did not validate: #{inspect(block)}"
+      end
+
+      for {slug, _title, _summary, _tags, blocks} <- Template.docs(mode),
+          block <- blocks do
+        assert {:ok, _} = Aveline.Blocks.Block.validate(block, mint_id?: true),
+               "#{mode}: #{slug} block did not validate: #{inspect(block)}"
       end
     end
   end

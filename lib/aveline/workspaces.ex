@@ -52,14 +52,21 @@ defmodule Aveline.Workspaces do
 
   def get_workspace(id), do: Repo.get(Workspace, id)
 
-  # "standard" (the default) furnishes the workspace; "custom" leaves the
-  # team an empty frame. Anything unrecognised is treated as standard, so
-  # a stale client can never land a workspace in a half-made state.
+  # "standard" furnishes the workspace; "custom" leaves the team an empty
+  # frame. Omitting it means standard, so a caller that does not care gets
+  # what every workspace got before this existed. Naming something else is
+  # a bug in the caller rather than a user error: the API path validates
+  # it in the Gleam handler and answers setup_invalid, so anything that
+  # reaches here unrecognised came from code, and silently furnishing the
+  # workspace anyway would hide it.
   defp setup_mode(attrs) do
     case Map.get(attrs, "setup") || Map.get(attrs, :setup) do
+      nil -> :standard
+      "standard" -> :standard
+      :standard -> :standard
       "custom" -> :custom
       :custom -> :custom
-      _ -> :standard
+      other -> raise ArgumentError, "unknown workspace setup mode: #{inspect(other)}"
     end
   end
 

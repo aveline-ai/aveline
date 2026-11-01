@@ -10,13 +10,25 @@ defmodule AvelineWeb.Api.StarterController do
   """
   use AvelineWeb, :controller
 
+  action_fallback AvelineWeb.Api.FallbackController
+
   alias Aveline.Workspaces.Template
   alias AvelineWeb.Api.Envelope
 
   def show(conn, params) do
-    mode = if params["setup"] == "custom", do: :custom, else: :standard
+    case mode(params["setup"]) do
+      {:ok, mode} -> Envelope.ok(conn, payload(mode))
+      :error -> {:error, :setup_invalid, ~s(setup must be "standard" or "custom".)}
+    end
+  end
 
-    Envelope.ok(conn, %{
+  defp mode(nil), do: {:ok, :standard}
+  defp mode("standard"), do: {:ok, :standard}
+  defp mode("custom"), do: {:ok, :custom}
+  defp mode(_), do: :error
+
+  defp payload(mode) do
+    %{
       starter: %{
         "setup" => to_string(mode),
         "tags" =>
@@ -33,6 +45,6 @@ defmodule AvelineWeb.Api.StarterController do
             %{"slug" => slug, "title" => title, "tags" => tags}
           end)
       }
-    })
+    }
   end
 end

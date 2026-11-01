@@ -23,7 +23,9 @@ defmodule AvelineWeb.Api.StarterControllerTest do
 
     assert body["ok"] == true
     assert body["starter"]["setup"] == "standard"
-    assert length(body["starter"]["tags"]) == length(Aveline.Workspaces.Template.tags(:standard))
+    slugs = body["starter"]["tags"] |> Enum.map(& &1["slug"]) |> Enum.sort()
+    assert length(slugs) == 18
+    assert "idea" in slugs and "ticket:refactor" in slugs and "status:in-flight" in slugs
 
     assert Enum.map(body["starter"]["views"], & &1["name"]) |> Enum.sort() ==
              ["feedback", "ideas", "tickets"]
@@ -33,6 +35,12 @@ defmodule AvelineWeb.Api.StarterControllerTest do
           do: text
 
     assert "How we work" in headings
+  end
+
+  test "an unrecognised setup is refused, the same answer create gives", %{conn: conn} do
+    body = conn |> get(~p"/api/starter?setup=cutsom") |> json_response(422)
+    assert body["ok"] == false
+    assert body["error"]["code"] == "setup_invalid"
   end
 
   test "custom shows an empty frame", %{conn: conn} do

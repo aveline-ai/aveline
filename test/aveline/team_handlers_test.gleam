@@ -91,19 +91,16 @@ pub fn add_inserts_membership_and_records_event_test() {
           Nil
         },
       ),
-      events: EventsCaps(
-        ..caps_events.stub(),
-        record: fn(attrs: events.EventAttrs) {
-          assert attrs.action == "member_joined"
-          assert attrs.actor == actor_id
-          assert attrs.actor_type == Human
-          assert attrs.target_kind == "user"
-          assert attrs.target_id == "user-2"
-          assert attrs.target_slug == None
-          assert attrs.target_label == Some("bob")
-          Nil
-        },
-      ),
+      events: EventsCaps(..caps_events.stub(), record: fn(attrs: events.EventAttrs) {
+        assert attrs.action == "member_joined"
+        assert attrs.actor == actor_id
+        assert attrs.actor_type == Human
+        assert attrs.target_kind == "user"
+        assert attrs.target_id == "user-2"
+        assert attrs.target_slug == None
+        assert attrs.target_label == Some("bob")
+        Nil
+      }),
     )
 
   assert handlers.add(ctx, fakes.scope(), "bob") == Ok(Nil)
@@ -201,19 +198,16 @@ pub fn remove_deletes_membership_and_records_event_test() {
           Nil
         },
       ),
-      events: EventsCaps(
-        ..caps_events.stub(),
-        record: fn(attrs: events.EventAttrs) {
-          assert attrs.action == "member_removed"
-          assert attrs.actor == actor_id
-          assert attrs.actor_type == Human
-          assert attrs.target_kind == "user"
-          assert attrs.target_id == target
-          assert attrs.target_slug == None
-          assert attrs.target_label == Some("bob")
-          Nil
-        },
-      ),
+      events: EventsCaps(..caps_events.stub(), record: fn(attrs: events.EventAttrs) {
+        assert attrs.action == "member_removed"
+        assert attrs.actor == actor_id
+        assert attrs.actor_type == Human
+        assert attrs.target_kind == "user"
+        assert attrs.target_id == target
+        assert attrs.target_slug == None
+        assert attrs.target_label == Some("bob")
+        Nil
+      }),
     )
 
   assert handlers.remove(ctx, fakes.scope(), target) == Ok(Nil)
