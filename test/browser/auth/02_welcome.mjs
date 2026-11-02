@@ -30,12 +30,13 @@ r.ok("welcome headline names the workspace", h1 && h1.includes(acct.workspaceNam
 
 // --- setup steps ------------------------------------------------------
 const steps = await page.locator(".welcome-step").count()
-r.ok("setup steps rendered (4 expected)", steps === 4, `count=${steps}`)
+r.ok("setup steps rendered (5 expected)", steps === 5, `count=${steps}`)
 // textContent, not innerText: the steps are <details>, collapsed by default.
 const stepText = (await page.locator(".welcome-steps-box").evaluate((e) => e.textContent)).replace(/\s+/g, " ")
 r.ok("step 1 links the CLI release", stepText.includes("github.com/aveline-ai/cli/releases/latest"))
 r.ok("step 3 mentions this workspace slug", stepText.includes(acct.slug), acct.slug)
 r.ok("step 4 mentions get-orientation", stepText.includes("get-orientation"))
+r.ok("step 5 asks the agent for the 101", stepText.includes("101"))
 
 // --- copy-prompt CTA --------------------------------------------------
 const cta = page.locator("#welcome-copy")
