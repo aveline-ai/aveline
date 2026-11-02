@@ -80,7 +80,7 @@ workspace =
           "slug" => workspace_slug,
           "name" => "Local Pod",
           "created_by_id" => first_user.id,
-          "template" => "autonomous-dev"
+          "template" => "knowledge-base"
         })
 
       w
@@ -191,8 +191,9 @@ tag_specs = [
   {"onboarding", "Read-these-first content for new teammates."},
   {"runbook", "Operational playbooks for live incidents."},
   {"stack", "The components Aveline runs on and how they fit together."},
-  # status:* and the other baseline tags come from the workspace
-  # template (seeded by create_workspace).
+  # status:* and the other baseline tags (product, brief, tip, runbook,
+  # oncall, ...) come from the knowledge-base template, which is the set
+  # these seeds were written for.
   {"kanban-feature", "Work on the kanban board feature itself."}
 ]
 
@@ -488,19 +489,19 @@ doc_specs =
         "Kanban: board block inside worklogs",
         "Embed a feature's own board under its worklog prose. Should already work — verify and demo it.",
         bob,
-        "next"
+        "todo"
       ),
       issue.(
         "Kanban: ship boards-as-docs",
         "board block + scoped status tags + the Boards directory tab.",
         alice,
-        "in-flight"
+        "in-progress"
       ),
       issue.(
         "Kanban: settle the tag model",
         "Scoped tags (status:todo) with per-scope exclusivity. Decided.",
         alice,
-        "shipped"
+        "done"
       ),
       %{
         slug: "kanban-feature-notes",
