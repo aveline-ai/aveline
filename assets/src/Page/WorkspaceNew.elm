@@ -5,10 +5,12 @@ fe-auth page agent. Keep the exposed signature exactly as-is; Main.elm
 depends on it.
 
 Create-a-workspace form. Pick a name; the slug preview is derived
-client-side with the same rules as Aveline.Slug.derive. Creation goes
+client-side with the same rules as Aveline.Slug.derive. Pick a
+template with the shared `Ui.TemplatePicker`. Creation goes
 through the existing POST /papi/workspaces (which adds the creator as
-first member), then a full load into the new workspace. Signed-out
-visitors bounce to /login, mirroring the LiveView mount.
+first member and seeds the template), then a full load into the new
+workspace. Signed-out visitors bounce to /login, mirroring the
+LiveView mount.
 
 -}
 
@@ -23,12 +25,14 @@ import Json.Decode as Decode
 import Json.Encode as Encode
 import Route
 import Session exposing (Session)
+import Ui.TemplatePicker as TemplatePicker
 
 
 type alias Model =
     { session : Session
     , redirecting : Bool
     , name : String
+    , picker : TemplatePicker.Model
     , error : Maybe String
     , submitting : Bool
     }
@@ -36,6 +40,7 @@ type alias Model =
 
 type Msg
     = NameChanged String
+    | PickerMsg TemplatePicker.Msg
     | Submitted
     | GotCreate (Result Api.Error String)
 
@@ -43,10 +48,14 @@ type Msg
 init : Session -> ( Model, Cmd Msg )
 init session =
     let
+        ( picker, pickerCmd ) =
+            TemplatePicker.init session
+
         model =
             { session = session
             , redirecting = False
             , name = ""
+            , picker = picker
             , error = Nothing
             , submitting = False
             }
@@ -57,7 +66,7 @@ init session =
             ( { model | redirecting = True }, Nav.load (Route.href Route.Login) )
 
         Just _ ->
-            ( model, Cmd.none )
+            ( model, Cmd.map PickerMsg pickerCmd )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -65,6 +74,11 @@ update msg model =
     case msg of
         NameChanged raw ->
             ( { model | name = raw, error = Nothing }, Cmd.none )
+
+        PickerMsg pickerMsg ->
+            ( { model | picker = TemplatePicker.update pickerMsg model.picker, error = Nothing }
+            , Cmd.none
+            )
 
         Submitted ->
             let
@@ -94,6 +108,7 @@ update msg model =
                             (Encode.object
                                 [ ( "name", Encode.string trimmed )
                                 , ( "slug", Encode.string slug )
+                                , ( "template", Encode.string (TemplatePicker.selected model.picker) )
                                 ]
                             )
                             (Decode.at [ "workspace", "slug" ] Decode.string)
@@ -113,17 +128,25 @@ update msg model =
             )
 
 
-{-| Same message mapping as the LiveView's submit error handling.
+{-| Same message mapping as the LiveView's submit error handling, plus
+the template codes the endpoint added.
 -}
 createError : Api.Error -> String
 createError err =
     case err of
         Api.ApiError e ->
-            if e.code == "slug_taken" then
-                "That name is already in use. Pick a different one."
+            case e.code of
+                "slug_taken" ->
+                    "That name is already in use. Pick a different one."
 
-            else
-                "Couldn't create — check the name."
+                "template_required" ->
+                    "Pick a template to start from."
+
+                "template_invalid" ->
+                    "That template isn't available. Pick another."
+
+                _ ->
+                    "Couldn't create — check the name."
 
         _ ->
             "Couldn't create the workspace."
@@ -188,6 +211,7 @@ viewForm model =
                             , code [] [ text (Maybe.withDefault "" slugPreview) ]
                             ]
                     )
+                , Html.map PickerMsg (TemplatePicker.view model.picker)
                 , button [ type_ "submit", class "auth-submit", disabled (trimmed == "") ]
                     [ text "Create" ]
                 ]

@@ -456,6 +456,17 @@ viewSetup model data =
                 , div [ class "welcome-step-note" ]
                     [ text "Add that line to your agent instructions file. Your agent connects the moment it first reads the orientation doc." ]
                 ]
+            , step False
+                "Ask your agent for the 101"
+                [ div [ class "welcome-step-line" ]
+                    [ text "Give me the 101 on how to use Aveline here." ]
+                , div [ class "welcome-step-note" ]
+                    [ text "Say that to your agent. It reads Aveline's guide and this workspace's orientation doc and explains them in plain words. You can ask it anything about Aveline at any time." ]
+                ]
+            ]
+        , div [ class "welcome-guide-link" ]
+            [ a [ href (Route.href (Route.Guide model.slug)), class "welcome-step-link" ]
+                [ text "How Aveline works" ]
             ]
         , pre [ class "welcome-snippet-source", attribute "aria-hidden" "true" ]
             [ code [ id "welcome-snippet" ] [ text data.prompt ] ]

@@ -58,6 +58,7 @@ import Svg.Attributes as SA
 {-| Which sidebar item is highlighted — mirrors the LVs' `nav_active`
 assigns (`:home`, `:all`, `{:view, name}`, `:data_sources`,
 `:activity`, `:team`, `:connect`, `:settings`; DocShow sets none).
+`NavGuide` is Elm-only: the guide page has no LiveView counterpart.
 -}
 type NavActive
     = NavHome
@@ -68,6 +69,7 @@ type NavActive
     | NavTeam
     | NavConnect
     | NavSettings
+    | NavGuide
     | NavNone
 
 
@@ -97,6 +99,9 @@ navActiveFor route =
 
         Route.Settings _ ->
             NavSettings
+
+        Route.Guide _ ->
+            NavGuide
 
         Route.DocShow _ _ ->
             NavNone
@@ -184,6 +189,9 @@ documentTitle route wsName =
         Route.Settings _ ->
             "Aveline · Settings"
 
+        Route.Guide _ ->
+            withWs [ "How Aveline works" ]
+
 
 {-| Per-route topbar title, mirroring the LVs' `topbar_title` assigns
 ("Home", "Docs", view name for a saved view, …). Vestigial parity: the
@@ -214,6 +222,9 @@ topbarTitle route =
 
         Route.Settings _ ->
             Just "Settings"
+
+        Route.Guide _ ->
+            Just "How Aveline works"
 
         Route.Welcome _ ->
             Just "Welcome"
@@ -386,6 +397,17 @@ sidebar config =
                     ]
                     [ iconConnect
                     , Html.span [ Attr.class "label" ] [ Html.text "Connect agent" ]
+                    ]
+                , Html.a
+                    [ Attr.href (Route.href (Route.Guide config.slug))
+                    , Attr.classList
+                        [ ( "sidebar-item", True )
+                        , ( "active", config.navActive == NavGuide )
+                        ]
+                    , Attr.title "How Aveline works"
+                    ]
+                    [ iconHelp
+                    , Html.span [ Attr.class "label" ] [ Html.text "How Aveline works" ]
                     ]
                 , sidebarItem (Route.Settings config.slug) (config.navActive == NavSettings) iconSettings "Settings"
                 ]
@@ -712,6 +734,26 @@ iconConnect =
         , SA.strokeLinejoin "round"
         ]
         [ Svg.path [ SA.d "M13 2L3 14h7l-1 8 10-12h-7l1-8z" ] [] ]
+
+
+{-| Lucide circle-help, drawn like the other 24-box icons. Not in the
+LiveView layout: the guide page is Elm-only.
+-}
+iconHelp : Html msg
+iconHelp =
+    Svg.svg
+        [ SA.class "icon"
+        , SA.viewBox "0 0 24 24"
+        , SA.fill "none"
+        , SA.stroke "currentColor"
+        , SA.strokeWidth "1.7"
+        , SA.strokeLinecap "round"
+        , SA.strokeLinejoin "round"
+        ]
+        [ Svg.circle [ SA.cx "12", SA.cy "12", SA.r "10" ] []
+        , Svg.path [ SA.d "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" ] []
+        , Svg.path [ SA.d "M12 17h.01" ] []
+        ]
 
 
 iconSettings : Html msg
