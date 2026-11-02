@@ -74,7 +74,7 @@ test_list_workspaces_only_returns_my_workspaces() {
   # globally-unique workspace slug index can't collide with anything
   # from other tests in the same suite run.
   local bob_slug; bob_slug="$(us bob-iso)"
-  AVELINE_E2E_PERSONA=bob run_cli create-workspace --name "BobOnly" --slug "$bob_slug"
+  AVELINE_E2E_PERSONA=bob run_cli create-workspace --name "BobOnly" --slug "$bob_slug" --template blank
   expect_ok "bob creates"
   local ws_bob; ws_bob="$(jq -r '.workspace.slug' <<<"$LAST_OUT_TEXT")"
   AVELINE_E2E_PERSONA=bob run_cli list-workspaces
