@@ -12,10 +12,31 @@ defmodule Aveline.WorkspacesTest do
              Workspaces.create_workspace(%{
                "slug" => "stable-pod",
                "name" => "Stable Pod",
-               "created_by_id" => u.id
+               "created_by_id" => u.id,
+               "template" => "blank"
              })
 
     assert ws.slug == "stable-pod"
+    assert ws.template == "blank"
+  end
+
+  test "a template is required, and must be one Aveline has" do
+    u = user_fixture()
+
+    assert {:error, cs} =
+             Workspaces.create_workspace(%{"slug" => "no-template", "name" => "x", "created_by_id" => u.id})
+
+    assert errors_on(cs).template != []
+
+    assert {:error, cs} =
+             Workspaces.create_workspace(%{
+               "slug" => "odd-template",
+               "name" => "x",
+               "created_by_id" => u.id,
+               "template" => "autonomous-dve"
+             })
+
+    assert errors_on(cs).template != []
   end
 
   test "rejects invalid slug" do
@@ -25,7 +46,8 @@ defmodule Aveline.WorkspacesTest do
              Workspaces.create_workspace(%{
                "slug" => "Bad Slug",
                "name" => "x",
-               "created_by_id" => u.id
+               "created_by_id" => u.id,
+               "template" => "blank"
              })
 
     assert errors_on(cs).slug != []

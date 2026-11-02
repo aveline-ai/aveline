@@ -13,13 +13,20 @@ defmodule Aveline.OrientationDocTest do
   test "every new workspace gets the recommended template tags", %{ws: ws} do
     slugs = Aveline.Tags.list_slugs(ws.id)
 
-    for {slug, _desc, _color, _sort_key} <- Aveline.Workspaces.Template.tags() do
+    for {slug, _desc, _color, _sort_key} <- Aveline.Workspaces.Template.tags("autonomous-dev") do
       assert slug in slugs
     end
 
     # Board columns work out of the box, in template order.
     assert Aveline.Tags.list_scope_members(ws.id, "status") ==
-             ["status:backlog", "status:todo", "status:in-progress", "status:done", "status:cancelled"]
+             [
+               "status:backlog",
+               "status:next",
+               "status:in-flight",
+               "status:review",
+               "status:shipped",
+               "status:cancelled"
+             ]
   end
 
   test "every new workspace gets exactly one orientation doc", %{ws: ws} do

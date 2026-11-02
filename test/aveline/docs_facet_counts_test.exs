@@ -6,6 +6,9 @@ defmodule Aveline.DocsFacetCountsTest do
   setup do
     owner = Fixtures.user_fixture()
     ws = Fixtures.workspace_fixture(owner)
+    # Owned by this test rather than borrowed from the seeded set, so the
+    # counts here do not move when the template changes.
+    {:ok, _} = Aveline.Tags.create(ws.id, "product", "Product docs.", owner.id)
     %{owner: owner, ws: ws}
   end
 

@@ -37,8 +37,9 @@ defmodule AvelineWeb.Setup do
 
     1. Install the `aveline` CLI from https://github.com/aveline-ai/cli/releases/latest if `aveline --version` fails (pick the binary for this machine and put it on PATH).
     2. Run `aveline whoami`. If it errors, ask me to run #{login_cmd} myself in this terminal and wait for me to confirm. It prompts for my API key interactively (I saved it at signup; if it's lost I can mint a new one in Aveline under Settings, API keys). Don't ask me for the key: it's a secret and must never enter your context or any file.
-    3. Then run `aveline use-workspace #{ws.slug}` and read `aveline get-orientation` to learn how this workspace organizes its knowledge.
+    3. Then run `aveline use-workspace #{ws.slug}`, read `aveline guide` (how Aveline itself works) and `aveline get-orientation` (how this workspace organizes its knowledge; the orientation doc wins where they differ).
     4. Add a short note to this project's agent instructions file (CLAUDE.md, AGENTS.md, or your tool's equivalent): we keep shared knowledge in Aveline; interact via the `aveline` CLI (`aveline --help` shows every operation); start sessions with `aveline get-orientation`; run `aveline contract` before your first doc write. New docs are born private and new views land in your personal bucket, so publish deliberately with --visibility workspace / --bucket team when the team should see them.
+    5. Finally, give me the 101 on how to use Aveline here, in your own words and under 200 words: the guide's last section says what to cover. Remind me I can ask you anything about Aveline at any time.
     """
   end
 

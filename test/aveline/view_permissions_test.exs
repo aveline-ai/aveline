@@ -38,9 +38,7 @@ defmodule Aveline.ViewPermissionsTest do
     personal = Views.ensure_personal_bucket(ws.id, owner.id)
 
     {:ok, _} =
-      Views.create(ws.id, "my-daily", "What I check every morning.", %{}, owner.id,
-        bucket: personal
-      )
+      Views.create(ws.id, "my-daily", "What I check every morning.", %{}, owner.id, bucket: personal)
 
     names = fn viewer -> Views.list_for_workspace(ws.id, viewer: viewer) |> Enum.map(& &1.name) end
     assert "my-daily" in names.(owner.id)
@@ -62,9 +60,7 @@ defmodule Aveline.ViewPermissionsTest do
     {:ok, bucket} = Views.create_bucket(ws.id, "launch", owner.id)
 
     {:ok, _} =
-      Views.create(ws.id, "launch-tickets", "Launch project tickets.", %{}, owner.id,
-        bucket: bucket
-      )
+      Views.create(ws.id, "launch-tickets", "Launch project tickets.", %{}, owner.id, bucket: bucket)
 
     names = fn viewer -> Views.list_for_workspace(ws.id, viewer: viewer) |> Enum.map(& &1.name) end
 
@@ -76,9 +72,7 @@ defmodule Aveline.ViewPermissionsTest do
 
     # Future views arrive automatically with the bucket.
     {:ok, _} =
-      Views.create(ws.id, "launch-metrics", "Launch metrics slice.", %{}, owner.id,
-        bucket: bucket
-      )
+      Views.create(ws.id, "launch-metrics", "Launch metrics slice.", %{}, owner.id, bucket: bucket)
 
     assert "launch-metrics" in names.(other.id)
 
@@ -100,9 +94,7 @@ defmodule Aveline.ViewPermissionsTest do
     {:ok, bucket} = Views.create_bucket(ws.id, "launch", owner.id, visibility: "workspace")
 
     {:ok, _} =
-      Views.create(ws.id, "launch-tickets", "Launch project tickets.", %{}, owner.id,
-        bucket: bucket
-      )
+      Views.create(ws.id, "launch-tickets", "Launch project tickets.", %{}, owner.id, bucket: bucket)
 
     names = fn viewer -> Views.list_for_workspace(ws.id, viewer: viewer) |> Enum.map(& &1.name) end
 
@@ -193,9 +185,7 @@ defmodule Aveline.ViewPermissionsTest do
     {:ok, bucket} = Views.create_bucket(ws.id, "launch", owner.id)
 
     {:ok, view} =
-      Views.create(ws.id, "launch-tickets", "Launch project tickets.", %{}, owner.id,
-        bucket: bucket
-      )
+      Views.create(ws.id, "launch-tickets", "Launch project tickets.", %{}, owner.id, bucket: bucket)
 
     assert {:error, msg} = Views.delete_bucket(bucket, owner.id)
     assert msg =~ "views first"
@@ -215,21 +205,18 @@ defmodule Aveline.ViewPermissionsTest do
     personal = Views.ensure_personal_bucket(ws.id, owner.id)
 
     {:ok, mine} =
-      Views.create(ws.id, "my-daily", "What I check every morning.", %{}, owner.id,
-        bucket: personal
-      )
+      Views.create(ws.id, "my-daily", "What I check every morning.", %{}, owner.id, bucket: personal)
 
     {:ok, bucket} = Views.create_bucket(ws.id, "launch", other.id)
     {:ok, _} = Views.add_bucket_member(bucket, owner.id, other.id)
 
     {:ok, launch_view} =
-      Views.create(ws.id, "launch-tickets", "Launch project tickets.", %{}, other.id,
-        bucket: bucket
-      )
+      Views.create(ws.id, "launch-tickets", "Launch project tickets.", %{}, other.id, bucket: bucket)
 
     # Unpinned: sections stay empty of them.
     sections = Views.sidebar_sections(ws.id, owner.id)
-    assert Enum.map(sections.team, & &1.name) == ["tickets-board"]
+    # The three seeded boards live in the team bucket too, and sort first.
+    assert Enum.map(sections.team, & &1.name) == ["feedback", "ideas", "tickets", "tickets-board"]
     assert sections.yours == []
     assert sections.buckets == []
 

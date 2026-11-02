@@ -88,9 +88,13 @@ pub fn show_member_sees_workspace_test() {
 }
 
 pub fn create_requires_a_name_test() {
-  assert handler.create(fakes.ctx(), actor(), CreateRequest(None, None))
+  assert handler.create(fakes.ctx(), actor(), CreateRequest(None, None, None))
     == validation_failed()
-  assert handler.create(fakes.ctx(), actor(), CreateRequest(Some(""), None))
+  assert handler.create(
+      fakes.ctx(),
+      actor(),
+      CreateRequest(Some(""), None, None),
+    )
     == validation_failed()
 }
 
@@ -99,7 +103,7 @@ pub fn create_caps_name_length_test() {
   assert handler.create(
       fakes.ctx(),
       actor(),
-      CreateRequest(Some(long), Some("ok")),
+      CreateRequest(Some(long), Some("ok"), None),
     )
     == validation_failed()
 }
@@ -108,13 +112,17 @@ pub fn create_rejects_a_bad_slug_test() {
   assert handler.create(
       fakes.ctx(),
       actor(),
-      CreateRequest(Some("Acme"), Some("bad slug")),
+      CreateRequest(Some("Acme"), Some("bad slug"), None),
     )
     == validation_failed()
 }
 
 pub fn create_cannot_derive_a_slug_from_symbols_test() {
-  assert handler.create(fakes.ctx(), actor(), CreateRequest(Some("!!!"), None))
+  assert handler.create(
+      fakes.ctx(),
+      actor(),
+      CreateRequest(Some("!!!"), None, None),
+    )
     == validation_failed()
 }
 
@@ -124,7 +132,7 @@ pub fn create_downcases_a_given_slug_test() {
   assert handler.create(
       ctx,
       actor(),
-      CreateRequest(Some("Acme"), Some("ACME-Team")),
+      CreateRequest(Some("Acme"), Some("ACME-Team"), Some("blank")),
     )
     == Ok(ws("acme-team"))
 }
@@ -132,7 +140,11 @@ pub fn create_downcases_a_given_slug_test() {
 pub fn create_derives_slug_from_name_when_omitted_test() {
   let ctx = creating_ctx(expected_slug: "my-team")
 
-  assert handler.create(ctx, actor(), CreateRequest(Some("My Team!"), None))
+  assert handler.create(
+      ctx,
+      actor(),
+      CreateRequest(Some("My Team!"), None, Some("blank")),
+    )
     == Ok(ws("my-team"))
 }
 
@@ -140,12 +152,17 @@ pub fn create_maps_slug_conflicts_test() {
   let ctx =
     Ctx(
       ..fakes.ctx(),
-      workspaces: WorkspacesCaps(..workspaces_caps.stub(), create: fn(_, _, _) {
-        Error(SlugTaken)
-      }),
+      workspaces: WorkspacesCaps(
+        ..workspaces_caps.stub(),
+        create: fn(_, _, _, _) { Error(SlugTaken) },
+      ),
     )
 
-  assert handler.create(ctx, actor(), CreateRequest(Some("Acme"), Some("acme")))
+  assert handler.create(
+      ctx,
+      actor(),
+      CreateRequest(Some("Acme"), Some("acme"), Some("blank")),
+    )
     == Error(Invalid("slug_taken", "Slug already in use."))
 }
 
@@ -154,10 +171,11 @@ fn creating_ctx(expected_slug expected: String) -> ctx.Ctx {
     ..fakes.ctx(),
     workspaces: WorkspacesCaps(
       ..workspaces_caps.stub(),
-      create: fn(name, slug, creator) {
+      create: fn(name, slug, creator, template) {
         assert name != ""
         assert slug == expected
         assert creator == "user-1"
+        assert template == "blank"
         Ok(ws(slug))
       },
       ensure_member: fn(ws_id, user_id) {
@@ -167,4 +185,30 @@ fn creating_ctx(expected_slug expected: String) -> ctx.Ctx {
       },
     ),
   )
+}
+
+/// A template is required: nothing is applied silently, and a typo is
+/// refused rather than quietly treated as some other template.
+pub fn create_requires_a_template_test() {
+  assert handler.create(
+      fakes.ctx(),
+      actor(),
+      CreateRequest(Some("Acme"), None, None),
+    )
+    == Error(Invalid(
+      "template_required",
+      "template is required: one of autonomous-dev, knowledge-base, blank.",
+    ))
+}
+
+pub fn create_rejects_unknown_template_test() {
+  assert handler.create(
+      fakes.ctx(),
+      actor(),
+      CreateRequest(Some("Acme"), None, Some("autonomous-dve")),
+    )
+    == Error(Invalid(
+      "template_invalid",
+      "template must be one of autonomous-dev, knowledge-base, blank; got \"autonomous-dve\".",
+    ))
 }

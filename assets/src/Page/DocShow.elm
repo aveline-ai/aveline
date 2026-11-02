@@ -14,10 +14,11 @@ import Api
 import Api.Doc as ApiDoc exposing (Doc, KudosState, Member, Milestone, Share, ShareInfo, Version)
 import Browser.Dom
 import Dict exposing (Dict)
-import Doc.Blocks as Blocks exposing (Block(..), ChartBlock, ChartResult(..), Span, SpanLink(..))
+import Doc.BlockView as BlockView
+import Doc.Blocks as Blocks exposing (Block(..), ChartBlock, ChartResult(..))
 import Doc.Chart as Chart
 import Doc.Comments as Comments exposing (Comment, CommentView(..), Thread)
-import Html exposing (Html, a, article, br, button, code, details, div, form, h1, h2, h3, header, li, ol, option, p, section, select, span, strong, summary, table, tbody, td, text, textarea, th, thead, tr, ul)
+import Html exposing (Html, a, article, br, button, details, div, form, h1, header, li, ol, option, p, section, select, span, summary, text, textarea)
 import Html.Attributes exposing (attribute, class, classList, hidden, href, id, name, placeholder, rows, title, type_, value)
 import Html.Events as Events
 import Json.Decode as Decode
@@ -1837,96 +1838,26 @@ onCmdEnter msg =
 
 viewBlock : Model -> Block -> Html Msg
 viewBlock model block =
-    case block of
-        Heading b ->
-            let
-                ( tag, cls ) =
-                    case b.level of
-                        1 ->
-                            ( h1, "blk-h1 blk-anchored" )
+    BlockView.view (blockConfig model) block
 
-                        2 ->
-                            ( h2, "blk-h2 blk-anchored" )
 
-                        _ ->
-                            ( h3, "blk-h3 blk-anchored" )
-            in
-            tag (blockIdAttr b.id ++ [ class cls ])
-                [ blockAnchor model b.id, text b.text ]
-
-        Paragraph b ->
-            p (blockIdAttr b.id ++ [ class "blk-p blk-anchored" ])
-                (blockAnchor model b.id :: viewSpans model b.content)
-
-        Code b ->
-            div [ class "blk-code-wrap blk-anchored" ]
-                [ blockAnchor model b.id
-                , Html.node "aveline-code"
-                    (blockIdAttr b.id
-                        ++ [ attribute "lang" (Maybe.withDefault "" b.language)
-                           , attribute "code" b.content
-                           ]
-                    )
-                    []
-                ]
-
-        Listed b ->
-            let
-                tag =
-                    if b.ordered then
-                        ol
-
-                    else
-                        ul
-            in
-            tag (blockIdAttr b.id ++ [ class "blk-list blk-anchored" ])
-                (blockAnchor model b.id
-                    :: List.map
-                        (\item ->
-                            li (blockIdAttr item.id) (viewSpans model item.content)
-                        )
-                        b.items
-                )
-
-        Table b ->
-            div [ class "blk-table-wrap blk-anchored" ]
-                [ blockAnchor model b.id
-                , table (blockIdAttr b.id ++ [ class "blk-table" ])
-                    [ thead []
-                        [ tr [] (List.map (\h -> th [] [ text h ]) b.headers) ]
-                    , tbody []
-                        (List.map
-                            (\row ->
-                                tr [] (List.map (\cell -> td [] (viewSpans model cell)) row)
-                            )
-                            b.rows
-                        )
-                    ]
-                ]
-
-        DocLink b ->
-            viewDocLink model b
-
-        Chart b ->
-            viewChart model b
-
-        Unknown typeName ->
-            div [ class "blk-unknown" ] [ text ("Unknown block type: " ++ typeName) ]
+{-| The shared renderer, driven by this page: live gutter, palette-
+coloured tag chips, and charts that run.
+-}
+blockConfig : Model -> BlockView.Config Msg
+blockConfig model =
+    { slug = model.slug
+    , gutter = blockAnchor model
+    , tagChip = tagChip model False
+    , chart = viewChart model
+    }
 
 
 blockIdAttr : Maybe String -> List (Html.Attribute msg)
-blockIdAttr maybeId =
-    case maybeId of
-        Just theId ->
-            [ id theId ]
-
-        Nothing ->
-            []
+blockIdAttr =
+    BlockView.blockIdAttr
 
 
-{-| The per-block gutter: copy-link anchor + comment button. The anchor
-is an `<aveline-copy-link>` custom element (clipboard needs JS).
--}
 blockAnchor : Model -> Maybe String -> Html Msg
 blockAnchor model maybeId =
     case maybeId of
@@ -1954,144 +1885,6 @@ blockAnchor model maybeId =
                     ]
                     [ Icons.commentBubble ]
                 ]
-
-
-
--- ===== Inline spans =====
-
-
-viewSpans : Model -> List Span -> List (Html Msg)
-viewSpans model spans =
-    List.map (\s -> span [] [ viewSpan model s ]) spans
-
-
-viewSpan : Model -> Span -> Html Msg
-viewSpan model s =
-    let
-        inner =
-            markedText s
-    in
-    case s.link of
-        Just (DocMention mention) ->
-            case mention.target of
-                Just target ->
-                    case ( target.deleted, target.slug ) of
-                        ( False, Just slug ) ->
-                            a
-                                [ class "blk-doc-mention"
-                                , href (Route.href (Route.DocShow model.slug slug))
-                                , title (Maybe.withDefault "" target.title)
-                                ]
-                                [ Icons.mention, inner ]
-
-                        _ ->
-                            inner
-
-                Nothing ->
-                    inner
-
-        Just (Href url) ->
-            a [ class "blk-link", href url ] [ inner ]
-
-        Nothing ->
-            inner
-
-
-{-| Wrap the text in its marks, innermost-first — same nesting as
-`safe_text_with_marks/2`.
--}
-markedText : Span -> Html msg
-markedText s =
-    List.foldl
-        (\mark inner ->
-            case mark of
-                "bold" ->
-                    strong [] [ inner ]
-
-                "italic" ->
-                    Html.em [] [ inner ]
-
-                "code" ->
-                    code [ class "blk-inline-code" ] [ inner ]
-
-                "strike" ->
-                    Html.s [] [ inner ]
-
-                _ ->
-                    inner
-        )
-        (text s.text)
-        s.marks
-
-
-
--- ===== doc_link =====
-
-
-viewDocLink : Model -> Blocks.DocLinkBlock -> Html Msg
-viewDocLink model b =
-    let
-        live =
-            case b.target of
-                Just target ->
-                    not target.deleted && not target.inaccessible && target.slug /= Nothing
-
-                Nothing ->
-                    False
-    in
-    div (blockIdAttr b.id ++ [ class "blk-doc-link blk-anchored" ])
-        (List.concat
-            [ [ blockAnchor model b.id ]
-            , [ case ( live, b.target ) of
-                    ( True, Just target ) ->
-                        a
-                            [ href (Route.href (Route.DocShow model.slug (Maybe.withDefault "" target.slug)))
-                            , class "doc-link-card"
-                            ]
-                            (List.concat
-                                [ [ div [ class "doc-link-card-title" ]
-                                        [ text (Maybe.withDefault "" target.title) ]
-                                  ]
-                                , case target.summary of
-                                    Just summary ->
-                                        [ div [ class "doc-link-card-summary" ] [ text summary ] ]
-
-                                    Nothing ->
-                                        []
-                                , if List.isEmpty target.tags then
-                                    []
-
-                                  else
-                                    [ div
-                                        [ class "doc-link-card-tags chip-row"
-                                        , attribute "style" "gap:6px"
-                                        ]
-                                        (List.map (tagChip model False) target.tags)
-                                    ]
-                                ]
-                            )
-
-                    _ ->
-                        div [ class "doc-link-card doc-link-card-dead" ]
-                            [ div [ class "doc-link-card-title" ]
-                                [ text
-                                    (b.target
-                                        |> Maybe.andThen .title
-                                        |> Maybe.withDefault "Removed doc"
-                                    )
-                                ]
-                            , div [ class "doc-link-card-summary" ]
-                                [ text "This stop's doc was deleted. Restore it to bring the stop back." ]
-                            ]
-              ]
-            , case b.note of
-                Just note ->
-                    [ p [ class "doc-link-note" ] (viewSpans model note) ]
-
-                Nothing ->
-                    []
-            ]
-        )
 
 
 
@@ -2282,7 +2075,7 @@ vizPane model chart blockId result tablePrimary rerunMsg =
 
         Rows rows ->
             if tablePrimary then
-                resultsTable rows
+                BlockView.resultsTable rows
 
             else
                 case Chart.spec rows chart.viz of
@@ -2311,7 +2104,7 @@ tablePane result =
                 ]
 
         Rows rows ->
-            resultsTable rows
+            BlockView.resultsTable rows
 
         Blocks.Failed message ->
             div [ class "chart-error" ] [ text message ]
@@ -2341,23 +2134,6 @@ chartError message maybeRerun =
                         []
                )
         )
-
-
-resultsTable : Blocks.RunResult -> Html msg
-resultsTable rows =
-    div [ class "blk-table-wrap" ]
-        [ table [ class "blk-table" ]
-            [ thead []
-                [ tr [] (List.map (\c -> th [] [ text c ]) rows.columns) ]
-            , tbody []
-                (List.map
-                    (\row ->
-                        tr [] (List.map (\cell -> td [] [ text (Blocks.cellText cell) ]) row)
-                    )
-                    rows.rows
-                )
-            ]
-        ]
 
 
 

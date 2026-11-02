@@ -17,6 +17,7 @@ import Page.Activity
 import Page.DataSources
 import Page.DocShow
 import Page.Docs
+import Page.Guide
 import Page.Home
 import Page.Invite
 import Page.Login
@@ -79,6 +80,7 @@ type Page
     | DataSources Page.DataSources.Model
     | Team Page.Team.Model
     | Settings Page.Settings.Model
+    | Guide Page.Guide.Model
 
 
 type Msg
@@ -96,6 +98,7 @@ type Msg
     | DataSourcesMsg Page.DataSources.Msg
     | TeamMsg Page.Team.Msg
     | SettingsMsg Page.Settings.Msg
+    | GuideMsg Page.Guide.Msg
     | GotChromeWorkspaces (Result Api.Error (List Api.Workspaces.Workspace))
     | GotChromeViews String (Result Api.Error (List Api.Docs.ViewDef))
     | SwitcherToggled Bool
@@ -180,6 +183,9 @@ routeTo url oldModel =
 
         Just (Route.Settings slug) ->
             wrap Settings SettingsMsg (Page.Settings.init model.session slug)
+
+        Just (Route.Guide slug) ->
+            wrap Guide GuideMsg (Page.Guide.init model.session slug)
 
 
 {-| Read one query parameter from the raw query string (Route parses
@@ -308,6 +314,9 @@ update msg model =
 
         ( SettingsMsg m, Settings pm ) ->
             step Settings SettingsMsg Page.Settings.update m pm
+
+        ( GuideMsg m, Guide pm ) ->
+            step Guide GuideMsg Page.Guide.update m pm
 
         ( GotChromeWorkspaces result, _ ) ->
             case ( result, model.chrome ) of
@@ -527,3 +536,6 @@ viewPage model =
 
         Settings pm ->
             Html.map SettingsMsg (Page.Settings.view pm)
+
+        Guide pm ->
+            Html.map GuideMsg (Page.Guide.view pm)

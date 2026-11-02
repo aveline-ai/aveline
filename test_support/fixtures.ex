@@ -37,7 +37,10 @@ defmodule Aveline.Fixtures do
           %{
             "slug" => "ws-#{i}",
             "name" => "Workspace #{i}",
-            "created_by_id" => creator.id
+            "created_by_id" => creator.id,
+            # The recommended template, so a fixture workspace has the
+            # tags and boards most tests lean on. Pass "template" to pick.
+            "template" => "autonomous-dev"
           },
           stringify(attrs)
         )
@@ -52,23 +55,22 @@ defmodule Aveline.Fixtures do
     attrs = Enum.into(attrs, %{})
 
     {:ok, item} =
-      Docs.create_doc(
-        %{
-          workspace_id: workspace.id,
-          owner_id: user.id,
-          actor_user_id: user.id,
-          actor_type: Map.get(attrs, :actor_type, "agent"),
-          title: Map.get(attrs, :title, "Item #{i}"),
-          slug: Map.get(attrs, :slug),
-          summary: Map.get(attrs, :summary),
-          tags: Map.get(attrs, :tags, []),
-          blocks: Map.get(attrs, :blocks, [
+      Docs.create_doc(%{
+        workspace_id: workspace.id,
+        owner_id: user.id,
+        actor_user_id: user.id,
+        actor_type: Map.get(attrs, :actor_type, "agent"),
+        title: Map.get(attrs, :title, "Item #{i}"),
+        slug: Map.get(attrs, :slug),
+        summary: Map.get(attrs, :summary),
+        tags: Map.get(attrs, :tags, []),
+        blocks:
+          Map.get(attrs, :blocks, [
             %{"type" => "paragraph", "content" => [%{"text" => "Body #{i}"}]}
           ]),
-          intent: Map.get(attrs, :intent, "seed item-fixture"),
-          visibility: Map.get(attrs, :visibility, "workspace")
-        }
-      )
+        intent: Map.get(attrs, :intent, "seed item-fixture"),
+        visibility: Map.get(attrs, :visibility, "workspace")
+      })
 
     item
   end

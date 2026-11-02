@@ -50,7 +50,10 @@ export async function signup({ username, workspaceName, inviteCode }) {
   const token = (await pt.json()).token;
   const body = { username, copied: true, token };
   if (inviteCode) body.invite_code = inviteCode;
-  else body.workspace_name = workspaceName;
+  else {
+    body.workspace_name = workspaceName;
+    body.template = "autonomous-dev";
+  }
   const res = await fetch(`${BASE}/papi/signup`, {
     method: 'POST',
     headers: h(),

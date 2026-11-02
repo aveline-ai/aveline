@@ -66,6 +66,7 @@ defmodule AvelineWeb.Router do
     get "/w/:slug/data-sources/:name", RedirectController, :data_sources
     get "/w/:slug/team", SpaController, :index
     get "/w/:slug/settings", SpaController, :index
+    get "/w/:slug/guide", SpaController, :index
   end
 
   # ===== Browser API (Elm SPA) =====
@@ -86,6 +87,11 @@ defmodule AvelineWeb.Router do
 
   scope "/papi", AvelineWeb.Api do
     pipe_through :papi
+
+    # Static, open: the signup picker and the help page run before login.
+    get "/guide", GuideController, :show
+    get "/templates", TemplateController, :index
+    get "/templates/:name", TemplateController, :show
 
     post "/session", SessionApiController, :create
 
@@ -232,6 +238,9 @@ defmodule AvelineWeb.Router do
     post "/keys", KeyController, :create
     delete "/keys/:id", KeyController, :delete
     get "/contract", ContractController, :show
+    get "/guide", GuideController, :show
+    get "/templates", TemplateController, :index
+    get "/templates/:name", TemplateController, :show
     get "/workspaces", WorkspaceController, :index
     post "/workspaces", WorkspaceController, :create
     get "/workspaces/:slug", WorkspaceController, :show

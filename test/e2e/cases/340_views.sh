@@ -6,11 +6,11 @@
 test_view_create_and_list() {
   local ws; ws="$(mk_workspace vw-create)"
 
-  run_cli -w "$ws" create-view --name tickets \
+  run_cli -w "$ws" create-view --name open-work \
     --description "All open work, grouped by status." \
     --tag ticket --group-by status
   expect_ok "create-view ok"
-  expect_eq '.view.name' "tickets" "name echoed"
+  expect_eq '.view.name' "open-work" "name echoed"
   expect_eq '.view.config.group_by' "status" "group_by saved"
   expect_eq '.view.config.tags[0]' "ticket" "filter tags saved"
   expect_eq '.view.pinned' "false" "not pinned by default"
@@ -18,7 +18,8 @@ test_view_create_and_list() {
 
   run_cli -w "$ws" list-views
   expect_ok "list ok"
-  expect_eq '.views | length' "1" "one view"
+  # Three boards are seeded with a standard workspace; this is the fourth.
+  expect_eq '.views | length' "4" "the seeded boards plus this one"
 }
 
 test_view_config_validation() {
@@ -36,50 +37,50 @@ test_view_config_validation() {
 
 test_view_edit_is_versioned_rename_included() {
   local ws; ws="$(mk_workspace vw-edit)"
-  run_cli -w "$ws" create-view --name tickets --description "Open work." --tag ticket
+  run_cli -w "$ws" create-view --name open-work --description "Open work." --tag ticket
 
-  run_cli -w "$ws" edit-view tickets --group-by status
+  run_cli -w "$ws" edit-view open-work --group-by status
   expect_ok "edit ok"
   expect_eq '.view.version_number' "2" "edit minted a version"
   expect_eq '.view.config.group_by' "status" "group_by applied"
 
-  run_cli -w "$ws" edit-view tickets --new-name work
+  run_cli -w "$ws" edit-view open-work --new-name work
   expect_ok "rename ok"
   expect_eq '.view.name' "work" "renamed"
   expect_eq '.view.version_number' "3" "rename versioned"
 
-  run_cli -w "$ws" edit-view tickets --description "nope"
+  run_cli -w "$ws" edit-view open-work --description "nope"
   expect_err "not_found" 4 "old name gone after rename"
 }
 
 test_view_pin_roundtrip() {
   local ws; ws="$(mk_workspace vw-pin)"
-  run_cli -w "$ws" create-view --name tickets --description "Open work." --tag ticket
+  run_cli -w "$ws" create-view --name open-work --description "Open work." --tag ticket
 
-  run_cli -w "$ws" pin-view tickets
+  run_cli -w "$ws" pin-view open-work
   expect_ok "pin ok"
   expect_eq '.view.pinned' "true" "pinned"
   expect_eq '.view.version_number' "1" "pinning is not a version"
 
-  run_cli -w "$ws" unpin-view tickets
+  run_cli -w "$ws" unpin-view open-work
   expect_ok "unpin ok"
   expect_eq '.view.pinned' "false" "unpinned"
 }
 
 test_view_delete_restore() {
   local ws; ws="$(mk_workspace vw-del)"
-  run_cli -w "$ws" create-view --name tickets --description "Open work." --tag ticket
+  run_cli -w "$ws" create-view --name open-work --description "Open work." --tag ticket
 
-  run_cli -w "$ws" delete-view tickets
+  run_cli -w "$ws" delete-view open-work
   expect_ok "delete ok"
 
   run_cli -w "$ws" list-views
-  expect_eq '.views | length' "0" "gone from the list"
+  expect_eq '.views | length' "3" "gone from the list, seeded boards remain"
 
-  run_cli -w "$ws" restore-view tickets
+  run_cli -w "$ws" restore-view open-work
   expect_ok "restore ok"
-  expect_eq '.view.name' "tickets" "restored"
+  expect_eq '.view.name' "open-work" "restored"
 
   run_cli -w "$ws" list-views
-  expect_eq '.views | length' "1" "back in the list"
+  expect_eq '.views | length' "4" "back in the list"
 }

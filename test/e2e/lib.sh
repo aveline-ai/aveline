@@ -215,7 +215,7 @@ mk_workspace() {
   local slug; slug="$(us "$label")"
   local out
   out="$( XDG_CONFIG_HOME="$(persona_xdg)" AVELINE_API_URL="$E2E_API_URL" \
-           "$E2E_BIN" create-workspace --name "$label" --slug "$slug" 2>&1 )" || {
+           "$E2E_BIN" create-workspace --name "$label" --slug "$slug" --template autonomous-dev 2>&1 )" || {
     echo "mk_workspace failed: $out" >&2
     return 1
   }

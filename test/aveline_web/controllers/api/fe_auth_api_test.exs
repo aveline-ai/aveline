@@ -60,6 +60,7 @@ defmodule AvelineWeb.Api.FeAuthApiTest do
       |> post("/papi/signup", %{
         "username" => username,
         "workspace_name" => "FE Auth Test #{unique_int()}",
+        "template" => "autonomous-dev",
         "token" => preview,
         "copied" => true
       })
@@ -97,7 +98,12 @@ defmodule AvelineWeb.Api.FeAuthApiTest do
     assert %{"error" => %{"message" => "Username too short (min 2)."}} =
              conn
              |> papi_conn()
-             |> post("/papi/signup", %{"username" => "a", "workspace_name" => "X", "copied" => true})
+             |> post("/papi/signup", %{
+               "username" => "a",
+               "workspace_name" => "X",
+               "template" => "blank",
+               "copied" => true
+             })
              |> json_response(422)
 
     assert %{"error" => %{"message" => "Pick a workspace name."}} =
@@ -116,6 +122,7 @@ defmodule AvelineWeb.Api.FeAuthApiTest do
              |> post("/papi/signup", %{
                "username" => "ok-name-#{unique_int()}",
                "workspace_name" => "Fine Name",
+               "template" => "blank",
                "copied" => false
              })
              |> json_response(422)

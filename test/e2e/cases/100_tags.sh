@@ -5,8 +5,8 @@ test_list_tags_seeded_with_template() {
   local ws; ws="$(mk_workspace ws-t-fresh)"
   run_cli -w "$ws" list-tags
   expect_ok "list-tags ok"
-  expect_count ".tags" "20" "fresh workspace has the recommended template tags"
-  if jq -e '.tags | map(.slug) | index("status:done")' <<<"$LAST_OUT_TEXT" >/dev/null 2>&1; then
+  expect_count ".tags" "18" "fresh workspace has the recommended template tags"
+  if jq -e '.tags | map(.slug) | index("status:shipped")' <<<"$LAST_OUT_TEXT" >/dev/null 2>&1; then
     pass "status scope seeded"
   else
     fail "status scope missing"

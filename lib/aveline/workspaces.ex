@@ -52,23 +52,33 @@ defmodule Aveline.Workspaces do
 
   def get_workspace(id), do: Repo.get(Workspace, id)
 
+  @doc """
+  Create a workspace and furnish it from its template.
+
+  `attrs` must carry `"template"`, one of `Aveline.Workspaces.Template.names/0`;
+  a missing or unknown name fails the changeset (`:template`). The API
+  path validates it first in the Gleam handler and answers
+  `template_required` / `template_invalid`, so a changeset failure here
+  means a caller in code forgot it.
+
+  Furnishing is ordinary data the team reshapes afterwards: the
+  template's tags, its orientation doc, its docs, and its boards, pinned.
+  The built-in workspace source exists from the first breath, creator or
+  not.
+  """
   def create_workspace(attrs) do
     %Workspace{}
     |> Workspace.changeset(attrs)
     |> Repo.insert()
     |> case do
       {:ok, ws} ->
-        # Every workspace ships furnished: the recommended tag set and an
-        # orientation doc pre-written for it (Aveline.Workspaces.Template).
-        # All ordinary data — teams reshape it through their agents.
         creator = Map.get(attrs, "created_by_id") || Map.get(attrs, :created_by_id)
+        template = Aveline.Workspaces.Template.module(ws.template)
 
-        # The built-in workspace source (the query catalog's virtual
-        # database) exists from the first breath, creator or not.
         {:ok, _} = Aveline.DataSources.ensure_workspace_source(ws.id)
 
         if creator do
-          Enum.each(Aveline.Workspaces.Template.tags(), fn {slug, description, color, sort_key} ->
+          Enum.each(template.tags(), fn {slug, description, color, sort_key} ->
             {:ok, _} =
               Aveline.Tags.create(ws.id, slug, description, creator,
                 color: color,
@@ -76,9 +86,9 @@ defmodule Aveline.Workspaces do
               )
           end)
 
-          {:ok, _} = Aveline.Docs.seed_orientation_doc(ws.id, creator)
+          {:ok, _} = Aveline.Docs.seed_orientation_doc(ws.id, creator, template.orientation_blocks())
 
-          Enum.each(Aveline.Workspaces.Template.docs(), fn {slug, title, summary, tags, blocks} ->
+          Enum.each(template.docs(), fn {slug, title, summary, tags, blocks} ->
             {:ok, _} =
               Aveline.Docs.create_doc(%{
                 workspace_id: ws.id,
@@ -92,6 +102,11 @@ defmodule Aveline.Workspaces do
                 blocks: blocks,
                 intent: "seed the workspace template docs"
               })
+          end)
+
+          Enum.each(template.views(), fn {name, description, config} ->
+            {:ok, view} = Aveline.Views.create(ws.id, name, description, config, creator)
+            {:ok, _} = Aveline.Views.set_pinned(view, true)
           end)
         end
 

@@ -23,6 +23,7 @@ type Route
     | DataSources String
     | Team String
     | Settings String
+    | Guide String
 
 
 parser : Parser (Route -> a) a
@@ -43,6 +44,7 @@ parser =
         , map DataSources (s "w" </> string </> s "data-sources")
         , map Team (s "w" </> string </> s "team")
         , map Settings (s "w" </> string </> s "settings")
+        , map Guide (s "w" </> string </> s "guide")
         ]
 
 
@@ -99,6 +101,9 @@ workspaceSlug route =
         Settings slug ->
             Just slug
 
+        Guide slug ->
+            Just slug
+
 
 href : Route -> String
 href route =
@@ -144,3 +149,6 @@ href route =
 
         Settings slug ->
             "/w/" ++ slug ++ "/settings"
+
+        Guide slug ->
+            "/w/" ++ slug ++ "/guide"

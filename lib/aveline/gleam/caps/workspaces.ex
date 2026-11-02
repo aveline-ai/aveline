@@ -16,14 +16,17 @@ defmodule Aveline.Gleam.Caps.Workspaces do
      fn workspace_id, user_id ->
        Workspaces.member?(workspace_id, user_id)
      end,
-     fn name, slug, creator_id ->
-       # Full furnishing (template tags/docs, built-in source) rides along
-       # inside create_workspace. Gleam pre-validates name + slug, so the
-       # only product-behavior failure left is the slug unique constraint.
+     fn name, slug, creator_id, template ->
+       # Furnishing (the template's tags, boards, docs and orientation
+       # doc, plus the built-in source) rides along inside
+       # create_workspace. Gleam pre-validates name, slug and template,
+       # so the only product-behavior failure left here is the slug
+       # unique constraint.
        case Workspaces.create_workspace(%{
               "name" => name,
               "slug" => slug,
-              "created_by_id" => creator_id
+              "created_by_id" => creator_id,
+              "template" => template
             }) do
          {:ok, ws} ->
            {:ok, info(ws)}
@@ -39,7 +42,7 @@ defmodule Aveline.Gleam.Caps.Workspaces do
      fn workspace_id, user_id ->
        {:ok, _} = Workspaces.ensure_member(workspace_id, user_id)
        nil
-     end}
+     end, fn -> Aveline.Workspaces.Template.names() end}
   end
 
   defp slug_taken?({_msg, opts}), do: Keyword.get(opts, :constraint) == :unique

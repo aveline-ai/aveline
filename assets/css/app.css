@@ -1555,6 +1555,14 @@
         font-size: 12.5px; font-weight: 500; color: var(--accent);
         white-space: nowrap;
       }
+      .orientation-aside {
+        grid-column: 1 / -1;
+        margin-top: -6px;
+        padding: 0 4px;
+        font-size: 12.5px;
+      }
+      .orientation-guide-link { color: var(--text-muted); }
+      .orientation-guide-link:hover { color: var(--accent); }
 
       .shelf { margin-top: 34px; }
       /* The first top-level shelf sits flush under the title. Direct
@@ -2058,6 +2066,20 @@
         width: 100%;
       }
       .doc-article { min-width: 0; }
+      /* ===== Guide page (How Aveline works) ===== */
+      .guide-lede {
+        margin: 6px 0 0;
+        font-size: 14px; line-height: 1.55;
+        color: var(--text-secondary);
+      }
+      .guide-link { color: var(--accent); }
+      .guide-link:hover { text-decoration: underline; }
+      .guide-changelog { margin-top: 12px; font-size: 12.5px; color: var(--text-muted); }
+      .guide-changelog > summary { cursor: pointer; width: fit-content; }
+      .guide-changelog ul { margin: 6px 0 0; padding-left: 18px; }
+      .guide-changelog li + li { margin-top: 2px; }
+      .guide-changelog-version { font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+      .guide-article .prose { margin-top: 24px; }
       /* Time-travel mode: hide every action surface that would mutate a
          historical snapshot. The anchor button still works (copying a
          link is read-only), but comment buttons, action menus, and
@@ -2841,6 +2863,42 @@
       .auth-link { color: var(--accent); }
       .auth-link:hover { text-decoration: underline; }
 
+      /* ===== Template picker (signup / new workspace) ===== */
+      .tpl-picker { display: flex; flex-direction: column; margin-top: 16px; }
+      .tpl-cards { display: flex; flex-direction: column; gap: 6px; }
+      .tpl-card {
+        display: flex; flex-direction: column; gap: 3px;
+        padding: 10px 12px;
+        text-align: left;
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        color: var(--text);
+        cursor: pointer;
+        transition: border-color 0.08s ease, background 0.08s ease;
+      }
+      .tpl-card:hover { border-color: var(--border-strong); }
+      .tpl-card:focus-visible { outline: none; border-color: var(--accent); }
+      .tpl-card-selected,
+      .tpl-card-selected:hover {
+        border-color: var(--accent);
+        background: var(--accent-dim);
+      }
+      .tpl-card-head { display: flex; align-items: center; gap: 8px; }
+      .tpl-card-title { font-size: 13.5px; font-weight: 500; }
+      .tpl-badge {
+        font-size: 10px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.06em;
+        color: var(--accent);
+        background: var(--accent-dim);
+        border: 1px solid rgba(59,130,246,0.28);
+        border-radius: 999px;
+        padding: 1px 7px;
+      }
+      .tpl-card-summary { font-size: 12.5px; color: var(--text-secondary); line-height: 1.45; }
+      .tpl-card-counts { font-size: 11.5px; color: var(--text-muted); }
+      .tpl-note { font-size: 11.5px; color: var(--text-muted); }
+
       .token-preview {
         font-family: 'JetBrains Mono', monospace;
         font-size: 14px;
@@ -3260,6 +3318,11 @@
       }
       .welcome-step-link { color: var(--accent); }
       .welcome-step-link:hover { color: var(--accent-hover); }
+      .welcome-guide-link {
+        margin-top: 12px;
+        text-align: center;
+        font-size: 12.5px;
+      }
       /* Copy source for the CTA: present for the hook, never rendered. */
       .welcome-snippet-source { display: none; }
       .welcome-start {

@@ -19,10 +19,9 @@ defmodule AvelineWeb.Api.DocController do
 
   def index(conn, params) do
     req =
-      {:list_request, sort_param(params["sort"]), int_ish(params["limit"]),
-       int_ish(params["offset"]), raw_list(params["tag"] || params["tags"]),
-       raw_list(params["author"] || params["authors"]), opt(params["edited"]),
-       opt(params["updated"]), opt(params["q"])}
+      {:list_request, sort_param(params["sort"]), int_ish(params["limit"]), int_ish(params["offset"]),
+       raw_list(params["tag"] || params["tags"]), raw_list(params["author"] || params["authors"]),
+       opt(params["edited"]), opt(params["updated"]), opt(params["q"])}
 
     case :aveline@handlers@doc_list.index(CtxBuilder.build(), CtxBuilder.scope(conn), req) do
       {:ok, docs} -> Envelope.ok(conn, %{docs: docs})
@@ -40,12 +39,38 @@ defmodule AvelineWeb.Api.DocController do
   @doc """
   The workspace orientation doc (well-known slug, seeded at workspace
   creation, undeletable). Agents fetch this first to learn how the
-  workspace is laid out. Same shape as GET /docs/:slug.
+  workspace is laid out. `doc` has the same shape as GET /docs/:slug.
+
+  Beside it: `guide`, Aveline's own guide in brief with its version
+  (`Aveline.Guide`); `template`, the template this workspace started from
+  (nil for one that predates templates); and `first_session`, true the
+  first time this user's agent has fetched the orientation here, which is
+  the agent's cue to read the full guide and give the person the 101.
   """
   def orientation(conn, _params) do
+    ws = conn.assigns.current_workspace
+    user = conn.assigns.current_user
+    # Decided before the handler records this very read.
+    first_session = first_session?(ws, user)
+
     case :aveline@handlers@doc_read.orientation(CtxBuilder.build(), CtxBuilder.scope(conn)) do
-      {:ok, doc} -> Envelope.ok(conn, %{doc: doc})
-      {:error, err} -> GleamAdapter.error(err)
+      {:ok, doc} ->
+        Envelope.ok(conn, %{
+          doc: doc,
+          guide: Aveline.Guide.summary_payload(),
+          template: ws.template,
+          first_session: first_session
+        })
+
+      {:error, err} ->
+        GleamAdapter.error(err)
+    end
+  end
+
+  defp first_session?(ws, user) do
+    case Aveline.Docs.get_orientation(ws.id) do
+      nil -> false
+      orientation -> not Aveline.DocViews.agent_viewed?(orientation.base_doc_id, user.id)
     end
   end
 
@@ -86,9 +111,8 @@ defmodule AvelineWeb.Api.DocController do
   """
   def create(conn, params) do
     req =
-      {:create_request, opt(params["title"]), opt(params["slug"]), opt(params["summary"]),
-       params["tags"] || [], params["blocks"] || [], opt(params["intent"]),
-       falsy_opt(params["actor"]), falsy_opt(params["visibility"])}
+      {:create_request, opt(params["title"]), opt(params["slug"]), opt(params["summary"]), params["tags"] || [],
+       params["blocks"] || [], opt(params["intent"]), falsy_opt(params["actor"]), falsy_opt(params["visibility"])}
 
     case :aveline@handlers@doc_write.create(CtxBuilder.build(), CtxBuilder.scope(conn), req) do
       {:ok, pointer} -> render_pointer(conn, pointer)
@@ -114,10 +138,9 @@ defmodule AvelineWeb.Api.DocController do
     ops = params["operations"]
 
     req =
-      {:update_request, if(is_list(blocks), do: {:some, blocks}, else: :none), is_list(ops),
-       ops || [], opt(params["title"]), opt(params["summary"]), opt(params["tags"]),
-       opt(params["intent"]), falsy_opt(params["actor"]), params["resolves_comment_ids"] || [],
-       params["comment_dispositions"] || []}
+      {:update_request, if(is_list(blocks), do: {:some, blocks}, else: :none), is_list(ops), ops || [],
+       opt(params["title"]), opt(params["summary"]), opt(params["tags"]), opt(params["intent"]),
+       falsy_opt(params["actor"]), params["resolves_comment_ids"] || [], params["comment_dispositions"] || []}
 
     case :aveline@handlers@doc_write.update(
            CtxBuilder.build(),

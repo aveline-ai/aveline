@@ -6,7 +6,10 @@ depends on it.
 
 Token-only signup: pick a username + name your first workspace; the API
 key is pre-generated (GET /papi/signup/preview-token) and shown in the
-form behind a copy gate. Submit hits POST /papi/signup (which mirrors
+form behind a copy gate. The workspace template comes from the shared
+`Ui.TemplatePicker` under the workspace name (this page always creates
+a workspace; invite signups live in Page.Invite and take no template).
+Submit hits POST /papi/signup (which mirrors
 the LiveView's validation order and messages), then logs in via
 POST /papi/session and does a full page load to /w/:slug/welcome so the
 fresh session cookie applies everywhere.
@@ -28,6 +31,7 @@ import Json.Encode as Encode
 import Route
 import Session exposing (Session)
 import Ui.AuthBg
+import Ui.TemplatePicker as TemplatePicker
 
 
 type alias Model =
@@ -36,6 +40,7 @@ type alias Model =
     , username : String
     , workspaceName : String
     , previewToken : Maybe String
+    , picker : TemplatePicker.Model
     , copied : Bool
     , error : Maybe String
     , submitting : Bool
@@ -47,6 +52,7 @@ type Msg
     | GotPreviewToken (Result Api.Error String)
     | UsernameChanged String
     | WorkspaceNameChanged String
+    | PickerMsg TemplatePicker.Msg
     | CopyClicked
     | TokenCopied
     | Submitted
@@ -57,12 +63,16 @@ type Msg
 init : Session -> ( Model, Cmd Msg )
 init session =
     let
+        ( picker, pickerCmd ) =
+            TemplatePicker.init session
+
         model =
             { session = session
             , redirecting = False
             , username = ""
             , workspaceName = ""
             , previewToken = Nothing
+            , picker = picker
             , copied = False
             , error = Nothing
             , submitting = False
@@ -78,7 +88,7 @@ init session =
             )
 
         Nothing ->
-            ( model, fetchPreviewToken session )
+            ( model, Cmd.batch [ fetchPreviewToken session, Cmd.map PickerMsg pickerCmd ] )
 
 
 fetchPreviewToken : Session -> Cmd Msg
@@ -141,6 +151,9 @@ update msg model =
         WorkspaceNameChanged raw ->
             ( { model | workspaceName = raw, error = Nothing }, Cmd.none )
 
+        PickerMsg pickerMsg ->
+            ( { model | picker = TemplatePicker.update pickerMsg model.picker }, Cmd.none )
+
         CopyClicked ->
             ( { model | copied = True }, Cmd.none )
 
@@ -161,6 +174,7 @@ update msg model =
                     (Encode.object
                         [ ( "username", Encode.string model.username )
                         , ( "workspace_name", Encode.string model.workspaceName )
+                        , ( "template", Encode.string (TemplatePicker.selected model.picker) )
                         , ( "token", Encode.string (Maybe.withDefault "" model.previewToken) )
                         , ( "copied", Encode.bool model.copied )
                         ]
@@ -248,6 +262,7 @@ viewForm model =
                             , onInput WorkspaceNameChanged
                             ]
                             []
+                        , Html.map PickerMsg (TemplatePicker.view model.picker)
                         , label [ class "auth-label", style "margin-top" "18px" ] [ text "Your API key" ]
                         , Auth.Ui.tokenField
                             { token = Maybe.withDefault "" model.previewToken
