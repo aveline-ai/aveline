@@ -34,12 +34,20 @@ defmodule AvelineWeb.Api.DocPortedEndpointsTest do
     assert body["doc"]["orientation"] == true
     assert is_list(body["doc"]["blocks"])
 
-    # Aveline's base doc rides along, versioned, beside the team's doc.
-    assert body["primer"]["version"] == Aveline.Primer.version()
-    assert is_list(body["primer"]["blocks"]) and body["primer"]["blocks"] != []
+    # Aveline's guide rides along in brief, versioned, beside the team's
+    # doc, with the template the workspace started from and the
+    # first-session cue.
+    assert body["guide"]["version"] == Aveline.Guide.version()
+    assert body["guide"]["blocks"] == Aveline.Guide.summary_blocks()
+    assert body["template"] == "autonomous-dev"
+    assert body["first_session"] == true
 
     orientation = Aveline.Docs.get_orientation(ws.id)
     assert Aveline.DocViews.agent_viewed?(orientation.base_doc_id, user.id)
+
+    # The second read is no longer a first session.
+    again = conn |> get(~p"/api/workspaces/#{ws.slug}/orientation") |> json_response(200)
+    assert again["first_session"] == false
   end
 
   test "restore: 404 unknown slug, not_user_deleted when live, ok after delete", %{

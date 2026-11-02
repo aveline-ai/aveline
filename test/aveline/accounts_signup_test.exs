@@ -7,7 +7,11 @@ defmodule Aveline.AccountsSignupTest do
 
   test "creates a user, workspace, membership, and token in one shot" do
     assert {:ok, %{user: user, workspace: ws, token: plaintext}} =
-             Accounts.signup(%{"username" => "Dragon", "workspace_name" => "Dragon Inc"})
+             Accounts.signup(%{
+               "username" => "Dragon",
+               "workspace_name" => "Dragon Inc",
+               "template" => "autonomous-dev"
+             })
 
     # username is downcased
     assert user.username == "dragon"
@@ -27,22 +31,27 @@ defmodule Aveline.AccountsSignupTest do
   end
 
   test "rejects duplicate username" do
-    {:ok, _} = Accounts.signup(%{"username" => "arie", "workspace_name" => "Arie's Lab"})
+    {:ok, _} =
+      Accounts.signup(%{"username" => "arie", "workspace_name" => "Arie's Lab", "template" => "autonomous-dev"})
 
     assert {:error, %Ecto.Changeset{} = cs} =
-             Accounts.signup(%{"username" => "arie", "workspace_name" => "Other"})
+             Accounts.signup(%{"username" => "arie", "workspace_name" => "Other", "template" => "autonomous-dev"})
 
     assert "has already been taken" in (cs |> errors_on() |> Map.get(:username, []))
   end
 
   test "rejects bad username format" do
     assert {:error, %Ecto.Changeset{}} =
-             Accounts.signup(%{"username" => "Bad Name!", "workspace_name" => "Anything"})
+             Accounts.signup(%{
+               "username" => "Bad Name!",
+               "workspace_name" => "Anything",
+               "template" => "autonomous-dev"
+             })
   end
 
   test "allows nil email" do
     {:ok, %{user: user}} =
-      Accounts.signup(%{"username" => "noemail", "workspace_name" => "No Email Co"})
+      Accounts.signup(%{"username" => "noemail", "workspace_name" => "No Email Co", "template" => "autonomous-dev"})
 
     assert is_nil(user.email)
   end

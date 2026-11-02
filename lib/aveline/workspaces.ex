@@ -52,44 +52,33 @@ defmodule Aveline.Workspaces do
 
   def get_workspace(id), do: Repo.get(Workspace, id)
 
-  # "standard" furnishes the workspace; "custom" leaves the team an empty
-  # frame. Omitting it means standard, so a caller that does not care gets
-  # what every workspace got before this existed. Naming something else is
-  # a bug in the caller rather than a user error: the API path validates
-  # it in the Gleam handler and answers setup_invalid, so anything that
-  # reaches here unrecognised came from code, and silently furnishing the
-  # workspace anyway would hide it.
-  defp setup_mode(attrs) do
-    case Map.get(attrs, "setup") || Map.get(attrs, :setup) do
-      nil -> :standard
-      "standard" -> :standard
-      :standard -> :standard
-      "custom" -> :custom
-      :custom -> :custom
-      other -> raise ArgumentError, "unknown workspace setup mode: #{inspect(other)}"
-    end
-  end
+  @doc """
+  Create a workspace and furnish it from its template.
 
+  `attrs` must carry `"template"`, one of `Aveline.Workspaces.Template.names/0`;
+  a missing or unknown name fails the changeset (`:template`). The API
+  path validates it first in the Gleam handler and answers
+  `template_required` / `template_invalid`, so a changeset failure here
+  means a caller in code forgot it.
+
+  Furnishing is ordinary data the team reshapes afterwards: the
+  template's tags, its orientation doc, its docs, and its boards, pinned.
+  The built-in workspace source exists from the first breath, creator or
+  not.
+  """
   def create_workspace(attrs) do
     %Workspace{}
     |> Workspace.changeset(attrs)
     |> Repo.insert()
     |> case do
       {:ok, ws} ->
-        # A workspace is furnished according to the mode it was created
-        # with (Aveline.Workspaces.Template). Both modes get an
-        # orientation doc; :standard also gets the tag set, the boards and
-        # a template doc, and :custom gets an empty frame to write into.
-        # All of it is ordinary data the team reshapes afterwards.
         creator = Map.get(attrs, "created_by_id") || Map.get(attrs, :created_by_id)
-        mode = setup_mode(attrs)
+        template = Aveline.Workspaces.Template.module(ws.template)
 
-        # The built-in workspace source (the query catalog's virtual
-        # database) exists from the first breath, creator or not.
         {:ok, _} = Aveline.DataSources.ensure_workspace_source(ws.id)
 
         if creator do
-          Enum.each(Aveline.Workspaces.Template.tags(mode), fn {slug, description, color, sort_key} ->
+          Enum.each(template.tags(), fn {slug, description, color, sort_key} ->
             {:ok, _} =
               Aveline.Tags.create(ws.id, slug, description, creator,
                 color: color,
@@ -97,9 +86,9 @@ defmodule Aveline.Workspaces do
               )
           end)
 
-          {:ok, _} = Aveline.Docs.seed_orientation_doc(ws.id, creator, mode)
+          {:ok, _} = Aveline.Docs.seed_orientation_doc(ws.id, creator, template.orientation_blocks())
 
-          Enum.each(Aveline.Workspaces.Template.docs(mode), fn {slug, title, summary, tags, blocks} ->
+          Enum.each(template.docs(), fn {slug, title, summary, tags, blocks} ->
             {:ok, _} =
               Aveline.Docs.create_doc(%{
                 workspace_id: ws.id,
@@ -115,7 +104,7 @@ defmodule Aveline.Workspaces do
               })
           end)
 
-          Enum.each(Aveline.Workspaces.Template.views(mode), fn {name, description, config} ->
+          Enum.each(template.views(), fn {name, description, config} ->
             {:ok, view} = Aveline.Views.create(ws.id, name, description, config, creator)
             {:ok, _} = Aveline.Views.set_pinned(view, true)
           end)

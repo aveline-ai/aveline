@@ -72,6 +72,7 @@ defmodule Aveline.Accounts do
     normalized = normalize_signup_attrs(attrs)
     invite_code = Map.get(attrs, :invite_code) || Map.get(attrs, "invite_code")
     workspace_name = Map.get(attrs, :workspace_name) || Map.get(attrs, "workspace_name")
+    template = Map.get(attrs, :template) || Map.get(attrs, "template")
 
     Multi.new()
     |> Multi.insert(:user, User.changeset(%User{}, normalized))
@@ -89,7 +90,8 @@ defmodule Aveline.Accounts do
             Workspaces.create_workspace(%{
               "slug" => slug,
               "name" => name,
-              "created_by_id" => user.id
+              "created_by_id" => user.id,
+              "template" => template
             })
           end
 

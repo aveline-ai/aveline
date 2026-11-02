@@ -653,7 +653,7 @@ defmodule Aveline.Docs do
   is a form to fill in, not prose — short prompts the team (or their
   agents) replace as conventions emerge.
   """
-  def seed_orientation_doc(workspace_id, owner_id, mode \\ :standard) do
+  def seed_orientation_doc(workspace_id, owner_id, blocks) when is_list(blocks) do
     create_doc(%{
       workspace_id: workspace_id,
       owner_id: owner_id,
@@ -664,7 +664,7 @@ defmodule Aveline.Docs do
       summary:
         "What lives in this workspace and how the team works. Agents fetch this first (aveline get-orientation); humans keep it honest.",
       intent: "seed the workspace orientation doc",
-      blocks: Aveline.Workspaces.Template.orientation_blocks(mode)
+      blocks: blocks
     })
   end
 

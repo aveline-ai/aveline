@@ -28,23 +28,37 @@ test_workspaces_get_not_found() {
 
 test_workspaces_create_with_explicit_slug() {
   local slug; slug="$(us explicit-ws)"
-  run_cli create-workspace --name "Explicit" --slug "$slug"
+  run_cli create-workspace --name "Explicit" --slug "$slug" --template autonomous-dev
   expect_ok "create-workspace with explicit slug"
   expect_eq ".workspace.slug" "$slug" "echoed slug matches"
 }
 
 test_workspaces_create_auto_slug_from_name() {
-  run_cli create-workspace --name "Auto Slug $(us)"
+  run_cli create-workspace --name "Auto Slug $(us)" --template blank
   expect_ok "create-workspace derives slug from name"
   expect_present ".workspace.slug" "derived slug present"
 }
 
 test_workspaces_create_duplicate_slug() {
   local slug; slug="$(us dup-ws)"
-  run_cli create-workspace --name "First" --slug "$slug"
+  run_cli create-workspace --name "First" --slug "$slug" --template autonomous-dev
   expect_ok "first create ok"
-  run_cli create-workspace --name "Second" --slug "$slug"
+  run_cli create-workspace --name "Second" --slug "$slug" --template autonomous-dev
   expect_err "slug_taken" 2 "duplicate slug → slug_taken / exit 2"
+}
+
+test_workspaces_create_requires_template() {
+  run_cli create-workspace --name "No Template $(us)"
+  if [[ "$LAST_EXIT" != "0" ]]; then
+    pass "create-workspace without --template exits non-zero"
+  else
+    fail "create-workspace accepted a missing --template"
+  fi
+}
+
+test_workspaces_create_rejects_unknown_template() {
+  run_cli create-workspace --name "Odd Template $(us)" --template autonomous-dve
+  expect_err "template_invalid" 2 "unknown template → template_invalid / exit 2"
 }
 
 test_workspaces_create_no_name_local_error() {

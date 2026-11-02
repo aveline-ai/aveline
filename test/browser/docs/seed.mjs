@@ -26,7 +26,7 @@ async function signup(browser, username, workspaceName) {
       const res = await fetch('/papi/signup', {
         method: 'POST',
         headers: h,
-        body: JSON.stringify({ username, workspace_name: workspaceName, copied: true, token }),
+        body: JSON.stringify({ username, workspace_name: workspaceName, template: "autonomous-dev", copied: true, token }),
       });
       return { status: res.status, body: await res.json() };
     },

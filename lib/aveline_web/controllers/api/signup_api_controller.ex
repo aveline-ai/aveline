@@ -39,6 +39,7 @@ defmodule AvelineWeb.Api.SignupApiController do
     username = normalize_username(params["username"])
     invite_code = presence(params["invite_code"])
     workspace_name = params["workspace_name"] |> to_string() |> String.trim()
+    template = presence(params["template"])
     copied = params["copied"] in [true, "true"]
     token = params["token"] |> to_string()
 
@@ -55,6 +56,12 @@ defmodule AvelineWeb.Api.SignupApiController do
 
         Slug.derive(workspace_name) in [nil, ""] ->
           "Workspace name needs at least one letter or digit."
+
+        template == nil ->
+          "Pick a template for the workspace."
+
+        not Aveline.Workspaces.Template.valid?(template) ->
+          "That template does not exist."
 
         true ->
           nil
@@ -83,7 +90,7 @@ defmodule AvelineWeb.Api.SignupApiController do
           |> then(fn a ->
             if invite_code,
               do: Map.put(a, "invite_code", invite_code),
-              else: Map.put(a, "workspace_name", workspace_name)
+              else: a |> Map.put("workspace_name", workspace_name) |> Map.put("template", template)
           end)
 
         case Accounts.signup(attrs) do

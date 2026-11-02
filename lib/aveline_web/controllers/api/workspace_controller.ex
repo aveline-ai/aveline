@@ -29,7 +29,7 @@ defmodule AvelineWeb.Api.WorkspaceController do
 
   def create(conn, params) do
     request =
-      {:create_request, opt_binary(params["name"]), slug_param(params["slug"]), opt_binary(params["setup"])}
+      {:create_request, opt_binary(params["name"]), slug_param(params["slug"]), opt_binary(params["template"])}
 
     case :aveline@handlers@workspaces.create(CtxBuilder.build(), actor(conn), request) do
       {:ok, ws} -> Envelope.ok(conn, %{workspace: workspace_map(ws)})

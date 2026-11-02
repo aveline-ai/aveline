@@ -11,6 +11,7 @@ import aveline/core/error.{type ApiError, Forbidden, Invalid}
 import aveline/core/scope.{type Actor}
 import aveline/slug
 import aveline/workspaces/workspace_info.{type WorkspaceInfo}
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
@@ -19,7 +20,7 @@ pub type CreateRequest {
   CreateRequest(
     name: Option(String),
     slug: Option(String),
-    setup: Option(String),
+    template: Option(String),
   )
 }
 
@@ -49,9 +50,9 @@ pub fn create(
 ) -> Result(WorkspaceInfo, ApiError) {
   use name <- result.try(validate_name(req.name))
   use slug_value <- result.try(resolve_slug(req.slug, name))
-  use setup <- result.try(validate_setup(req.setup))
+  use template <- result.try(validate_template(ctx, req.template))
 
-  case ctx.workspaces.create(name, slug_value, actor.id, setup) {
+  case ctx.workspaces.create(name, slug_value, actor.id, template) {
     Error(SlugTaken) -> Error(Invalid("slug_taken", "Slug already in use."))
     Ok(ws) -> {
       ctx.workspaces.ensure_member(ws.id, actor.id)
@@ -60,20 +61,33 @@ pub fn create(
   }
 }
 
-/// How far to furnish the new workspace. Omitted means "standard": a
-/// caller that says nothing gets the loop, the tags and the boards.
-/// Anything else is rejected rather than quietly treated as standard,
-/// so a typo cannot leave a team wondering where their boards went.
-fn validate_setup(setup: Option(String)) -> Result(String, ApiError) {
-  case setup {
-    option.None -> Ok("standard")
-    option.Some("standard") -> Ok("standard")
-    option.Some("custom") -> Ok("custom")
-    option.Some(other) ->
+/// Every workspace starts from a named template, chosen by the person
+/// (the agent asks; `aveline templates` shows what each contains). It is
+/// required rather than defaulted so nothing is ever applied silently,
+/// and a typo is refused rather than quietly treated as some other
+/// template.
+fn validate_template(
+  ctx: Ctx,
+  template: Option(String),
+) -> Result(String, ApiError) {
+  let names = ctx.workspaces.template_names()
+  case template {
+    None ->
       Error(Invalid(
-        "setup_invalid",
-        "setup must be \"standard\" or \"custom\", got \"" <> other <> "\".",
+        "template_required",
+        "template is required: one of " <> string.join(names, ", ") <> ".",
       ))
+    Some(t) ->
+      case list.contains(names, t) {
+        True -> Ok(t)
+        False ->
+          Error(Invalid(
+            "template_invalid",
+            "template must be one of "
+              <> string.join(names, ", ")
+              <> "; got \"" <> t <> "\".",
+          ))
+      }
   }
 }
 

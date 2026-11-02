@@ -87,6 +87,11 @@ defmodule AvelineWeb.Router do
   scope "/papi", AvelineWeb.Api do
     pipe_through :papi
 
+    # Static, open: the signup picker and the help page run before login.
+    get "/guide", GuideController, :show
+    get "/templates", TemplateController, :index
+    get "/templates/:name", TemplateController, :show
+
     post "/session", SessionApiController, :create
 
     # fe-auth routes
@@ -232,7 +237,9 @@ defmodule AvelineWeb.Router do
     post "/keys", KeyController, :create
     delete "/keys/:id", KeyController, :delete
     get "/contract", ContractController, :show
-    get "/starter", StarterController, :show
+    get "/guide", GuideController, :show
+    get "/templates", TemplateController, :index
+    get "/templates/:name", TemplateController, :show
     get "/workspaces", WorkspaceController, :index
     post "/workspaces", WorkspaceController, :create
     get "/workspaces/:slug", WorkspaceController, :show
