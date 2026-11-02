@@ -66,6 +66,7 @@ defmodule AvelineWeb.Router do
     get "/w/:slug/data-sources/:name", RedirectController, :data_sources
     get "/w/:slug/team", SpaController, :index
     get "/w/:slug/settings", SpaController, :index
+    get "/w/:slug/guide", SpaController, :index
   end
 
   # ===== Browser API (Elm SPA) =====
