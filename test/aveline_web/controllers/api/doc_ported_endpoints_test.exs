@@ -34,6 +34,10 @@ defmodule AvelineWeb.Api.DocPortedEndpointsTest do
     assert body["doc"]["orientation"] == true
     assert is_list(body["doc"]["blocks"])
 
+    # Aveline's base doc rides along, versioned, beside the team's doc.
+    assert body["primer"]["version"] == Aveline.Primer.version()
+    assert is_list(body["primer"]["blocks"]) and body["primer"]["blocks"] != []
+
     orientation = Aveline.Docs.get_orientation(ws.id)
     assert Aveline.DocViews.agent_viewed?(orientation.base_doc_id, user.id)
   end
