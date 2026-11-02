@@ -248,6 +248,10 @@ viewPinned slug data =
                                     )
                                 , span [ class "orientation-cta" ] [ text "Get oriented →" ]
                                 ]
+                            , div [ class "orientation-aside" ]
+                                [ a [ href (Route.href (Route.Guide slug)), class "orientation-guide-link" ]
+                                    [ text "How Aveline works" ]
+                                ]
                             ]
 
                         Nothing ->
