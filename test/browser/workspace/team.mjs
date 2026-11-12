@@ -6,7 +6,7 @@ import { loadState, login, attachConsole, launch, shot, report, api, BASE } from
 const st = loadState();
 const A = api(st.owner.token, st.slug);
 const b = await launch(chromium);
-const page = await (await b.newContext({ viewport: { width: 1440, height: 1100 } })).newPage();
+const page = await (await b.newContext({ viewport: { width: 1440, height: 1100 }, permissions: ['clipboard-read', 'clipboard-write'] })).newPage();
 const errs = [];
 attachConsole(page, errs);
 await login(page, st.owner.token);
@@ -58,6 +58,13 @@ await page.getByRole('button', { name: 'Confirm rotate' }).click();
 await page.waitForTimeout(600);
 const url2 = (await page.locator('#invite-url-value').innerText()).trim();
 r['rotate changes the invite URL'] = { pass: url2 !== url1 && /\/invite\/inv_/.test(url2), note: `${url1} -> ${url2}` };
+
+// --- copy button puts the invite URL on the clipboard ---
+await page.locator('#copy-invite-btn').click();
+await page.waitForTimeout(200);
+const copiedUrl = await page.evaluate(() => navigator.clipboard.readText()).catch((e) => `ERR ${e}`);
+r['copy button copies the invite URL'] = { pass: copiedUrl === url2, note: copiedUrl };
+r['copy button confirms'] = { pass: (await page.locator('#copy-invite-btn').innerText()).includes('Copied') };
 r['rotate notice shown'] = { pass: (await txt()).includes('Rotated.') };
 await shot(page, 'team-invite-rotated');
 

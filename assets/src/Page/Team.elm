@@ -49,6 +49,7 @@ type alias Model =
     , team : Status TeamData
     , pendingConfirm : Maybe Confirm
     , notice : Maybe Notice
+    , inviteCopied : Bool
     }
 
 
@@ -118,6 +119,7 @@ init session slug =
       , team = Loading
       , pendingConfirm = Nothing
       , notice = Nothing
+      , inviteCopied = False
       }
     , Cmd.batch
         [ Task.perform GotNow Time.now
@@ -156,6 +158,7 @@ type Msg
     | RemoveMember String
     | GotRemoved (Result Api.Error ())
     | CancelConfirm
+    | CopyInviteClicked
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -192,7 +195,7 @@ update msg model =
             )
 
         GotInvite (Ok invite) ->
-            ( { model | team = setInvite (Just invite) model.team, notice = Nothing }
+            ( { model | team = setInvite (Just invite) model.team, notice = Nothing, inviteCopied = False }
             , Cmd.none
             )
 
@@ -215,6 +218,7 @@ update msg model =
             ( { model
                 | team = setInvite (Just invite) model.team
                 , notice = Just { error = False, message = "Rotated. Old link no longer works." }
+                , inviteCopied = False
               }
             , Cmd.none
             )
@@ -270,6 +274,11 @@ update msg model =
 
         CancelConfirm ->
             ( { model | pendingConfirm = Nothing }, Cmd.none )
+
+        CopyInviteClicked ->
+            -- The clipboard write happens in fe-auth.js's [data-copy-target]
+            -- delegation; Elm only owns the label.
+            ( { model | inviteCopied = True }, Cmd.none )
 
 
 {-| Two-step confirmation: first click arms the button, second fires.
@@ -545,10 +554,18 @@ viewInvite model invite =
                 [ type_ "button"
                 , id "copy-invite-btn"
                 , class "auth-secondary"
-                , attribute "data-target" "#invite-url-value"
+                , attribute "data-copy-target" "#invite-url-value"
                 , attribute "style" "height:36px;padding:0 14px"
+                , onClick CopyInviteClicked
                 ]
-                [ text "Copy" ]
+                [ text
+                    (if model.inviteCopied then
+                        "Copied ✓"
+
+                     else
+                        "Copy"
+                    )
+                ]
             ]
         , div [ attribute "style" "display:flex;gap:8px;margin-top:12px" ]
             [ button

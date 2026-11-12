@@ -4,7 +4,7 @@ import { loadState, login, attachConsole, launch, shot, report, BASE } from './l
 
 const st = loadState();
 const b = await launch(chromium);
-const page = await (await b.newContext({ viewport: { width: 1440, height: 1100 } })).newPage();
+const page = await (await b.newContext({ viewport: { width: 1440, height: 1100 }, permissions: ['clipboard-read', 'clipboard-write'] })).newPage();
 const errs = [];
 attachConsole(page, errs);
 await login(page, st.owner.token);
@@ -68,6 +68,13 @@ await page.waitForTimeout(700);
 const reveal = await page.locator('#new-key-value').innerText().catch(() => '');
 r['create key shows one-time reveal'] = { pass: /^avl_\w+/.test(reveal.trim()), note: reveal.trim().slice(0, 12) + '…' };
 await shot(page, 'settings-key-created');
+
+// --- copy button puts the key on the clipboard ---
+await page.locator('#copy-new-key-btn').click();
+await page.waitForTimeout(200);
+const copiedKey = await page.evaluate(() => navigator.clipboard.readText()).catch((e) => `ERR ${e}`);
+r['copy button copies the new key'] = { pass: copiedKey === reveal.trim(), note: copiedKey.slice(0, 12) + '…' };
+r['copy button confirms'] = { pass: (await page.locator('#copy-new-key-btn').innerText()).includes('Copied') };
 
 // --- revoke the new key ---
 // Target the row for the key we just made, never the signup token.
