@@ -12,8 +12,8 @@ Data:
   - GET /papi/keys, POST /papi/keys, DELETE /papi/keys/:id
 
 `data-confirm` is replaced by a two-step arm/confirm on the revoke
-button; the copy buttons keep the LiveView markup but need a clipboard
-port (deferred to the coordinator).
+button. The new-key Copy button uses `data-copy-target`: fe-auth.js's
+click delegation does the clipboard write; Elm only owns the label.
 
 -}
 
@@ -45,6 +45,7 @@ type alias Model =
     , keys : List Key
     , keysLoaded : Bool
     , newKey : Maybe NewKey
+    , keyCopied : Bool
     , keyError : Maybe String
     , keyNameInput : String
     , pendingRevoke : Maybe String
@@ -79,6 +80,7 @@ init session slug =
       , keys = []
       , keysLoaded = False
       , newKey = Nothing
+      , keyCopied = False
       , keyError = Nothing
       , keyNameInput = ""
       , pendingRevoke = Nothing
@@ -110,6 +112,7 @@ type Msg
     | KeyNameChanged String
     | CreateKey
     | GotCreatedKey (Result Api.Error NewKey)
+    | CopyKeyClicked
     | RevokeKey String
     | GotRevoked String (Result Api.Error ())
 
@@ -187,12 +190,17 @@ update msg model =
                 )
 
         GotCreatedKey (Ok newKey) ->
-            ( { model | newKey = Just newKey, keyError = Nothing, keyNameInput = "" }
+            ( { model | newKey = Just newKey, keyCopied = False, keyError = Nothing, keyNameInput = "" }
             , fetchKeys model.session
             )
 
         GotCreatedKey (Err _) ->
             ( { model | keyError = Just "Could not create the key. Try again." }, Cmd.none )
+
+        CopyKeyClicked ->
+            -- The clipboard write happens in fe-auth.js's [data-copy-target]
+            -- delegation; Elm only owns the label.
+            ( { model | keyCopied = True }, Cmd.none )
 
         RevokeKey keyId ->
             -- Two-step confirmation standing in for data-confirm.
@@ -265,7 +273,7 @@ view model =
             ]
         , case model.newKey of
             Just newKey ->
-                viewNewKey newKey
+                viewNewKey model.keyCopied newKey
 
             Nothing ->
                 text ""
@@ -343,8 +351,8 @@ viewProfileForm model =
         )
 
 
-viewNewKey : NewKey -> Html Msg
-viewNewKey newKey =
+viewNewKey : Bool -> NewKey -> Html Msg
+viewNewKey copied newKey =
     div [ class "invite-block", attribute "style" "margin-bottom:14px" ]
         [ p [ class "auth-hint", attribute "style" "margin-bottom:10px" ]
             [ text "Your new key "
@@ -357,10 +365,18 @@ viewNewKey newKey =
                 [ type_ "button"
                 , id "copy-new-key-btn"
                 , class "auth-secondary"
-                , attribute "data-target" "#new-key-value"
+                , attribute "data-copy-target" "#new-key-value"
                 , attribute "style" "height:36px;padding:0 14px"
+                , onClick CopyKeyClicked
                 ]
-                [ text "Copy" ]
+                [ text
+                    (if copied then
+                        "Copied ✓"
+
+                     else
+                        "Copy"
+                    )
+                ]
             ]
         ]
 
